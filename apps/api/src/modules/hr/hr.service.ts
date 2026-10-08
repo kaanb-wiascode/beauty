@@ -1,8 +1,35 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import * as argon2 from 'argon2';
 import { Prisma, PrismaService } from '@beauty-erp/database';
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { RoleTemplateService } from '../roles/role-template.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 type StaffProfile = Record<string, unknown>;
+
+type EmployeeMasterRecord = {
+  staffId: string;
+  employeeNumber: string | null;
+  identityNumber: string | null;
+  dateOfBirth: string | null;
+  personalEmail: string | null;
+  address: string | null;
+  employmentType: string | null;
+  hireDate: string | null;
+  terminationDate: string | null;
+  bankName: string | null;
+  iban: string | null;
+  grossSalary: string | number | null;
+  salaryType: string | null;
+};
+
+type HrScope = {
+  tenantId: string;
+  companyId: string;
+  selectedBranchId: string | null;
+  branchIds: string[] | null;
+};
 
 function asJsonInput(value: StaffProfile): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -10,24 +37,855 @@ function asJsonInput(value: StaffProfile): Prisma.InputJsonValue {
 
 @Injectable()
 export class HrService {
-  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext) {}
-  private scope() { const tenantId=this.tenantContext.getTenantId(); const companyId=this.tenantContext.getCompanyId(); const branchId=this.tenantContext.getBranchId(); const roleScope=this.tenantContext.getRoleScope(); if(!tenantId)throw new BadRequestException('Tenant context is required.'); if(roleScope==='CENTRAL'&&branchId===null)return{tenantId,branchId:null,companyId}; if(!branchId)throw new BadRequestException('A branch must be selected for this operation.'); return{tenantId,branchId,companyId}; }
-  private profile(v:unknown):StaffProfile{return v&&typeof v==='object'&&!Array.isArray(v)?v as StaffProfile:{};}
-  async employees(){const{tenantId,branchId}=this.scope();const rows=await this.prisma.staff.findMany({where:branchId?{tenantId,branchId}:{tenantId},orderBy:[{firstName:'asc'},{lastName:'asc'}],select:{id:true,firstName:true,lastName:true,phone:true,email:true,status:true,branchId:true,profile:true}});return rows.map(s=>{const p=this.profile(s.profile);return{...s,personnelNumber:p.personnelNumber??null,identityNumber:p.identityNumber??null,department:p.department??null,position:p.position??null,employmentType:p.employmentType??null,hireDate:p.hireDate??null,iban:p.iban??null,bankName:p.bankName??null,grossSalary:Number(p.salary??0)};});}
-  async createEmployee(body:any){const{tenantId,branchId}=this.scope();const targetBranchId=body.branchId??branchId;if(!targetBranchId||!body.firstName||!body.lastName)throw new BadRequestException('firstName, lastName and branchId are required.');const branch=await this.prisma.branch.findFirst({where:{id:targetBranchId,company:{tenantId}},select:{id:true}});if(!branch)throw new BadRequestException('Branch is not available in this tenant.');if(body.email){const existing=await this.prisma.staff.findFirst({where:{tenantId,email:body.email}});if(existing)throw new BadRequestException('A staff member with this email already exists.');}const profile:StaffProfile={};for(const key of ['personnelNumber','identityNumber','department','position','employmentType','hireDate','iban','bankName','salary','salaryType','annualLeaveDays','usedLeaveDays','pendingLeaveDays'])if(body[key]!==undefined)profile[key]=body[key];return this.prisma.staff.create({data:{tenantId,branchId:targetBranchId,firstName:body.firstName,lastName:body.lastName,phone:body.phone??null,email:body.email??null,status:body.status??'ACTIVE',profile:asJsonInput(profile)}});}
-  async updateEmployee(id:string,body:any){const{tenantId,branchId}=this.scope();const c=await this.prisma.staff.findFirst({where:{id,tenantId,...(branchId?{branchId}:{})}});if(!c)throw new NotFoundException('Staff not found');const next={...this.profile(c.profile)};for(const k of ['personnelNumber','identityNumber','department','position','employmentType','hireDate','iban','bankName','salary','salaryType','annualLeaveDays','usedLeaveDays','pendingLeaveDays'])if(body[k]!==undefined)next[k]=body[k];return this.prisma.staff.update({where:{id},data:{firstName:body.firstName??c.firstName,lastName:body.lastName??c.lastName,phone:body.phone??c.phone,email:body.email??c.email,status:body.status??c.status,profile:asJsonInput(next)}});}
-  async deleteEmployee(id:string){const{tenantId,branchId}=this.scope();const c=await this.prisma.staff.findFirst({where:{id,tenantId,...(branchId?{branchId}:{})}});if(!c)throw new NotFoundException('Staff not found');return this.prisma.staff.update({where:{id},data:{status:'ARCHIVED'}});}
-  async personnelFiles(){return this.employees();}
-  async attendance(year?:number,month?:number){const{tenantId,branchId}=this.scope(),y=year??new Date().getFullYear(),m=month??new Date().getMonth()+1;return this.prisma.$queryRawUnsafe<any[]>(`SELECT ar.*,s."firstName" AS "firstName",s."lastName" AS "lastName" FROM attendance_records ar JOIN staff s ON s.id=ar.staff_id WHERE ar.tenant_id=$1 AND EXTRACT(YEAR FROM ar.work_date)=$2 AND EXTRACT(MONTH FROM ar.work_date)=$3 ${branchId?'AND ar.branch_id=$4':''} ORDER BY ar.work_date,s."firstName"`,...(branchId?[tenantId,y,m,branchId]:[tenantId,y,m]));}
-  async upsertAttendance(b:any){const{tenantId,branchId}=this.scope(),target=b.branchId??branchId;if(!target||!b.staffId||!b.workDate)throw new BadRequestException('staffId, branchId and workDate are required.');return this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO attendance_records(tenant_id,branch_id,staff_id,work_date,check_in,check_out,break_minutes,worked_minutes,overtime_minutes,status,note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(staff_id,work_date) DO UPDATE SET check_in=EXCLUDED.check_in,check_out=EXCLUDED.check_out,break_minutes=EXCLUDED.break_minutes,worked_minutes=EXCLUDED.worked_minutes,overtime_minutes=EXCLUDED.overtime_minutes,status=EXCLUDED.status,note=EXCLUDED.note,updated_at=CURRENT_TIMESTAMP RETURNING *`,tenantId,target,b.staffId,b.workDate,b.checkIn??null,b.checkOut??null,Number(b.breakMinutes??0),Number(b.workedMinutes??0),Number(b.overtimeMinutes??0),b.status??'PRESENT',b.note??null);}
-  async leaves(){const{tenantId,branchId}=this.scope();return this.prisma.$queryRawUnsafe<any[]>(`SELECT lr.*,s."firstName" AS "firstName",s."lastName" AS "lastName" FROM leave_requests lr JOIN staff s ON s.id=lr.staff_id WHERE lr.tenant_id=$1 ${branchId?'AND lr.branch_id=$2':''} ORDER BY lr.start_date DESC,lr.created_at DESC`,...(branchId?[tenantId,branchId]:[tenantId]));}
-  async createLeave(b:any){const{tenantId,branchId}=this.scope(),target=b.branchId??branchId;if(!target||!b.staffId||!b.type||!b.startDate||!b.endDate)throw new BadRequestException('staffId, branchId, type, startDate and endDate are required.');const days=Number(b.days??0);if(days<=0)throw new BadRequestException('days must be greater than zero.');return this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO leave_requests(tenant_id,branch_id,staff_id,type,start_date,end_date,days,status,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,tenantId,target,b.staffId,b.type,b.startDate,b.endDate,days,b.status??'PENDING',b.reason??null);}
-  async updateLeave(id:string,b:any){const{tenantId,branchId}=this.scope();return this.prisma.$queryRawUnsafe<any[]>(`UPDATE leave_requests SET status=COALESCE($1,status),reason=COALESCE($2,reason),updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 ${branchId?'AND branch_id=$5':''} RETURNING *`,b.status??null,b.reason??null,id,tenantId,...(branchId?[branchId]:[]));}
-  async deleteLeave(id:string){const{tenantId,branchId}=this.scope();return this.prisma.$queryRawUnsafe<any[]>(`DELETE FROM leave_requests WHERE id=$1 AND tenant_id=$2 ${branchId?'AND branch_id=$3':''} RETURNING *`,id,tenantId,...(branchId?[branchId]:[]));}
-  async payroll(year?:number,month?:number){const{tenantId,branchId}=this.scope(),y=year??new Date().getFullYear(),m=month??new Date().getMonth()+1;return this.prisma.$queryRawUnsafe<any[]>(`SELECT pi.*,s."firstName" AS "firstName",s."lastName" AS "lastName",pp.year,pp.month,pp.status AS "periodStatus" FROM payroll_items pi JOIN payroll_periods pp ON pp.id=pi.period_id JOIN staff s ON s.id=pi.staff_id WHERE pi.tenant_id=$1 AND pp.year=$2 AND pp.month=$3 ${branchId?'AND pi.branch_id=$4':''} ORDER BY s."firstName",s."lastName"`,...(branchId?[tenantId,y,m,branchId]:[tenantId,y,m]));}
-  async createPayrollPeriod(year:number,month:number){const{tenantId}=this.scope();if(month<1||month>12)throw new BadRequestException('month must be between 1 and 12.');return this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO payroll_periods(tenant_id,year,month,status) VALUES($1,$2,$3,'DRAFT') ON CONFLICT(tenant_id,year,month) DO UPDATE SET updated_at=CURRENT_TIMESTAMP RETURNING *`,tenantId,year,month);}
-  async payments(year?:number,month?:number){const{tenantId,branchId}=this.scope(),y=year??new Date().getFullYear(),m=month??new Date().getMonth()+1;return this.prisma.$queryRawUnsafe<any[]>(`SELECT sp.*,s."firstName" AS "firstName",s."lastName" AS "lastName" FROM salary_payments sp JOIN payroll_periods pp ON pp.id=sp.period_id JOIN staff s ON s.id=sp.staff_id WHERE sp.tenant_id=$1 AND pp.year=$2 AND pp.month=$3 ${branchId?'AND sp.branch_id=$4':''} ORDER BY sp.paid_at DESC`,...(branchId?[tenantId,y,m,branchId]:[tenantId,y,m]));}
-  async createPayment(b:any){const{tenantId,branchId}=this.scope();if(!branchId||!b.staffId||!b.amount||!b.year||!b.month)throw new BadRequestException('staffId, amount, year and month are required.');const period=await this.createPayrollPeriod(Number(b.year),Number(b.month));const p=(period as any[])[0];return this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO salary_payments(tenant_id,branch_id,period_id,staff_id,amount,method,status,paid_at,note) VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,CURRENT_TIMESTAMP),$9) RETURNING *`,tenantId,branchId,p.id,b.staffId,Number(b.amount),b.method??'BANK',b.status??'PAID',b.paidAt??null,b.note??null);}
-  async sgk(year?:number,month?:number){const{tenantId,branchId}=this.scope(),y=year??new Date().getFullYear(),m=month??new Date().getMonth()+1;return this.prisma.$queryRawUnsafe<any[]>(`SELECT sr.*,s."firstName" AS "firstName",s."lastName" AS "lastName" FROM sgk_records sr JOIN staff s ON s.id=sr.staff_id WHERE sr.tenant_id=$1 AND sr.period_year=$2 AND sr.period_month=$3 ${branchId?'AND sr.branch_id=$4':''} ORDER BY sr.record_date DESC`,...(branchId?[tenantId,y,m,branchId]:[tenantId,y,m]));}
-  async createSgk(b:any){const{tenantId,branchId}=this.scope();if(!branchId||!b.staffId||!b.year||!b.month)throw new BadRequestException('staffId, year and month are required.');return this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO sgk_records(tenant_id,branch_id,staff_id,period_year,period_month,status,document_no,record_date,note) VALUES($1,$2,$3,$4,$5,$6,$7,COALESCE($8,CURRENT_DATE),$9) RETURNING *`,tenantId,branchId,b.staffId,Number(b.year),Number(b.month),b.status??'DRAFT',b.documentNo??null,b.recordDate??null,b.note??null);}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
+    private readonly roleTemplateService: RoleTemplateService,
+  ) {}
+
+  private async scope(): Promise<HrScope> {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const selectedBranchId = this.tenantContext.getBranchId();
+    if (!tenantId) throw new BadRequestException('Kiracı bağlamı bulunamadı.');
+    if (!companyId) throw new BadRequestException('Şirket bağlamı bulunamadı.');
+
+    const scope = await this.organizationScope.getBranchScopedWhere();
+    if ('branchId' in scope) {
+      return {
+        tenantId,
+        companyId,
+        selectedBranchId,
+        branchIds:
+          typeof scope.branchId === 'string'
+            ? [scope.branchId]
+            : scope.branchId.in,
+      };
+    }
+
+    return { tenantId, companyId, selectedBranchId, branchIds: null };
+  }
+
+  private staffWhere(scope: HrScope) {
+    return scope.branchIds === null
+      ? { tenantId: scope.tenantId, branch: { companyId: scope.companyId } }
+      : { tenantId: scope.tenantId, branchId: { in: scope.branchIds } };
+  }
+
+  private async writableBranch(
+    scope: HrScope,
+    requestedBranchId?: string | null,
+  ) {
+    const branchId = requestedBranchId ?? scope.selectedBranchId;
+    if (!branchId) {
+      throw new BadRequestException(
+        'Bu işlem için bir şube seçilmelidir.',
+      );
+    }
+    if (scope.branchIds !== null && !scope.branchIds.includes(branchId)) {
+      throw new BadRequestException('Seçilen şube aktif organizasyon kapsamının dışında.');
+    }
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        companyId: scope.companyId,
+        company: { tenantId: scope.tenantId },
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+    if (!branch) throw new BadRequestException('Seçilen şube bu işletme kapsamında kullanılamıyor.');
+    return branchId;
+  }
+
+  private async assertStaffInBranch(
+    tenantId: string,
+    staffId: string,
+    branchId: string,
+  ) {
+    const staff = await this.prisma.staff.findFirst({
+      where: { id: staffId, tenantId, branchId },
+      select: { id: true },
+    });
+    if (!staff) throw new NotFoundException('Personel bulunamadı.');
+  }
+
+  private profile(value: unknown): StaffProfile {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as StaffProfile)
+      : {};
+  }
+
+  private nullableString(value: unknown): string | null {
+    if (value === undefined || value === null) return null;
+    const normalized = String(value).trim();
+    return normalized.length ? normalized : null;
+  }
+
+  private nullableDate(value: unknown, field: string): string | null {
+    const normalized = this.nullableString(value);
+    if (!normalized) return null;
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(`${field} geçerli bir tarih olmalıdır.`);
+    }
+    return date.toISOString().slice(0, 10);
+  }
+
+  private nullableAmount(value: unknown, field: string): number | null {
+    if (value === undefined || value === null || value === '') return null;
+    const amount = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new BadRequestException(`${field} sıfırdan küçük olamaz.`);
+    }
+    return amount;
+  }
+
+  private async employeeMasterRows(tenantId: string, branchIds: string[] | null) {
+    return this.prisma.$queryRawUnsafe<EmployeeMasterRecord[]>(
+      `SELECT emr.staff_id AS "staffId",emr.employee_number AS "employeeNumber",emr.national_identity_number AS "identityNumber",emr.date_of_birth::text AS "dateOfBirth",emr.personal_email AS "personalEmail",emr.address,emr.employment_type AS "employmentType",emr.hire_date::text AS "hireDate",emr.termination_date::text AS "terminationDate",emr.bank_name AS "bankName",emr.iban,emr.gross_salary AS "grossSalary",emr.salary_type AS "salaryType" FROM employee_master_records emr WHERE emr.tenant_id=$1 AND ($2::text[] IS NULL OR emr.branch_id=ANY($2::text[]))`,
+      tenantId,
+      branchIds,
+    );
+  }
+
+  private async employeeMaster(
+    staffId: string,
+    tenantId: string,
+  ): Promise<EmployeeMasterRecord | null> {
+    const rows = await this.prisma.$queryRawUnsafe<EmployeeMasterRecord[]>(
+      `SELECT emr.staff_id AS "staffId",emr.employee_number AS "employeeNumber",emr.national_identity_number AS "identityNumber",emr.date_of_birth::text AS "dateOfBirth",emr.personal_email AS "personalEmail",emr.address,emr.employment_type AS "employmentType",emr.hire_date::text AS "hireDate",emr.termination_date::text AS "terminationDate",emr.bank_name AS "bankName",emr.iban,emr.gross_salary AS "grossSalary",emr.salary_type AS "salaryType" FROM employee_master_records emr WHERE emr.staff_id=$1 AND emr.tenant_id=$2 LIMIT 1`,
+      staffId,
+      tenantId,
+    );
+    return rows[0] ?? null;
+  }
+
+  private async assertMasterUnique(
+    tenantId: string,
+    employeeNumber: string | null,
+    identityNumber: string | null,
+    excludeStaffId?: string,
+  ) {
+    if (employeeNumber) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ staffId: string }>>(
+        `SELECT staff_id AS "staffId" FROM employee_master_records WHERE tenant_id=$1 AND employee_number=$2 ${excludeStaffId ? 'AND staff_id<>$3' : ''} LIMIT 1`,
+        ...(excludeStaffId
+          ? [tenantId, employeeNumber, excludeStaffId]
+          : [tenantId, employeeNumber]),
+      );
+      if (rows.length) {
+        throw new BadRequestException(
+          'Bu personel numarasıyla kayıtlı başka bir çalışan bulunuyor.',
+        );
+      }
+    }
+    if (identityNumber) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ staffId: string }>>(
+        `SELECT staff_id AS "staffId" FROM employee_master_records WHERE tenant_id=$1 AND national_identity_number=$2 ${excludeStaffId ? 'AND staff_id<>$3' : ''} LIMIT 1`,
+        ...(excludeStaffId
+          ? [tenantId, identityNumber, excludeStaffId]
+          : [tenantId, identityNumber]),
+      );
+      if (rows.length) {
+        throw new BadRequestException(
+          'Bu T.C. kimlik numarasıyla kayıtlı başka bir çalışan bulunuyor.',
+        );
+      }
+    }
+  }
+
+  private legacyProfile(body: any, existing?: StaffProfile): StaffProfile {
+    const profile = { ...(existing ?? {}) };
+    for (const key of [
+      'department',
+      'position',
+      'annualLeaveDays',
+      'usedLeaveDays',
+      'pendingLeaveDays',
+    ]) {
+      if (body[key] !== undefined) profile[key] = body[key];
+    }
+    return profile;
+  }
+
+  private masterValues(
+    body: any,
+    existing: EmployeeMasterRecord | null,
+    profile: StaffProfile,
+  ) {
+    const currentSalary = existing?.grossSalary ?? null;
+    return {
+      employeeNumber:
+        body.personnelNumber !== undefined
+          ? this.nullableString(body.personnelNumber)
+          : (existing?.employeeNumber ?? this.nullableString(profile.personnelNumber)),
+      identityNumber:
+        body.identityNumber !== undefined
+          ? this.nullableString(body.identityNumber)
+          : (existing?.identityNumber ?? this.nullableString(profile.identityNumber)),
+      dateOfBirth:
+        body.dateOfBirth !== undefined
+          ? this.nullableDate(body.dateOfBirth, 'dateOfBirth')
+          : (existing?.dateOfBirth ?? this.nullableDate(profile.dateOfBirth, 'dateOfBirth')),
+      personalEmail:
+        body.personalEmail !== undefined
+          ? this.nullableString(body.personalEmail)
+          : (existing?.personalEmail ?? this.nullableString(profile.personalEmail)),
+      address:
+        body.address !== undefined
+          ? this.nullableString(body.address)
+          : (existing?.address ?? this.nullableString(profile.address)),
+      employmentType:
+        body.employmentType !== undefined
+          ? this.nullableString(body.employmentType)
+          : (existing?.employmentType ?? this.nullableString(profile.employmentType)),
+      hireDate:
+        body.hireDate !== undefined
+          ? this.nullableDate(body.hireDate, 'hireDate')
+          : (existing?.hireDate ?? this.nullableDate(profile.hireDate, 'hireDate')),
+      terminationDate:
+        body.terminationDate !== undefined
+          ? this.nullableDate(body.terminationDate, 'terminationDate')
+          : (existing?.terminationDate ?? this.nullableDate(profile.terminationDate, 'terminationDate')),
+      bankName:
+        body.bankName !== undefined
+          ? this.nullableString(body.bankName)
+          : (existing?.bankName ?? this.nullableString(profile.bankName)),
+      iban:
+        body.iban !== undefined
+          ? this.nullableString(body.iban)
+          : (existing?.iban ?? this.nullableString(profile.iban)),
+      grossSalary: this.nullableAmount(currentSalary, 'grossSalary'),
+      salaryType: existing?.salaryType ?? null,
+    };
+  }
+
+  private async upsertEmployeeMaster(
+    tx: any,
+    tenantId: string,
+    branchId: string,
+    staffId: string,
+    values: ReturnType<HrService['masterValues']>,
+  ) {
+    await tx.$executeRawUnsafe(
+      `INSERT INTO employee_master_records(staff_id,tenant_id,branch_id,employee_number,national_identity_number,date_of_birth,personal_email,address,employment_type,hire_date,termination_date,bank_name,iban,gross_salary,salary_type) VALUES($1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10::date,$11::date,$12,$13,$14,$15) ON CONFLICT(staff_id) DO UPDATE SET tenant_id=EXCLUDED.tenant_id,branch_id=EXCLUDED.branch_id,employee_number=EXCLUDED.employee_number,national_identity_number=EXCLUDED.national_identity_number,date_of_birth=EXCLUDED.date_of_birth,personal_email=EXCLUDED.personal_email,address=EXCLUDED.address,employment_type=EXCLUDED.employment_type,hire_date=EXCLUDED.hire_date,termination_date=EXCLUDED.termination_date,bank_name=EXCLUDED.bank_name,iban=EXCLUDED.iban,gross_salary=EXCLUDED.gross_salary,salary_type=EXCLUDED.salary_type,updated_at=CURRENT_TIMESTAMP`,
+      staffId,
+      tenantId,
+      branchId,
+      values.employeeNumber,
+      values.identityNumber,
+      values.dateOfBirth,
+      values.personalEmail,
+      values.address,
+      values.employmentType,
+      values.hireDate,
+      values.terminationDate,
+      values.bankName,
+      values.iban,
+      values.grossSalary,
+      values.salaryType,
+    );
+  }
+
+  async employees(includeSensitive = false) {
+    const scope = await this.scope();
+    const rows = await this.prisma.staff.findMany({
+      where: this.staffWhere(scope),
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        status: true,
+        branchId: true,
+        profile: true,
+      },
+    });
+    const [masters, assignments] = await Promise.all([
+      this.employeeMasterRows(scope.tenantId, scope.branchIds),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT DISTINCT ON (a.staff_id) a.staff_id AS "staffId",a.department_id AS "departmentId",d.name AS department,a.team_id AS "teamId",t.name AS team,a.position_id AS "positionId",p.name AS position,a.manager_staff_id AS "managerStaffId"
+         FROM hr_employee_assignments a
+         LEFT JOIN hr_departments d ON d.id=a.department_id
+         LEFT JOIN hr_teams t ON t.id=a.team_id
+         LEFT JOIN hr_positions p ON p.id=a.position_id
+         WHERE a.tenant_id=$1
+           AND ($2::text[] IS NULL OR a.branch_id=ANY($2::text[]))
+           AND a.effective_from<=CURRENT_DATE
+           AND (a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE)
+         ORDER BY a.staff_id,a.effective_from DESC,a.created_at DESC`,
+        scope.tenantId,
+        scope.branchIds,
+      ),
+    ]);
+    const masterByStaffId = new Map(masters.map((item) => [item.staffId, item]));
+    const assignmentByStaffId = new Map(assignments.map((item) => [item.staffId, item]));
+    return rows.map((staff) => {
+      const profile = this.profile(staff.profile);
+      const master = masterByStaffId.get(staff.id);
+      const assignment = assignmentByStaffId.get(staff.id);
+      const base = {
+        id: staff.id,
+        firstName: staff.firstName,
+        lastName: staff.lastName,
+        phone: staff.phone,
+        email: staff.email,
+        status: staff.status,
+        branchId: staff.branchId,
+        personnelNumber: master?.employeeNumber ?? profile.personnelNumber ?? null,
+        departmentId: assignment?.departmentId ?? null,
+        department: assignment?.department ?? profile.department ?? null,
+        teamId: assignment?.teamId ?? null,
+        team: assignment?.team ?? null,
+        positionId: assignment?.positionId ?? null,
+        position: assignment?.position ?? profile.position ?? null,
+        managerStaffId: assignment?.managerStaffId ?? null,
+        employmentType: master?.employmentType ?? profile.employmentType ?? null,
+        hireDate: master?.hireDate ?? profile.hireDate ?? null,
+        terminationDate: master?.terminationDate ?? profile.terminationDate ?? null,
+      };
+      if (!includeSensitive) return base;
+      return {
+        ...base,
+        identityNumber: master?.identityNumber ?? profile.identityNumber ?? null,
+        dateOfBirth: master?.dateOfBirth ?? profile.dateOfBirth ?? null,
+        personalEmail: master?.personalEmail ?? profile.personalEmail ?? null,
+        address: master?.address ?? profile.address ?? null,
+        iban: master?.iban ?? profile.iban ?? null,
+        bankName: master?.bankName ?? profile.bankName ?? null,
+        grossSalary:
+          master?.grossSalary != null
+            ? Number(master.grossSalary)
+            : null,
+        salaryType: master?.salaryType ?? null,
+      };
+    });
+  }
+
+  async personnelFiles(includeSensitive = false) {
+    return this.employees(includeSensitive);
+  }
+
+  async employeeProvisioningRoles() {
+    const scope = await this.scope();
+    await this.roleTemplateService.ensureDefaults();
+    return this.prisma.role.findMany({
+      where: {
+        tenantId: scope.tenantId,
+        companyId: scope.companyId,
+        slug: { not: 'owner' },
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        scope: true,
+        description: true,
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createEmployee(body: any) {
+    const scope = await this.scope();
+    const targetBranchId = await this.writableBranch(scope, body.branchId);
+
+    const firstName = String(body.firstName ?? '').trim();
+    const lastName = String(body.lastName ?? '').trim();
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const roleId = String(body.roleId ?? '').trim();
+
+    if (!firstName || !lastName) {
+      throw new BadRequestException('Ad ve soyad zorunludur.');
+    }
+    if (!email) {
+      throw new BadRequestException('Personel kullanıcı hesabı için e-posta adresi zorunludur.');
+    }
+    if (!roleId) {
+      throw new BadRequestException('Personel için kullanıcı tipi / rol seçimi zorunludur.');
+    }
+
+    const [existingStaff, existingUser, role, actorMembership] = await Promise.all([
+      this.prisma.staff.findFirst({
+        where: { tenantId: scope.tenantId, email },
+        select: { id: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      }),
+      this.prisma.role.findFirst({
+        where: {
+          id: roleId,
+          tenantId: scope.tenantId,
+          companyId: scope.companyId,
+          slug: { not: 'owner' },
+        },
+        select: { id: true, name: true, slug: true, scope: true },
+      }),
+      this.prisma.membership.findFirst({
+        where: {
+          id: this.tenantContext.getMembershipId(),
+          tenantId: scope.tenantId,
+          companyId: scope.companyId,
+          status: 'ACTIVE',
+        },
+        select: { userId: true },
+      }),
+    ]);
+
+    if (existingStaff) {
+      throw new BadRequestException('Bu e-posta adresiyle kayıtlı bir personel zaten bulunuyor.');
+    }
+    if (existingUser) {
+      throw new BadRequestException('Bu e-posta adresi başka bir kullanıcı hesabında kayıtlı.');
+    }
+    if (!role) {
+      throw new BadRequestException('Seçilen kullanıcı tipi aktif şirkette bulunamadı.');
+    }
+    if (!actorMembership) {
+      throw new BadRequestException('Personel kaydı için aktif yönetici oturumu bulunamadı.');
+    }
+
+    let department: any = null;
+    let position: any = null;
+    let team: any = null;
+    if (body.departmentId) {
+      department = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name FROM hr_departments WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.departmentId,
+        scope.tenantId,
+        scope.companyId,
+      ))[0];
+      if (!department) throw new BadRequestException('Seçilen departman aktif şirkette bulunamadı.');
+    }
+    if (body.teamId) {
+      team = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT t.id,t.name,t.department_id FROM hr_teams t JOIN hr_departments d ON d.id=t.department_id WHERE t.id=$1 AND t.tenant_id=$2 AND d.company_id=$3 AND t.status='ACTIVE' LIMIT 1`,
+        body.teamId,
+        scope.tenantId,
+        scope.companyId,
+      ))[0];
+      if (!team) throw new BadRequestException('Seçilen ekip aktif şirkette bulunamadı.');
+      if (body.departmentId && team.department_id !== body.departmentId) {
+        throw new BadRequestException('Seçilen ekip seçili departmana bağlı değil.');
+      }
+    }
+    if (body.positionId) {
+      position = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name,department_id FROM hr_positions WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.positionId,
+        scope.tenantId,
+        scope.companyId,
+      ))[0];
+      if (!position) throw new BadRequestException('Seçilen pozisyon aktif şirkette bulunamadı.');
+      if (body.departmentId && position.department_id && position.department_id !== body.departmentId) {
+        throw new BadRequestException('Seçilen pozisyon seçili departmana bağlı değil.');
+      }
+    }
+
+    const profile = this.legacyProfile({
+      ...body,
+      department: department?.name ?? body.department,
+      position: position?.name ?? body.position,
+    });
+    const master = this.masterValues(body, null, {});
+    await this.assertMasterUnique(
+      scope.tenantId,
+      master.employeeNumber,
+      master.identityNumber,
+    );
+
+    const rawActivationToken = randomBytes(32).toString('base64url');
+    const activationTokenHash = createHash('sha256').update(rawActivationToken).digest('hex');
+    const activationExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    const placeholderPasswordHash = await argon2.hash(randomBytes(48).toString('base64url'));
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          passwordHash: placeholderPasswordHash,
+          firstName,
+          lastName,
+        },
+        select: { id: true, email: true },
+      });
+
+      const membership = await tx.membership.create({
+        data: {
+          userId: user.id,
+          tenantId: scope.tenantId,
+          companyId: scope.companyId,
+          roleId: role.id,
+          status: 'SUSPENDED',
+        },
+        select: { id: true, status: true },
+      });
+
+      if (role.scope !== 'CENTRAL') {
+        await tx.membershipBranchAccess.create({
+          data: {
+            membershipId: membership.id,
+            branchId: targetBranchId,
+          },
+        });
+      }
+
+      const created = await tx.staff.create({
+        data: {
+          tenantId: scope.tenantId,
+          branchId: targetBranchId,
+          userId: user.id,
+          firstName,
+          lastName,
+          phone: body.phone ?? null,
+          email,
+          status: body.status ?? 'ACTIVE',
+          profile: asJsonInput(profile),
+        },
+      });
+
+      await tx.$executeRawUnsafe(
+        `INSERT INTO hr_employee_user_links(tenant_id,company_id,staff_id,user_id,active,linked_by)
+         VALUES($1,$2,$3,$4,TRUE,$5)`,
+        scope.tenantId,
+        scope.companyId,
+        created.id,
+        user.id,
+        actorMembership.userId,
+      );
+
+      await this.upsertEmployeeMaster(
+        tx,
+        scope.tenantId,
+        targetBranchId,
+        created.id,
+        master,
+      );
+
+      if (body.departmentId || body.teamId || body.positionId || body.managerStaffId) {
+        if (body.managerStaffId === created.id) {
+          throw new BadRequestException('Personel kendi yöneticisi olamaz.');
+        }
+        if (body.managerStaffId) {
+          const manager = await tx.staff.findFirst({
+            where: {
+              id: body.managerStaffId,
+              tenantId: scope.tenantId,
+              status: 'ACTIVE',
+              branch: { companyId: scope.companyId },
+            },
+            select: { id: true },
+          });
+          if (!manager) throw new BadRequestException('Seçilen yönetici aktif organizasyon kapsamında değil.');
+        }
+
+        const effectiveFrom = master.hireDate ?? new Date().toISOString().slice(0, 10);
+        await tx.$executeRawUnsafe(
+          `INSERT INTO hr_employee_assignments(id,tenant_id,company_id,branch_id,staff_id,department_id,team_id,position_id,manager_staff_id,effective_from,reason)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11)`,
+          `asg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+          scope.tenantId,
+          scope.companyId,
+          targetBranchId,
+          created.id,
+          body.departmentId ?? position?.department_id ?? team?.department_id ?? null,
+          body.teamId ?? null,
+          body.positionId ?? null,
+          body.managerStaffId ?? null,
+          effectiveFrom,
+          'INITIAL_ASSIGNMENT',
+        );
+      }
+
+      await tx.$executeRawUnsafe(
+        `UPDATE user_invitations
+         SET "revokedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+         WHERE "tenantId"=$1 AND "companyId"=$2 AND email=$3
+           AND "acceptedAt" IS NULL AND "revokedAt" IS NULL`,
+        scope.tenantId,
+        scope.companyId,
+        email,
+      );
+
+      const invitationId = randomUUID();
+      const branchIds = role.scope === 'CENTRAL' ? [] : [targetBranchId];
+      await tx.$executeRawUnsafe(
+        `INSERT INTO user_invitations(
+          id,"tenantId","companyId",email,"roleId","branchIds","tokenHash",
+          "invitedByUserId","expiresAt","provisionedUserId","staffId","createdAt","updatedAt"
+        ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+        invitationId,
+        scope.tenantId,
+        scope.companyId,
+        email,
+        role.id,
+        JSON.stringify(branchIds),
+        activationTokenHash,
+        actorMembership.userId,
+        activationExpiresAt,
+        user.id,
+        created.id,
+      );
+
+      return {
+        ...created,
+        personnelNumber: master.employeeNumber,
+        identityNumber: master.identityNumber,
+        dateOfBirth: master.dateOfBirth,
+        personalEmail: master.personalEmail,
+        address: master.address,
+        employmentType: master.employmentType,
+        hireDate: master.hireDate,
+        terminationDate: master.terminationDate,
+        iban: master.iban,
+        bankName: master.bankName,
+        grossSalary: master.grossSalary ?? 0,
+        salaryType: master.salaryType,
+        accountProvisioning: {
+          userId: user.id,
+          membershipId: membership.id,
+          roleId: role.id,
+          roleName: role.name,
+          roleScope: role.scope,
+          branchId: targetBranchId,
+          status: 'ACTIVATION_REQUIRED',
+          invitationId,
+          activationToken: rawActivationToken,
+          expiresAt: activationExpiresAt,
+        },
+      };
+    });
+  }
+
+  async updateEmployee(id: string, body: any) {
+    const scope = await this.scope();
+    const current = await this.prisma.staff.findFirst({
+      where: { id, ...this.staffWhere(scope) },
+    });
+    if (!current) throw new NotFoundException('Personel bulunamadı.');
+    if (body.branchId && body.branchId !== current.branchId) {
+      throw new BadRequestException(
+        'Personelin şube değişikliği İK organizasyon atama akışı üzerinden yapılmalıdır.',
+      );
+    }
+    if (body.email && body.email !== current.email) {
+      const emailOwner = await this.prisma.staff.findFirst({
+        where: { tenantId: scope.tenantId, email: body.email, NOT: { id } },
+        select: { id: true },
+      });
+      if (emailOwner) {
+        throw new BadRequestException('Bu e-posta adresiyle kayıtlı başka bir personel bulunuyor.');
+      }
+    }
+    const currentProfile = this.profile(current.profile);
+    const currentMaster = await this.employeeMaster(id, scope.tenantId);
+    const master = this.masterValues(body, currentMaster, currentProfile);
+    await this.assertMasterUnique(
+      scope.tenantId,
+      master.employeeNumber,
+      master.identityNumber,
+      id,
+    );
+    const nextProfile = this.legacyProfile(body, currentProfile);
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.staff.update({
+        where: { id },
+        data: {
+          firstName: body.firstName ?? current.firstName,
+          lastName: body.lastName ?? current.lastName,
+          phone: body.phone ?? current.phone,
+          email: body.email ?? current.email,
+          status: body.status ?? current.status,
+          profile: asJsonInput(nextProfile),
+        },
+      });
+      await this.upsertEmployeeMaster(
+        tx,
+        scope.tenantId,
+        current.branchId,
+        id,
+        master,
+      );
+      return {
+        ...updated,
+        personnelNumber: master.employeeNumber,
+        identityNumber: master.identityNumber,
+        dateOfBirth: master.dateOfBirth,
+        personalEmail: master.personalEmail,
+        address: master.address,
+        employmentType: master.employmentType,
+        hireDate: master.hireDate,
+        terminationDate: master.terminationDate,
+        iban: master.iban,
+        bankName: master.bankName,
+        grossSalary: master.grossSalary ?? 0,
+        salaryType: master.salaryType,
+      };
+    });
+  }
+
+  async deleteEmployee(id: string) {
+    const scope = await this.scope();
+    const staff = await this.prisma.staff.findFirst({
+      where: { id, ...this.staffWhere(scope) },
+      select: { id: true },
+    });
+    if (!staff) throw new NotFoundException('Personel bulunamadı.');
+    return this.prisma.staff.update({ where: { id }, data: { status: 'ARCHIVED' } });
+  }
+
+  async attendance(year?: number, month?: number) {
+    const scope = await this.scope();
+    const now = new Date();
+    const y = year ?? now.getFullYear();
+    const m = month ?? now.getMonth() + 1;
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT a.id,a.staff_id AS "staffId",s."firstName",s."lastName",a.work_date AS "date",a.status,a.check_in AS "checkIn",a.check_out AS "checkOut",a.worked_minutes AS "workedMinutes",a.overtime_minutes AS "overtimeMinutes",a.note FROM attendance_records a JOIN staff s ON s.id=a.staff_id WHERE a.tenant_id=$1 AND ($2::text[] IS NULL OR a.branch_id=ANY($2::text[])) AND EXTRACT(YEAR FROM a.work_date)=$3 AND EXTRACT(MONTH FROM a.work_date)=$4 ORDER BY a.work_date DESC,s."firstName"`,
+      scope.tenantId,
+      scope.branchIds,
+      y,
+      m,
+    );
+  }
+
+  async upsertAttendance(_body: any) {
+    throw new BadRequestException(
+      'Puantaj kayıtları doğrudan değiştirilemez. Düzeltme talebi oluşturun; değişiklik onay süreci tamamlandıktan sonra uygulanacaktır.',
+    );
+  }
+
+  async leaves() {
+    const scope = await this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT l.id,l.staff_id AS "staffId",s."firstName",s."lastName",l.leave_type AS "leaveType",l.start_date AS "startDate",l.end_date AS "endDate",l.days,l.status,l.reason,l.approved_by AS "approvedBy",l.created_at AS "createdAt" FROM leave_requests l JOIN staff s ON s.id=l.staff_id WHERE l.tenant_id=$1 AND ($2::text[] IS NULL OR l.branch_id=ANY($2::text[])) ORDER BY l.created_at DESC`,
+      scope.tenantId,
+      scope.branchIds,
+    );
+  }
+
+  async createLeave(body: any) {
+    const scope = await this.scope();
+    const branchId = await this.writableBranch(scope, body.branchId);
+    if (!body.staffId || !body.startDate || !body.endDate) {
+      throw new BadRequestException('Personel, başlangıç tarihi ve bitiş tarihi zorunludur.');
+    }
+    await this.assertStaffInBranch(scope.tenantId, body.staffId, branchId);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO leave_requests(id,tenant_id,branch_id,staff_id,leave_type,start_date,end_date,days,status,reason,updated_at) VALUES($1,$2,$3,$4,$5,$6::date,$7::date,$8,$9,$10,CURRENT_TIMESTAMP)`,
+      body.id ?? `leave_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      scope.tenantId,
+      branchId,
+      body.staffId,
+      body.leaveType ?? 'ANNUAL',
+      body.startDate,
+      body.endDate,
+      Number(body.days ?? 1),
+      body.status ?? 'PENDING',
+      body.reason ?? null,
+    );
+    return { success: true };
+  }
+
+  async updateLeave(id: string, body: any) {
+    const scope = await this.scope();
+    const result = await this.prisma.$executeRawUnsafe(
+      `UPDATE leave_requests SET leave_type=COALESCE($1,leave_type),start_date=COALESCE($2::date,start_date),end_date=COALESCE($3::date,end_date),days=COALESCE($4,days),status=COALESCE($5,status),reason=COALESCE($6,reason),approved_by=COALESCE($7,approved_by),updated_at=CURRENT_TIMESTAMP WHERE id=$8 AND tenant_id=$9 AND ($10::text[] IS NULL OR branch_id=ANY($10::text[]))`,
+      body.leaveType ?? null,
+      body.startDate ?? null,
+      body.endDate ?? null,
+      body.days == null ? null : Number(body.days),
+      body.status ?? null,
+      body.reason ?? null,
+      body.approvedBy ?? null,
+      id,
+      scope.tenantId,
+      scope.branchIds,
+    );
+    if (!result) throw new NotFoundException('İzin talebi bulunamadı.');
+    return { success: true };
+  }
+
+  async deleteLeave(id: string) {
+    const scope = await this.scope();
+    const result = await this.prisma.$executeRawUnsafe(
+      `DELETE FROM leave_requests WHERE id=$1 AND tenant_id=$2 AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]))`,
+      id,
+      scope.tenantId,
+      scope.branchIds,
+    );
+    if (!result) throw new NotFoundException('İzin talebi bulunamadı.');
+    return { success: true };
+  }
+
+  async payroll(year?: number, month?: number) {
+    const scope = await this.scope();
+    const now = new Date();
+    const y = year ?? now.getFullYear();
+    const m = month ?? now.getMonth() + 1;
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT pi.id,pi.staff_id AS "staffId",s."firstName",s."lastName",pp.id AS "periodId",pp.year,pp.month,pp.status AS "periodStatus",pi.gross_amount AS "grossAmount",pi.net_amount AS "netAmount",pi.employer_cost AS "employerCost",pi.status FROM payroll_items pi JOIN payroll_periods pp ON pp.id=pi.period_id JOIN staff s ON s.id=pi.staff_id WHERE pi.tenant_id=$1 AND ($2::text[] IS NULL OR pi.branch_id=ANY($2::text[])) AND pp.year=$3 AND pp.month=$4 ORDER BY s."firstName"`,
+      scope.tenantId,
+      scope.branchIds,
+      y,
+      m,
+    );
+  }
+
+  async payments(year?: number, month?: number) {
+    const scope = await this.scope();
+    const now = new Date();
+    const y = year ?? now.getFullYear();
+    const m = month ?? now.getMonth() + 1;
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT sp.id,sp.staff_id AS "staffId",s."firstName",s."lastName",sp.amount,sp.method,sp.status,sp.paid_at AS "paidAt",sp.note FROM salary_payments sp JOIN staff s ON s.id=sp.staff_id WHERE sp.tenant_id=$1 AND ($2::text[] IS NULL OR sp.branch_id=ANY($2::text[])) AND EXTRACT(YEAR FROM sp.paid_at)=$3 AND EXTRACT(MONTH FROM sp.paid_at)=$4 ORDER BY sp.paid_at DESC`,
+      scope.tenantId,
+      scope.branchIds,
+      y,
+      m,
+    );
+  }
+
+  async sgk(year?: number, month?: number) {
+    const scope = await this.scope();
+    const now = new Date();
+    const y = year ?? now.getFullYear();
+    const m = month ?? now.getMonth() + 1;
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT sl.id,sl.staff_id AS "staffId",s."firstName",s."lastName",sl.period_year AS "year",sl.period_month AS "month",sl.employee_amount AS "employeeAmount",sl.employer_amount AS "employerAmount",sl.status,sl.due_date AS "dueDate",sl.paid_at AS "paidAt",sl.note FROM sgk_records sl JOIN staff s ON s.id=sl.staff_id WHERE sl.tenant_id=$1 AND ($2::text[] IS NULL OR sl.branch_id=ANY($2::text[])) AND sl.period_year=$3 AND sl.period_month=$4 ORDER BY s."firstName"`,
+      scope.tenantId,
+      scope.branchIds,
+      y,
+      m,
+    );
+  }
+
+  async createSgk(body: any) {
+    const scope = await this.scope();
+    const branchId = await this.writableBranch(scope, body.branchId);
+    if (!body.staffId || !body.year || !body.month) {
+      throw new BadRequestException('Personel, yıl ve ay bilgileri zorunludur');
+    }
+    await this.assertStaffInBranch(scope.tenantId, body.staffId, branchId);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO sgk_records(id,tenant_id,branch_id,staff_id,period_year,period_month,employee_amount,employer_amount,status,due_date,note,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11,CURRENT_TIMESTAMP) ON CONFLICT(tenant_id,staff_id,period_year,period_month) DO UPDATE SET branch_id=EXCLUDED.branch_id,employee_amount=EXCLUDED.employee_amount,employer_amount=EXCLUDED.employer_amount,status=EXCLUDED.status,due_date=EXCLUDED.due_date,note=EXCLUDED.note,updated_at=CURRENT_TIMESTAMP`,
+      body.id ?? `sgk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      scope.tenantId,
+      branchId,
+      body.staffId,
+      Number(body.year),
+      Number(body.month),
+      Number(body.employeeAmount ?? 0),
+      Number(body.employerAmount ?? 0),
+      body.status ?? 'PENDING',
+      body.dueDate ?? null,
+      body.note ?? null,
+    );
+    return { success: true };
+  }
 }

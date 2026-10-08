@@ -1,12 +1,27 @@
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  'brace-expansion@1.1.18': 1.1.20
+  'brace-expansion@2.1.4': 2.1.6
+  'brace-expansion@5.0.9': 5.0.11
+  deepmerge-ts: 8.0.1
+  js-yaml: 4.3.2
+  multer: 2.3.0
+
 allowBuilds:
   '@prisma/client': false
   '@prisma/engines': false
   argon2: true
+  cpu-features: false
   prisma: false
+  ssh2: true
   unrs-resolver: false
+auditConfig:
+  ignoreGhsas:
+    # Upstream node-forge 1.4.0 is still the latest published npm release; no patched npm version exists yet.
+    - GHSA-86w9-cpqp-85rv
+
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.18'
   - '@expo/config-plugins@57.0.9'

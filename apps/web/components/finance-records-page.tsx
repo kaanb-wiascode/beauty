@@ -1,0 +1,341 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+
+import { FormActions, FormGrid, FormSection } from "@/components/form-system";
+import { FinanceQuickCreate, type FinanceQuickCreateKind } from "@/components/finance-quick-create";
+import { ValooSelect } from "@/components/valoo-controls";
+import { Modal } from "@/components/modal";
+import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
+import { api, ApiError } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
+
+type Mode = "expense" | "income";
+type Category = { id:string; code:string; name:string; parentId:string|null; active:boolean };
+type CostCenter = { id:string; code:string; name:string; active:boolean };
+type Account = { id:string; code:string; name:string; type:string; active:boolean };
+type PageResult<T>={data:T[];meta:{page:number;limit:number;total:number;totalPages:number}};
+type FinanceRecord = {
+  id:string; categoryId:string; costCenterId:string|null; counterpartyName:string|null;
+  counterpartyTaxNumber:string|null; documentType:string|null; documentNumber:string|null;
+  documentDate:string|null; transactionDate:string; dueDate:string|null; grossAmount:number;
+  netAmount:number; taxAmount:number; withholdingAmount?:number; currency:string; exchangeRate:number;
+  description:string|null; approvalStatus:string; paymentStatus?:string; collectionStatus?:string;
+  reconciliationStatus:string; accountingStatus:string; version:number;
+};
+type RecordForm = {
+  categoryId:string; costCenterId:string; counterpartyName:string; counterpartyTaxNumber:string;
+  documentType:string; documentNumber:string; documentDate:string; transactionDate:string; dueDate:string;
+  grossAmount:string; netAmount:string; taxAmount:string; withholdingAmount:string; currency:string;
+  exchangeRate:string; description:string;
+};
+
+const today=()=>new Date().toISOString().slice(0,10);
+const initialForm=(baseCurrency="TRY"):RecordForm=>({
+  categoryId:"",costCenterId:"",counterpartyName:"",counterpartyTaxNumber:"",
+  documentType:"",documentNumber:"",documentDate:"",transactionDate:today(),dueDate:"",
+  grossAmount:"",netAmount:"",taxAmount:"0",withholdingAmount:"0",currency:baseCurrency,exchangeRate:"1",description:"",
+});
+const money=(value:number|string|null|undefined,currency="TRY")=>new Intl.NumberFormat("tr-TR",{style:"currency",currency,maximumFractionDigits:2}).format(Number(value??0));
+const date=(value:string|null|undefined)=>value?new Date(value).toLocaleDateString("tr-TR"):"—";
+const labels:Record<string,string>={
+  DRAFT:"Taslak",SUBMITTED:"Onay Bekliyor",APPROVED:"Onaylandı",REJECTED:"Reddedildi",CANCELLED:"İptal Edildi",
+  UNPAID:"Ödenmedi",PARTIALLY_PAID:"Kısmen Ödendi",PAID:"Ödendi",
+  UNCOLLECTED:"Tahsil Edilmedi",PARTIALLY_COLLECTED:"Kısmen Tahsil Edildi",COLLECTED:"Tahsil Edildi",
+  UNPOSTED:"Muhasebeleştirilmedi",READY_TO_POST:"Muhasebeleştirmeye Hazır",POSTED:"Muhasebeleştirildi",REVERSED:"Ters Kayıt",
+};
+const statusLabel=(value:string|undefined)=>value?(labels[value]??userLabel(value)):"—";
+function pill(value:string|undefined){
+  const positive=["APPROVED","PAID","COLLECTED","POSTED"].includes(value??"");
+  const negative=["REJECTED","CANCELLED","REVERSED"].includes(value??"");
+  return `inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${positive?"bg-[var(--secondary-soft)] text-[var(--secondary)]":negative?"bg-[var(--danger-soft)] text-[var(--danger)]":"bg-[var(--surface-2)] text-[var(--muted)]"}`;
+}
+
+export function FinanceRecordsPage({mode}:{mode:Mode}){
+  const expense=mode==="expense";
+  const basePath=expense?"/finance/expenses":"/finance/income";
+  const title=expense?"Gider Yönetimi":"Gelir Yönetimi";
+  const canManage=hasPermission("finance","manage");
+  const canReadAccounting=hasPermission("accounting","read");
+
+  const[records,setRecords]=useState<FinanceRecord[]>([]);
+  const[baseCurrency,setBaseCurrency]=useState("TRY");
+  const[categories,setCategories]=useState<Category[]>([]);
+  const[costCenters,setCostCenters]=useState<CostCenter[]>([]);
+  const[accounts,setAccounts]=useState<Account[]>([]);
+  const[loading,setLoading]=useState(true),[working,setWorking]=useState(false);
+  const[error,setError]=useState(""),[notice,setNotice]=useState("");
+  const[search,setSearch]=useState(""),[querySearch,setQuerySearch]=useState(""),[approvalFilter,setApprovalFilter]=useState("");
+  const[sortBy,setSortBy]=useState<"transactionDate"|"grossAmount"|"createdAt">("transactionDate");
+  const[sortDir,setSortDir]=useState<"asc"|"desc">("desc");
+  const[page,setPage]=useState(1),[totalPages,setTotalPages]=useState(1),[totalRecords,setTotalRecords]=useState(0);
+  const[createOpen,setCreateOpen]=useState(false),[selected,setSelected]=useState<FinanceRecord|null>(null),[moneyOpen,setMoneyOpen]=useState(false);
+  const[form,setForm]=useState<RecordForm>(initialForm);
+  const[amount,setAmount]=useState(""),[accountId,setAccountId]=useState(""),[method,setMethod]=useState("TRANSFER"),[reference,setReference]=useState("");
+  const[settlementExchangeRate,setSettlementExchangeRate]=useState("");
+  const[moneyHistory,setMoneyHistory]=useState<Array<Record<string,unknown>>>([]);
+  const[quickCreate,setQuickCreate]=useState<{kind:FinanceQuickCreateKind;name:string}|null>(null);
+
+  const load=useCallback(async()=>{
+    setLoading(true);setError("");
+    try{
+      const params=new URLSearchParams({page:String(page),limit:"50",sortBy,sortDir});
+      if(querySearch)params.set("search",querySearch);
+      if(approvalFilter)params.set("approvalStatus",approvalFilter);
+      const[nextPage,initialCategories,nextCostCenters,nextAccounts,financeSettings]=await Promise.all([
+        api<PageResult<FinanceRecord>>(`${expense?"/finance/expenses":"/finance/income"}?${params.toString()}`),
+        api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`),
+        api<CostCenter[]>("/finance/setup/cost-centers"),
+        canReadAccounting ? api<Account[]>("/accounting/accounts") : Promise.resolve([] as Account[]),
+        api<{baseCurrency:string}>("/finance/control/settings"),
+      ]);
+      let nextCategories=initialCategories;
+      if(!nextCategories.length&&canManage){
+        await api("/finance/setup/bootstrap-default-taxonomy",{method:"POST"});
+        nextCategories=await api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`);
+      }
+      setBaseCurrency(financeSettings.baseCurrency||"TRY");
+      setRecords(nextPage.data);
+      setTotalPages(nextPage.meta.totalPages);
+      setTotalRecords(nextPage.meta.total);
+      setCategories(nextCategories.filter(x=>x.active));
+      setCostCenters(nextCostCenters.filter(x=>x.active));
+      setAccounts(nextAccounts.filter(x=>x.active&&x.type==="ASSET"));
+    }catch(e){setError(e instanceof ApiError?e.message:"Finans kayıtları yüklenemedi.");}
+    finally{setLoading(false);}
+  },[expense,canManage,canReadAccounting,page,querySearch,approvalFilter,sortBy,sortDir]);
+  useEffect(()=>{const timer=window.setTimeout(()=>{setPage(1);setQuerySearch(search.trim())},350);return()=>window.clearTimeout(timer)},[search]);
+  useEffect(()=>{void load();},[load]);
+  useEffect(()=>{if(!selected){setMoneyHistory([]);return;}void(async()=>{try{const path=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;const result=await api<Array<Record<string,unknown>>>(path);setMoneyHistory(Array.isArray(result)?result:[])}catch{setMoneyHistory([])}})()},[selected,expense,basePath]);
+
+  const metrics=useMemo(()=>({
+    total:records.reduce((sum,r)=>sum+Number(r.grossAmount||0)*Number(r.exchangeRate||1),0),
+    approved:records.filter(r=>r.approvalStatus==="APPROVED").length,
+    pending:records.filter(r=>r.approvalStatus==="SUBMITTED").length,
+    openMoney:records.filter(r=>expense?!["PAID","CANCELLED"].includes(r.paymentStatus??""):r.collectionStatus!=="COLLECTED").length,
+  }),[records,expense]);
+
+  async function createRecord(event:FormEvent){
+    event.preventDefault();
+    if(!form.categoryId||!form.transactionDate||!form.grossAmount||!form.netAmount){setError("Kategori, işlem tarihi, brüt tutar ve net tutar zorunludur.");return;}
+    if(!expense&&Math.abs(Number(form.netAmount)+Number(form.taxAmount||0)-Number(form.grossAmount))>0.01){setError("Gelir kaydında net tutar ile vergi toplamı brüt tutara eşit olmalıdır.");return;}
+    setWorking(true);setError("");
+    try{
+      await api(basePath,{method:"POST",body:{
+        categoryId:form.categoryId,
+        ...(form.costCenterId?{costCenterId:form.costCenterId}:{}),
+        ...(form.counterpartyName?{counterpartyName:form.counterpartyName}:{}),
+        ...(form.counterpartyTaxNumber?{counterpartyTaxNumber:form.counterpartyTaxNumber}:{}),
+        ...(form.documentType?{documentType:form.documentType}:{}),
+        ...(form.documentNumber?{documentNumber:form.documentNumber}:{}),
+        ...(form.documentDate?{documentDate:form.documentDate}:{}),
+        transactionDate:form.transactionDate,
+        ...(form.dueDate?{dueDate:form.dueDate}:{}),
+        grossAmount:Number(form.grossAmount),netAmount:Number(form.netAmount),taxAmount:Number(form.taxAmount||0),
+        ...(expense?{withholdingAmount:Number(form.withholdingAmount||0)}:{}),
+        currency:form.currency.toUpperCase(),exchangeRate:Number(form.exchangeRate||1),
+        ...(form.description?{description:form.description}:{}),
+      }});
+      setCreateOpen(false);setForm(initialForm(baseCurrency));setNotice(`${expense?"Gider":"Gelir"} kaydı oluşturuldu.`);await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"Kayıt oluşturulamadı.");}
+    finally{setWorking(false);}
+  }
+
+  async function transition(action:"submit"|"approve"){
+    if(!selected)return;setWorking(true);setError("");
+    try{
+      await api(`${basePath}/${selected.id}/${action}`,{method:"POST"});
+      const next=await api<FinanceRecord>(`${basePath}/${selected.id}`);
+      setSelected(next);setNotice(action==="submit"?"Kayıt onaya gönderildi.":"Kayıt onaylandı.");await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"İşlem tamamlanamadı.");}
+    finally{setWorking(false);}
+  }
+
+  async function postAccounting(){
+    if(!selected)return;setWorking(true);setError("");
+    try{
+      await api(`${basePath}/${selected.id}/accounting/prepare`,{method:"POST"});
+      await api(`${basePath}/${selected.id}/accounting/post`,{method:"POST"});
+      const next=await api<FinanceRecord>(`${basePath}/${selected.id}`);
+      setSelected(next);setNotice("Kayıt muhasebeleştirildi.");await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"Muhasebeleştirme tamamlanamadı. Kategori muhasebe eşlemesini kontrol edin.");}
+    finally{setWorking(false);}
+  }
+
+  function openMoney(record:FinanceRecord){
+    setSelected(record);setAmount(String(record.grossAmount));setAccountId(accounts[0]?.id??"");setMethod("TRANSFER");setReference("");
+    setSettlementExchangeRate(record.currency===baseCurrency?"1":String(record.exchangeRate||""));
+    setMoneyOpen(true);
+  }
+
+  async function reverseMoney(item:Record<string,unknown>){
+    if(!selected)return;
+    const id=String(item.id??""); if(!id)return;
+    const reason=window.prompt(expense?"Ödeme ters kayıt nedeni":"Tahsilat ters kayıt nedeni");
+    if(!reason?.trim())return;
+    setWorking(true);setError("");
+    try{
+      const path=expense?`${basePath}/${selected.id}/payments/${id}/reverse`:`${basePath}/${selected.id}/collections/${id}/reverse`;
+      await api(path,{method:"POST",body:{reason:reason.trim()}});
+      setNotice(expense?"Ödeme ters kaydı oluşturuldu.":"Tahsilat ters kaydı oluşturuldu.");
+      const historyPath=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;
+      const history=await api<Array<Record<string,unknown>>>(historyPath);setMoneyHistory(Array.isArray(history)?history:[]);
+      await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"Ters kayıt oluşturulamadı.")}finally{setWorking(false)}
+  }
+
+  async function recordMoney(event:FormEvent){
+    event.preventDefault();if(!selected||!accountId||!Number(amount))return;setWorking(true);setError("");
+    try{
+      const path=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;
+      const exchangeRateBody=selected.currency!==baseCurrency&&Number(settlementExchangeRate)>0?{exchangeRate:Number(settlementExchangeRate)}:{};
+      const body=expense
+        ?{amount:Number(amount),paymentAccountId:accountId,method,...exchangeRateBody,...(reference?{reference}:{})}
+        :{amount:Number(amount),collectionAccountId:accountId,method,...exchangeRateBody,...(reference?{reference}:{})};
+      await api(path,{method:"POST",body});
+      setMoneyOpen(false);setSelected(null);setNotice(expense?"Ödeme kaydedildi.":"Tahsilat kaydedildi.");await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"Nakit hareketi kaydedilemedi.");}
+    finally{setWorking(false);}
+  }
+
+  if(loading&&!records.length)return <Spinner label={`${title} hazırlanıyor...`}/>;
+
+  return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
+    <PageHeader title={title} description={expense?"Gideri kaydetme, onay, muhasebe ve ödeme süreçlerini tek merkezden yönetin.":"Satış dışı ve operasyonel gelirlerin kayıt, onay, muhasebe ve tahsilat süreçlerini yönetin."} action={canManage?<Button onClick={()=>{setForm(initialForm(baseCurrency));setCreateOpen(true);}}>+ Yeni {expense?"Gider":"Gelir"}</Button>:undefined}/>
+    {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
+    {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
+
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Metric label={`Bu Sayfa Tutarı (${baseCurrency})`} value={money(metrics.total,baseCurrency)}/>
+      <Metric label="Onaylanan Kayıt" value={metrics.approved}/>
+      <Metric label="Onay Bekleyen" value={metrics.pending}/>
+      <Metric label={expense?"Ödemesi Açık":"Tahsilatı Açık"} value={metrics.openMoney}/>
+    </section>
+
+    <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
+      <div className="grid gap-3 border-b border-[var(--line)] p-4 md:grid-cols-[1fr_220px_220px_auto]">
+        <TextInput value={search} onChange={e=>setSearch(e.target.value)} placeholder="Karşı taraf, belge no, kategori veya açıklama ara..."/>
+        <Select value={approvalFilter} onChange={e=>{setApprovalFilter(e.target.value);setPage(1)}}>
+          <option value="">Tüm onay durumları</option><option value="DRAFT">Taslak</option><option value="SUBMITTED">Onay bekliyor</option><option value="APPROVED">Onaylandı</option><option value="REJECTED">Reddedildi</option>
+        </Select>
+        <Select value={`${sortBy}:${sortDir}`} onChange={e=>{const [nextSort,nextDir]=e.target.value.split(":") as [typeof sortBy,typeof sortDir];setSortBy(nextSort);setSortDir(nextDir);setPage(1)}}>
+          <option value="transactionDate:desc">Tarih · Yeni → Eski</option>
+          <option value="transactionDate:asc">Tarih · Eski → Yeni</option>
+          <option value="grossAmount:desc">Tutar · Yüksek → Düşük</option>
+          <option value="grossAmount:asc">Tutar · Düşük → Yüksek</option>
+          <option value="createdAt:desc">Eklenme · Yeni → Eski</option>
+        </Select>
+        <Button variant="secondary" onClick={()=>void load()} disabled={loading}>{loading?"Yükleniyor...":"Yenile"}</Button>
+      </div>
+      {records.length?<div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-xs">
+        <thead><tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/45 text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">
+          <th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Kategori</th><th className="px-4 py-3">Karşı Taraf</th><th className="px-4 py-3">Belge</th><th className="px-4 py-3">Tutar</th><th className="px-4 py-3">Onay</th><th className="px-4 py-3">{expense?"Ödeme":"Tahsilat"}</th><th className="px-4 py-3">Muhasebe</th><th className="px-4 py-3">İşlem</th>
+        </tr></thead>
+        <tbody>{records.map(record=><tr key={record.id} className="border-b border-[var(--line)] last:border-0">
+          <td className="px-4 py-4 text-[var(--muted)]">{date(record.transactionDate)}</td>
+          <td className="px-4 py-4 font-medium text-[var(--ink)]">{categories.find(x=>x.id===record.categoryId)?.name??"Kategori"}</td>
+          <td className="px-4 py-4 text-[var(--muted)]">{record.counterpartyName||"—"}</td>
+          <td className="px-4 py-4 text-[var(--muted)]">{record.documentNumber||"—"}</td>
+          <td className="px-4 py-4 font-semibold text-[var(--ink)]">{money(record.grossAmount,record.currency)}</td>
+          <td className="px-4 py-4"><span className={pill(record.approvalStatus)}>{statusLabel(record.approvalStatus)}</span></td>
+          <td className="px-4 py-4"><span className={pill(expense?record.paymentStatus:record.collectionStatus)}>{statusLabel(expense?record.paymentStatus:record.collectionStatus)}</span></td>
+          <td className="px-4 py-4"><span className={pill(record.accountingStatus)}>{statusLabel(record.accountingStatus)}</span></td>
+          <td className="px-4 py-4"><Button size="sm" variant="secondary" onClick={()=>setSelected(record)}>Aç</Button></td>
+        </tr>)}</tbody>
+      </table></div>:<EmptyState title="Kayıt bulunamadı" description={expense?"Henüz gider kaydı yok veya filtrelere uyan kayıt bulunamadı.":"Henüz gelir kaydı yok veya filtrelere uyan kayıt bulunamadı."}/>}
+      <div className="flex flex-col gap-3 border-t border-[var(--line)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[10px] text-[var(--muted)]">Toplam {totalRecords} kayıt · Sayfa {page}/{totalPages}</p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" disabled={page<=1||loading} onClick={()=>setPage(current=>Math.max(1,current-1))}>Önceki</Button>
+          <Button size="sm" variant="secondary" disabled={page>=totalPages||loading} onClick={()=>setPage(current=>Math.min(totalPages,current+1))}>Sonraki</Button>
+        </div>
+      </div>
+    </section>
+
+    <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title={`Yeni ${expense?"Gider":"Gelir"}`} description="Finansal olayı kaydedin. Ödeme veya tahsilat ayrı bir nakit hareketi olarak işlenir.">
+      <form onSubmit={createRecord} className="space-y-5">
+        <FormSection title="Kayıt Bilgileri"><FormGrid>
+          <Field label="Kategori" required><ValooSelect value={form.categoryId} onChange={(categoryId)=>setForm({...form,categoryId})} placeholder="Kategori seçin" searchPlaceholder="Kategori ara…" emptyLabel="Kategori bulunamadı." options={categories.map(x=>({value:x.id,label:x.name}))} createAction={canManage?{label:`Yeni ${expense?"gider":"gelir"} kategorisi oluştur`,onClick:(query)=>setQuickCreate({kind:expense?"expense-category":"income-category",name:query})}:undefined}/></Field>
+          <Field label="Masraf / Maliyet Merkezi"><ValooSelect value={form.costCenterId} onChange={(costCenterId)=>setForm({...form,costCenterId})} placeholder="Seçilmedi" searchPlaceholder="Maliyet merkezi ara…" emptyLabel="Maliyet merkezi bulunamadı." options={costCenters.map(x=>({value:x.id,label:x.name}))} createAction={canManage?{label:"Yeni maliyet merkezi oluştur",onClick:(query)=>setQuickCreate({kind:"cost-center",name:query})}:undefined}/></Field>
+          <Field label="Karşı Taraf"><TextInput value={form.counterpartyName} onChange={e=>setForm({...form,counterpartyName:e.target.value})} placeholder="Firma, kişi veya kurum"/></Field>
+          <Field label="Vergi / Kimlik No"><TextInput value={form.counterpartyTaxNumber} onChange={e=>setForm({...form,counterpartyTaxNumber:e.target.value})}/></Field>
+        </FormGrid></FormSection>
+        <FormSection title="Belge ve Tarihler"><FormGrid columns={3}>
+          <Field label="Belge Türü"><TextInput value={form.documentType} onChange={e=>setForm({...form,documentType:e.target.value})} placeholder="Fatura, makbuz, sözleşme..."/></Field>
+          <Field label="Belge No"><TextInput value={form.documentNumber} onChange={e=>setForm({...form,documentNumber:e.target.value})}/></Field>
+          <Field label="Belge Tarihi"><TextInput type="date" value={form.documentDate} onChange={e=>setForm({...form,documentDate:e.target.value})}/></Field>
+          <Field label="İşlem Tarihi" required><TextInput type="date" value={form.transactionDate} onChange={e=>setForm({...form,transactionDate:e.target.value})} required/></Field>
+          <Field label="Vade Tarihi"><TextInput type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})}/></Field>
+        </FormGrid></FormSection>
+        <FormSection title="Tutarlar"><FormGrid columns={3}>
+          <Field label="Brüt Tutar" required><TextInput type="number" min="0" step="0.01" value={form.grossAmount} onChange={e=>setForm({...form,grossAmount:e.target.value})} required/></Field>
+          <Field label="Net Tutar" required><TextInput type="number" min="0" step="0.01" value={form.netAmount} onChange={e=>setForm({...form,netAmount:e.target.value})} required/></Field>
+          <Field label="Vergi"><TextInput type="number" min="0" step="0.01" value={form.taxAmount} onChange={e=>setForm({...form,taxAmount:e.target.value})}/></Field>
+          {expense?<Field label="Stopaj"><TextInput type="number" min="0" step="0.01" value={form.withholdingAmount} onChange={e=>setForm({...form,withholdingAmount:e.target.value})}/></Field>:null}
+          <Field label="Para Birimi"><TextInput maxLength={3} value={form.currency} onChange={e=>{const currency=e.target.value.toUpperCase();setForm({...form,currency,exchangeRate:currency===baseCurrency?"1":form.exchangeRate})}}/></Field>
+          <Field label={form.currency===baseCurrency?"Kur (Baz Para Biriminde 1)":"Döviz Kuru"}><TextInput type="number" min="0.000001" step="0.000001" value={form.exchangeRate} onChange={e=>setForm({...form,exchangeRate:e.target.value})}/></Field>
+        </FormGrid><Field label="Açıklama"><TextArea rows={3} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Kaydın nedenini ve gerekli notları yazın."/></Field></FormSection>
+        <FormActions sticky><Button variant="secondary" onClick={()=>setCreateOpen(false)} disabled={working}>Vazgeç</Button><Button type="submit" disabled={working}>{working?"Kaydediliyor...":"Taslak Olarak Kaydet"}</Button></FormActions>
+      </form>
+    </Modal>
+
+    {quickCreate?<FinanceQuickCreate
+      open
+      kind={quickCreate.kind}
+      initialName={quickCreate.name}
+      onClose={()=>setQuickCreate(null)}
+      onCreated={(entity)=>{
+        if(quickCreate.kind==="cost-center"){
+          const created:CostCenter={id:entity.id,code:entity.code,name:entity.name,active:entity.active};
+          setCostCenters(current=>[...current.filter(item=>item.id!==created.id),created].sort((a,b)=>a.name.localeCompare(b.name,"tr")));
+          setForm(current=>({...current,costCenterId:created.id}));
+        }else{
+          const created:Category={id:entity.id,code:entity.code,name:entity.name,parentId:entity.parentId??null,active:entity.active};
+          setCategories(current=>[...current.filter(item=>item.id!==created.id),created].sort((a,b)=>a.name.localeCompare(b.name,"tr")));
+          setForm(current=>({...current,categoryId:created.id}));
+        }
+        setQuickCreate(null);
+      }}
+    />:null}
+
+    <Modal open={Boolean(selected)&&!moneyOpen} onClose={()=>setSelected(null)} size="lg" title={expense?"Gider Detayı":"Gelir Detayı"} description="Onay, muhasebe ve nakit hareketlerini yönetin.">
+      {selected?<div className="space-y-5">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Detail label="Brüt Tutar" value={money(selected.grossAmount,selected.currency)}/><Detail label="Net Tutar" value={money(selected.netAmount,selected.currency)}/><Detail label="Vergi" value={money(selected.taxAmount,selected.currency)}/>{expense?<Detail label="Stopaj" value={money(selected.withholdingAmount,selected.currency)}/>:<Detail label="Vade" value={date(selected.dueDate)}/>}</section>
+        <section className="grid gap-4 rounded-[18px] border border-[var(--line)] bg-[var(--surface-2)]/35 p-5 md:grid-cols-2">
+          <Detail label="Kategori" value={categories.find(x=>x.id===selected.categoryId)?.name??"—"}/><Detail label="Karşı Taraf" value={selected.counterpartyName||"—"}/><Detail label="İşlem Tarihi" value={date(selected.transactionDate)}/><Detail label="Belge" value={[selected.documentType,selected.documentNumber].filter(Boolean).join(" · ")||"—"}/><Detail label="Onay Durumu" value={statusLabel(selected.approvalStatus)}/><Detail label={expense?"Ödeme Durumu":"Tahsilat Durumu"} value={statusLabel(expense?selected.paymentStatus:selected.collectionStatus)}/><Detail label="Muhasebe Durumu" value={statusLabel(selected.accountingStatus)}/><Detail label="Açıklama" value={selected.description||"—"}/>
+        </section>
+        <section className="overflow-hidden rounded-[16px] border border-[var(--line)]">
+          <div className="border-b border-[var(--line)] px-4 py-3"><h3 className="text-[12px] font-semibold text-[var(--ink)]">{expense?"Ödeme Geçmişi":"Tahsilat Geçmişi"}</h3></div>
+          {moneyHistory.length?<div className="divide-y divide-[var(--line)]">{moneyHistory.map((item,index)=><div key={String(item.id??index)} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
+            <div><p className="text-[10px] text-[var(--muted-soft)]">Tutar</p><p className="text-[12px] font-semibold text-[var(--ink)]">{money(Number(item.amount??0),selected.currency)}</p></div>
+            <div><p className="text-[10px] text-[var(--muted-soft)]">Hesap</p><p className="text-[11px] text-[var(--muted)]">{String(item.paymentAccountName??item.collectionAccountName??"—")}</p></div>
+            <div><p className="text-[10px] text-[var(--muted-soft)]">Referans / Kur</p><p className="text-[11px] text-[var(--muted)]">{String(item.reference??"—")}{selected.currency!==baseCurrency&&item.exchangeRate?` · Kur ${Number(item.exchangeRate).toLocaleString("tr-TR",{maximumFractionDigits:6})}`:""}</p></div>
+            <div>{canManage&&!item.reversalId?<Button size="sm" variant="danger" disabled={working} onClick={()=>void reverseMoney(item)}>Geri Al</Button>:<span className="text-[10px] text-[var(--muted-soft)]">{item.reversalId?"Ters kayıtlı":""}</span>}</div>
+          </div>)}</div>:<div className="px-4 py-6 text-center text-[11px] text-[var(--muted)]">Henüz hareket yok.</div>}
+        </section>
+        {canManage?<div className="flex flex-wrap gap-2 border-t border-[var(--line)] pt-5">
+          {["DRAFT","REJECTED"].includes(selected.approvalStatus)?<Button onClick={()=>void transition("submit")} disabled={working}>Onaya Gönder</Button>:null}
+          {selected.approvalStatus==="SUBMITTED"?<Button variant="success" onClick={()=>void transition("approve")} disabled={working}>Onayla</Button>:null}
+          {selected.approvalStatus==="APPROVED"&&selected.accountingStatus!=="POSTED"?<Button variant="secondary" onClick={()=>void postAccounting()} disabled={working}>Muhasebeleştir</Button>:null}
+          {selected.approvalStatus==="APPROVED"&&selected.accountingStatus==="POSTED"?<Button variant="secondary" onClick={()=>openMoney(selected)} disabled={working||!accounts.length}>{expense?"Ödeme Kaydet":"Tahsilat Kaydet"}</Button>:null}
+        </div>:null}
+        {!accounts.length&&selected.accountingStatus==="POSTED"?<Alert>Ödeme veya tahsilat için aktif bir kasa/banka muhasebe hesabı bulunamadı.</Alert>:null}
+      </div>:null}
+    </Modal>
+
+    <Modal open={moneyOpen} onClose={()=>setMoneyOpen(false)} title={expense?"Ödeme Kaydet":"Tahsilat Kaydet"} description={expense?"Onaylı giderin ödeme hareketini kaydedin.":"Onaylı gelirin tahsilat hareketini kaydedin."}>
+      <form onSubmit={recordMoney} className="space-y-4">
+        <Field label="Tutar" required><TextInput type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></Field>
+        <Field label={expense?"Ödeme Hesabı":"Tahsilat Hesabı"} required><Select value={accountId} onChange={e=>setAccountId(e.target.value)} required><option value="">Kasa / banka hesabı seçin</option>{accounts.map(x=><option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</Select></Field>
+        <Field label="Yöntem" required><Select value={method} onChange={e=>setMethod(e.target.value)}><option value="TRANSFER">Banka Havalesi / EFT</option><option value="CASH">Nakit</option><option value="CARD">Kart</option><option value="OTHER">Diğer</option></Select></Field>
+        {selected?.currency!==baseCurrency?<Field label="Gerçekleşen Döviz Kuru" required><TextInput type="number" min="0.000001" step="0.000001" value={settlementExchangeRate} onChange={e=>setSettlementExchangeRate(e.target.value)} required/><p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Belge kuru {Number(selected?.exchangeRate??0).toLocaleString("tr-TR",{maximumFractionDigits:6})}. Aradaki fark otomatik olarak kur farkı geliri/gideri hesabına işlenir.</p></Field>:null}
+        <Field label="Referans / Dekont No"><TextInput value={reference} onChange={e=>setReference(e.target.value)}/></Field>
+        <FormActions><Button variant="secondary" onClick={()=>setMoneyOpen(false)} disabled={working}>Vazgeç</Button><Button type="submit" disabled={working||!accountId||(selected?.currency!==baseCurrency&&!Number(settlementExchangeRate))}>{working?"Kaydediliyor...":expense?"Ödemeyi Kaydet":"Tahsilatı Kaydet"}</Button></FormActions>
+      </form>
+    </Modal>
+  </div>;
+}
+
+function Metric({label,value}:{label:string;value:string|number}){return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-2 text-[22px] font-semibold tracking-[-.03em] text-[var(--ink)]">{value}</p></div>}
+function Detail({label,value}:{label:string;value:string|number}){return <div><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-1 text-[13px] font-medium text-[var(--ink)]">{value}</p></div>}

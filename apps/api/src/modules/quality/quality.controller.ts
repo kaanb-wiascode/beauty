@@ -1,0 +1,85 @@
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
+import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { QualityAssigneeScopeGuard } from './quality-assignee-scope.guard';
+import { QualityService } from './quality.service';
+import { QualitySlaService } from './quality-sla.service';
+
+@Controller('quality')
+@UseGuards(JwtAuthGuard,TenantAuthGuard,PermissionsGuard)
+export class QualityController {
+  constructor(private readonly quality:QualityService,private readonly sla:QualitySlaService){}
+
+  private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
+
+  @Get('feedback')
+  @RequirePermission('quality','read')
+  listFeedback(@Query('classification')classification?:string,@Query('customerId')customerId?:string,@Query('limit')limit?:string){
+    return this.quality.listFeedback({classification:classification||undefined,customerId:customerId||undefined,limit:limit?Number(limit):undefined});
+  }
+
+  @Post('feedback')
+  @RequirePermission('quality','manage')
+  createFeedback(@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    return this.quality.createFeedback({
+      branchId:b.branchId,customerId:b.customerId,appointmentId:b.appointmentId??null,serviceId:b.serviceId??null,staffId:b.staffId??null,careEventId:b.careEventId??null,
+      source:['MANUAL','POST_SERVICE','COMPLAINT','CUSTOMER_PORTAL','IMPORT'].includes(b.source)?b.source:'MANUAL',
+      classification:['UNCLASSIFIED','POSITIVE','NEUTRAL','NEGATIVE','CRITICAL'].includes(b.classification)?b.classification:'UNCLASSIFIED',
+      overallRating:b.overallRating==null?null:Number(b.overallRating),comment:b.comment??null,
+    },this.userId(req));
+  }
+
+  @Post('feedback/:id/escalate')
+  @RequirePermission('quality','manage')
+  @UseGuards(QualityAssigneeScopeGuard)
+  escalate(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    const severity=['LOW','MEDIUM','HIGH','CRITICAL'].includes(b.severity)?b.severity:'MEDIUM';
+    return this.quality.escalateFeedback(id,this.userId(req),{category:b.category,severity,title:b.title,assignedUserId:b.assignedUserId??null,slaDueAt:b.slaDueAt??null});
+  }
+
+  @Get('sla/breaches')
+  @RequirePermission('quality','read')
+  listSlaBreaches(@Query('limit')limit?:string){
+    return this.sla.listBreaches(limit?Number(limit):undefined);
+  }
+
+  @Post('sla/process')
+  @RequirePermission('quality','manage')
+  processSla(@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    return this.sla.processOverdue(this.userId(req),b?.limit==null?undefined:Number(b.limit));
+  }
+
+  @Get('cases')
+  @RequirePermission('quality','read')
+  listCases(@Query('status')status?:string,@Query('severity')severity?:string,@Query('assignedUserId')assignedUserId?:string,@Query('limit')limit?:string){
+    return this.quality.listCases({status:status||undefined,severity:severity||undefined,assignedUserId:assignedUserId||undefined,limit:limit?Number(limit):undefined});
+  }
+
+  @Get('cases/:id')
+  @RequirePermission('quality','read')
+  getCase(@Param('id')id:string){return this.quality.getCase(id);}
+
+  @Post('cases')
+  @RequirePermission('quality','manage')
+  @UseGuards(QualityAssigneeScopeGuard)
+  createCase(@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    const sourceType=['FEEDBACK','CARE_EVENT','MANUAL','INCIDENT'].includes(b.sourceType)?b.sourceType:'MANUAL';
+    const severity=['LOW','MEDIUM','HIGH','CRITICAL'].includes(b.severity)?b.severity:'MEDIUM';
+    return this.quality.createCase({branchId:b.branchId,feedbackId:b.feedbackId??null,careEventId:b.careEventId??null,customerId:b.customerId??null,appointmentId:b.appointmentId??null,serviceId:b.serviceId??null,staffId:b.staffId??null,sourceType,category:b.category,severity,title:b.title,description:b.description??null,assignedUserId:b.assignedUserId??null,slaDueAt:b.slaDueAt??null},this.userId(req));
+  }
+
+  @Post('cases/:id/assign')
+  @RequirePermission('quality','manage')
+  @UseGuards(QualityAssigneeScopeGuard)
+  assign(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.quality.assign(id,b.assignedUserId??null,this.userId(req),b.note);}
+
+  @Post('cases/:id/transition')
+  @RequirePermission('quality','manage')
+  transition(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    const status=String(b.status??'');
+    if(!['INVESTIGATING','ACTION_REQUIRED','RESOLVED','CLOSED'].includes(status)) throw new BadRequestException('Invalid quality target status.');
+    return this.quality.transition(id,status as 'INVESTIGATING'|'ACTION_REQUIRED'|'RESOLVED'|'CLOSED',this.userId(req),{rootCause:b.rootCause,correctiveAction:b.correctiveAction,preventiveAction:b.preventiveAction,resolution:b.resolution,customerFollowUp:b.customerFollowUp,note:b.note});
+  }
+}

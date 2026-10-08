@@ -2,12 +2,17 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
+import { AccountingService } from '../accounting/accounting.service';
+import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { CreatePaymentInput } from './dto/create-payment.dto';
 import { ListPaymentsInput } from './dto/list-payments.dto';
 import { RefundPaymentInput } from './dto/refund-payment.dto';
@@ -19,105 +24,50 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
+    private readonly accountingService: AccountingService,
+    private readonly commerceFinanceSync: CommerceFinanceSyncService,
+    @Optional()
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private getTenantId(): string {
     return this.tenantContext.getTenantId();
   }
 
-  private requireBranchId(): string {
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        'A branch must be selected for this operation.',
-      );
+  private async currentUserId(
+    db: Prisma.TransactionClient | PrismaService,
+  ): Promise<string> {
+    const context = this.tenantContext.getContext();
+    const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" AS "userId"
+         FROM memberships
+        WHERE id=$1::text AND "tenantId"=$2::text AND "companyId"=$3::text
+        LIMIT 1`,
+      context.membershipId,
+      context.tenantId,
+      context.companyId,
+    );
+    if (!rows[0]?.userId) {
+      throw new BadRequestException('Oturum açmış kullanıcı bilgisi bulunamadı.');
     }
-
-    return branchId;
+    return rows[0].userId;
   }
 
-  /**
-   * CENTRAL without an active branch may see the whole company.
-   * Once a branch is selected, all branch-scoped operations are
-   * restricted to that branch.
-   */
-  private getAppointmentScope() {
-    const tenantId = this.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
-  }
-
-  /**
-   * Payments do not have branchId directly; branch isolation is
-   * enforced through the related appointment.
-   */
-  private getPaymentScope() {
-    const tenantId = this.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        appointment: {
-          branch: {
-            companyId,
-          },
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      appointment: {
-        branchId: this.requireBranchId(),
-      },
-    };
-  }
-
-  private getBranchEntityScope() {
-    const tenantId = this.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'P2002'
+    );
   }
 
   private async buildPeriodMetrics(
     from: Date,
     to: Date,
   ) {
-    const tenantId = this.getTenantId();
+    const branchScope = await this.organizationScope.getBranchScopedWhere();
 
     const [summary, appointments, newCustomers] =
       await Promise.all([
@@ -127,7 +77,7 @@ export class PaymentsService {
         }),
         this.prisma.appointment.findMany({
           where: {
-            ...this.getAppointmentScope(),
+            ...branchScope,
             startAt: {
               gte: from,
               lte: to,
@@ -139,7 +89,7 @@ export class PaymentsService {
         }),
         this.prisma.customer.count({
           where: {
-            ...this.getBranchEntityScope(),
+            ...branchScope,
             createdAt: {
               gte: from,
               lte: to,
@@ -168,26 +118,29 @@ export class PaymentsService {
 
   async create(input: CreatePaymentInput) {
     const tenantId = this.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const appointmentScope = await this.organizationScope.getBranchScopedWhere();
 
-    const appointment =
-      await this.prisma.appointment.findFirst({
-        where: {
-          id: input.appointmentId,
-          ...this.getAppointmentScope(),
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: input.appointmentId,
+        ...appointmentScope,
+      },
+      include: {
+        customer: {
+          select: { firstName: true, lastName: true },
         },
-        include: {
-          service: {
-            select: {
-              price: true,
-            },
-          },
+        service: {
+          select: { name: true, price: true },
         },
-      });
+        session: {
+          select: { id: true },
+        },
+      },
+    });
 
     if (!appointment) {
-      throw new NotFoundException(
-        'Appointment not found',
-      );
+      throw new NotFoundException('Randevu bulunamadı.');
     }
 
     if (
@@ -195,45 +148,131 @@ export class PaymentsService {
       appointment.status === 'NO_SHOW'
     ) {
       throw new BadRequestException(
-        'Cancelled or no-show appointment cannot be paid',
+        'İptal edilmiş veya gelmedi olarak işaretlenmiş randevu için ödeme alınamaz.',
       );
     }
 
-    const existing = await this.prisma.payment.findUnique({
-      where: {
-        appointmentId: appointment.id,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (existing) {
-      throw new ConflictException(
-        'Appointment already has a payment',
+    if (appointment.session) {
+      throw new BadRequestException(
+        'Bu randevu paket seansından karşılanıyor. Ayrıca ödeme alınamaz.',
       );
     }
 
-    return this.prisma.payment.create({
-      data: {
-        tenantId,
-        appointmentId: appointment.id,
-        amount: input.amount,
-        method: input.method,
-        ...(input.paidAt
-          ? { paidAt: input.paidAt }
-          : {}),
-      },
-    });
+    const serviceAmount = Number(appointment.service.price);
+    const paymentAmount = Math.round((Number(input.amount) + Number.EPSILON) * 100) / 100;
+    if (Math.abs(paymentAmount - serviceAmount) > 0.01) {
+      throw new BadRequestException(
+        'Randevu ödeme tutarı hizmet bedeliyle aynı olmalıdır. Kısmi tahsilat için randevunun alacak kaydını Finans > Gelirler alanından yönetin.',
+      );
+    }
+
+    try {
+      let eventId: string | null = null;
+      const payment = await this.prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.payment.findUnique({
+            where: { appointmentId: appointment.id },
+            select: { id: true },
+          });
+          if (existing) {
+            throw new ConflictException('Bu randevu için ödeme zaten kaydedilmiş.');
+          }
+
+          const payment = await tx.payment.create({
+            data: {
+              tenantId,
+              appointmentId: appointment.id,
+              amount: paymentAmount,
+              method: input.method,
+              ...(input.paidAt ? { paidAt: input.paidAt } : {}),
+            },
+          });
+
+          const actorId = await this.currentUserId(tx);
+          const customerName =
+            `${appointment.customer.firstName} ${appointment.customer.lastName}`.trim();
+
+          await this.accountingService.recordAppointmentReceivable(
+            tx,
+            appointment.id,
+            {
+              tenantId,
+              branchId: appointment.branchId,
+              entryDate: payment.paidAt,
+              amount: serviceAmount,
+            },
+          );
+          await this.commerceFinanceSync.syncAppointmentReceivable(tx, {
+            tenantId,
+            companyId,
+            branchId: appointment.branchId,
+            appointmentId: appointment.id,
+            actorId,
+            customerName,
+            serviceName: appointment.service.name,
+            amount: serviceAmount,
+            occurredAt: payment.paidAt,
+            dueAt: appointment.startAt,
+          });
+
+          await this.accountingService.recordAppointmentPayment(
+            tx,
+            payment.id,
+            payment.method,
+            {
+              tenantId,
+              branchId: appointment.branchId,
+              entryDate: payment.paidAt,
+              amount: paymentAmount,
+            },
+          );
+          await this.commerceFinanceSync.syncAppointmentPayment(tx, {
+            tenantId,
+            companyId,
+            branchId: appointment.branchId,
+            appointmentId: appointment.id,
+            actorId,
+            customerName,
+            serviceName: appointment.service.name,
+            amount: paymentAmount,
+            occurredAt: payment.paidAt,
+            dueAt: appointment.startAt,
+            paymentId: payment.id,
+            method: payment.method,
+          });
+
+          eventId =
+            (await this.domainEvents?.record(tx, {
+              eventName: 'appointment.payment_received',
+              aggregateType: 'appointment',
+              aggregateId: appointment.id,
+              payload: {
+                paymentId: payment.id,
+                amount: Number(payment.amount),
+                method: payment.method,
+              },
+            })) ?? null;
+
+          return payment;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+      if (eventId) await this.domainEvents?.dispatchStored(eventId);
+      return payment;
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw new ConflictException('Bu randevu için ödeme zaten kaydedilmiş.');
+      }
+      throw error;
+    }
   }
 
   async findAll(input: ListPaymentsInput) {
-    const tenantId = this.getTenantId();
-
     const skip = (input.page - 1) * input.limit;
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const where = {
-      ...this.getPaymentScope(),
+      ...paymentScope,
       ...(input.method
         ? { method: input.method }
         : {}),
@@ -282,43 +321,116 @@ export class PaymentsService {
 
   async refund(id: string, input: RefundPaymentInput) {
     const tenantId = this.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const payment = await this.prisma.payment.findFirst({
       where: {
         id,
-        ...this.getPaymentScope(),
+        ...paymentScope,
+      },
+      include: {
+        appointment: {
+          include: {
+            customer: {
+              select: { firstName: true, lastName: true },
+            },
+            service: {
+              select: { name: true, price: true },
+            },
+          },
+        },
       },
     });
 
     if (!payment) {
-      throw new NotFoundException('Payment not found');
+      throw new NotFoundException('Ödeme bulunamadı.');
     }
 
     if (payment.status === 'REFUNDED') {
-      throw new ConflictException(
-        'Payment is already refunded',
-      );
+      throw new ConflictException('Ödeme zaten iade edilmiş.');
     }
 
-    return this.prisma.payment.update({
-      where: {
-        id: payment.id,
+    const reason = input.reason?.trim() || 'Ödeme iadesi';
+    let eventId: string | null = null;
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const refundedAt = new Date();
+        const result = await tx.payment.updateMany({
+          where: {
+            id: payment.id,
+            status: { not: 'REFUNDED' },
+          },
+          data: {
+            status: 'REFUNDED',
+            refundedAt,
+            refundReason: reason,
+          },
+        });
+
+        if (result.count !== 1) {
+          throw new ConflictException('Ödeme zaten iade edilmiş.');
+        }
+
+        await this.accountingService.recordAppointmentPaymentRefund(
+          tx,
+          payment.id,
+          payment.method,
+          {
+            tenantId,
+            branchId: payment.appointment.branchId,
+            entryDate: refundedAt,
+            amount: Number(payment.amount),
+          },
+        );
+
+        const actorId = await this.currentUserId(tx);
+        await this.commerceFinanceSync.syncAppointmentPaymentRefund(tx, {
+          tenantId,
+          companyId,
+          branchId: payment.appointment.branchId,
+          appointmentId: payment.appointmentId,
+          actorId,
+          customerName:
+            `${payment.appointment.customer.firstName} ${payment.appointment.customer.lastName}`.trim(),
+          serviceName: payment.appointment.service.name,
+          amount: Number(payment.amount),
+          occurredAt: refundedAt,
+          dueAt: payment.appointment.startAt,
+          paymentId: payment.id,
+          method: payment.method,
+          reason,
+        });
+
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'appointment.payment_refunded',
+            aggregateType: 'appointment',
+            aggregateId: payment.appointmentId,
+            payload: {
+              paymentId: payment.id,
+              amount: Number(payment.amount),
+              reason,
+            },
+          })) ?? null;
+
+        return tx.payment.findUniqueOrThrow({
+          where: { id: payment.id },
+        });
       },
-      data: {
-        status: 'REFUNDED',
-        refundedAt: new Date(),
-        refundReason: input.reason?.trim() || null,
-      },
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
+    return result;
   }
 
   async summary(input: PaymentSummaryInput) {
-    const tenantId = this.getTenantId();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const [completed, refunded] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
-          ...this.getPaymentScope(),
+          ...paymentScope,
           status: 'COMPLETED',
           paidAt: {
             gte: input.from,
@@ -335,7 +447,7 @@ export class PaymentsService {
 
       this.prisma.payment.aggregate({
         where: {
-          ...this.getPaymentScope(),
+          ...paymentScope,
           status: 'REFUNDED',
           refundedAt: {
             gte: input.from,
@@ -354,7 +466,7 @@ export class PaymentsService {
     const methods = await this.prisma.payment.groupBy({
       by: ['method'],
       where: {
-        ...this.getPaymentScope(),
+        ...paymentScope,
         status: 'COMPLETED',
         paidAt: {
           gte: input.from,
@@ -389,10 +501,10 @@ export class PaymentsService {
     };
   }
 
-
-    async dashboardReport(input: DashboardReportInput) {
-    const tenantId = this.getTenantId();
+  async dashboardReport(input: DashboardReportInput) {
     const now = new Date();
+    const branchScope = await this.organizationScope.getBranchScopedWhere();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const last7From = new Date(input.from);
     last7From.setDate(last7From.getDate() - 6);
@@ -412,6 +524,8 @@ export class PaymentsService {
       upcomingAppointments,
       last7Metrics,
       monthMetrics,
+      trendPayments,
+      trendAppointments,
     ] = await Promise.all([
       this.summary({
         from: input.from,
@@ -419,7 +533,7 @@ export class PaymentsService {
       }),
       this.prisma.appointment.findMany({
         where: {
-          ...this.getAppointmentScope(),
+          ...branchScope,
           startAt: {
             gte: input.from,
             lte: input.to,
@@ -461,23 +575,23 @@ export class PaymentsService {
         },
       }),
       this.prisma.customer.count({
-        where: this.getBranchEntityScope(),
+        where: branchScope,
       }),
       this.prisma.staff.count({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
       }),
       this.prisma.service.count({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
       }),
       this.prisma.staff.findMany({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
         select: {
@@ -488,7 +602,7 @@ export class PaymentsService {
       }),
       this.prisma.service.findMany({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
         select: {
@@ -498,7 +612,7 @@ export class PaymentsService {
       }),
       this.prisma.appointment.findMany({
         where: {
-          ...this.getAppointmentScope(),
+          ...branchScope,
           startAt: {
             gt: now,
           },
@@ -544,6 +658,32 @@ export class PaymentsService {
       }),
       this.buildPeriodMetrics(last7From, input.to),
       this.buildPeriodMetrics(monthFrom, input.to),
+      this.prisma.payment.findMany({
+        where: {
+          ...paymentScope,
+          status: { in: ['COMPLETED', 'REFUNDED'] },
+          OR: [
+            { paidAt: { gte: last7From, lte: input.to } },
+            { refundedAt: { gte: last7From, lte: input.to } },
+          ],
+        },
+        select: {
+          amount: true,
+          status: true,
+          paidAt: true,
+          refundedAt: true,
+        },
+      }),
+      this.prisma.appointment.findMany({
+        where: {
+          ...branchScope,
+          startAt: { gte: last7From, lte: input.to },
+        },
+        select: {
+          startAt: true,
+          status: true,
+        },
+      }),
     ]);
 
     const appointmentCounts = {
@@ -663,6 +803,54 @@ export class PaymentsService {
       .sort((a, b) => b.collected - a.collected)
       .slice(0, 5);
 
+    const dayKey = (value: Date) => {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    const dailyTrendMap = new Map<string, {
+      date: string;
+      gross: number;
+      refunds: number;
+      net: number;
+      appointments: number;
+      completed: number;
+    }>();
+    for (let offset = 0; offset < 7; offset += 1) {
+      const day = new Date(last7From);
+      day.setDate(last7From.getDate() + offset);
+      const key = dayKey(day);
+      dailyTrendMap.set(key, {
+        date: key,
+        gross: 0,
+        refunds: 0,
+        net: 0,
+        appointments: 0,
+        completed: 0,
+      });
+    }
+    for (const payment of trendPayments) {
+      if (payment.status === 'COMPLETED') {
+        const bucket = dailyTrendMap.get(dayKey(payment.paidAt));
+        if (bucket) bucket.gross += Number(payment.amount);
+      }
+      if (payment.status === 'REFUNDED' && payment.refundedAt) {
+        const bucket = dailyTrendMap.get(dayKey(payment.refundedAt));
+        if (bucket) bucket.refunds += Number(payment.amount);
+      }
+    }
+    for (const appointment of trendAppointments) {
+      const bucket = dailyTrendMap.get(dayKey(appointment.startAt));
+      if (!bucket) continue;
+      bucket.appointments += 1;
+      if (appointment.status === 'COMPLETED') bucket.completed += 1;
+    }
+    const dailyTrend = [...dailyTrendMap.values()].map((item) => ({
+      ...item,
+      net: item.gross - item.refunds,
+    }));
+
     return {
       summary: {
         ...summary,
@@ -679,11 +867,13 @@ export class PaymentsService {
         activeStaff,
         activeServices,
         appointments: await this.prisma.appointment.count({
-          where: this.getAppointmentScope(),
+          where: branchScope,
         }),
       },
 
       paymentBreakdown: summary.methods,
+
+      dailyTrend,
 
       todayAppointments: appointmentDetails,
 
@@ -705,13 +895,13 @@ export class PaymentsService {
   }
 
   async findOne(id: string) {
-    const tenantId = this.getTenantId();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const payment =
       await this.prisma.payment.findFirst({
         where: {
           id,
-          ...this.getPaymentScope(),
+          ...paymentScope,
         },
         include: {
           appointment: true,
@@ -720,7 +910,7 @@ export class PaymentsService {
 
     if (!payment) {
       throw new NotFoundException(
-        'Payment not found',
+        'Ödeme bulunamadı.',
       );
     }
 

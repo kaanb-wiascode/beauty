@@ -1,0 +1,16 @@
+model FinanceConfigurationAuditEvent {
+  id          String   @id
+  tenantId    String   @map("tenant_id")
+  companyId   String?  @map("company_id")
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  operation   String
+  actorId     String?  @map("actor_id")
+  beforeState Json?    @map("before_state")
+  afterState  Json?    @map("after_state")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, companyId, createdAt], map: "finance_configuration_audit_events_tenant_company_created_at_id")
+  @@index([entityType, entityId, createdAt], map: "finance_configuration_audit_events_entity_idx")
+  @@map("finance_configuration_audit_events")
+}

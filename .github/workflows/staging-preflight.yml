@@ -1,0 +1,57 @@
+name: Staging infrastructure preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-infrastructure-preflight
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Validate external staging dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install connectivity clients
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-16 redis-tools
+          python3 -m pip install --disable-pip-version-check --quiet awscli
+
+      - name: Validate staging infrastructure
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_STAGING_APPLICATION_UUID: ${{ secrets.COOLIFY_STAGING_APPLICATION_UUID }}
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          STAGING_OBJECT_STORAGE_BUCKET: ${{ secrets.STAGING_OBJECT_STORAGE_BUCKET }}
+          STAGING_OBJECT_STORAGE_REGION: ${{ secrets.STAGING_OBJECT_STORAGE_REGION }}
+          STAGING_OBJECT_STORAGE_ENDPOINT: ${{ secrets.STAGING_OBJECT_STORAGE_ENDPOINT }}
+          STAGING_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.STAGING_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          STAGING_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.STAGING_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+        run: bash scripts/release/verify-staging-infrastructure.sh
+
+      - name: Write preflight summary
+        if: always()
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        shell: bash
+        run: |
+          {
+            echo "## VALOO staging infrastructure preflight"
+            echo
+            echo "- Staging URL: ${STAGING_URL:-not-configured}"
+            echo "- Result: ${{ job.status }}"
+            echo "- Run ID: $GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"

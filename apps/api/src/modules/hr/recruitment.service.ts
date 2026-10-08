@@ -1,0 +1,321 @@
+import { randomUUID } from 'node:crypto';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { HrService } from './hr.service';
+import { OnboardingService } from './onboarding.service';
+
+@Injectable()
+export class RecruitmentService {
+  constructor(private readonly prisma: PrismaService, private readonly ctx: TenantContext, private readonly hr: HrService, private readonly onboarding: OnboardingService) {}
+
+  private scope() {
+    const tenantId = this.ctx.getTenantId();
+    const companyId = this.ctx.getCompanyId();
+    if (!tenantId || !companyId) throw new BadRequestException('Tenant and company context are required.');
+    return { tenantId, companyId };
+  }
+
+  private async assertBranch(branchId?: string | null) {
+    if (!branchId) return null;
+    const { tenantId, companyId } = this.scope();
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, companyId, company: { tenantId } },
+      select: { id: true },
+    });
+    if (!branch) throw new BadRequestException('Branch is outside organization scope.');
+    return branch.id;
+  }
+
+  private async assertApplication(applicationId: string) {
+    const { tenantId, companyId } = this.scope();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id FROM hr_job_applications WHERE id=$1 AND tenant_id=$2 AND company_id=$3 LIMIT 1`,
+      applicationId,
+      tenantId,
+      companyId,
+    );
+    if (!rows.length) throw new NotFoundException('Application not found.');
+    return rows[0];
+  }
+
+  async jobs() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,title,department_id AS "departmentId",department_name AS "departmentName",position_id AS "positionId",position_name AS "positionName",employment_type AS "employmentType",location,status,published_at AS "publishedAt",closes_at AS "closesAt",created_at AS "createdAt" FROM hr_job_postings WHERE tenant_id=$1 AND company_id=$2 ORDER BY created_at DESC`,
+      tenantId,
+      companyId,
+    );
+  }
+
+  async createJob(body: any, actorId?: string) {
+    const { tenantId, companyId } = this.scope();
+    const title = String(body.title ?? '').trim();
+    if (!title) throw new BadRequestException('title is required.');
+    const id = randomUUID();
+    const branchId = await this.assertBranch(body.branchId ?? null);
+
+    let department: any = null;
+    let position: any = null;
+    if (body.departmentId) {
+      department = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name FROM hr_departments WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.departmentId, tenantId, companyId,
+      ))[0];
+      if (!department) throw new BadRequestException('Department is not available in the active company.');
+    }
+    if (body.positionId) {
+      position = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name,department_id FROM hr_positions WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.positionId, tenantId, companyId,
+      ))[0];
+      if (!position) throw new BadRequestException('Position is not available in the active company.');
+      if (body.departmentId && position.department_id && position.department_id !== body.departmentId) {
+        throw new BadRequestException('Position does not belong to the selected department.');
+      }
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO hr_job_postings(id,tenant_id,company_id,branch_id,title,department_id,department_name,position_id,position_name,employment_type,location,description,requirements,status,published_at,closes_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::timestamptz,$16::timestamptz,$17)`,
+      id, tenantId, companyId, branchId, title,
+      department?.id ?? null,
+      department?.name ?? body.departmentName ?? null,
+      position?.id ?? null,
+      position?.name ?? body.positionName ?? null,
+      body.employmentType ?? null,
+      body.location ?? null,
+      body.description ?? null,
+      body.requirements ?? null,
+      body.status ?? 'DRAFT',
+      body.publishedAt ?? null,
+      body.closesAt ?? null,
+      actorId ?? null,
+    );
+    return { id };
+  }
+
+  async candidates() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,first_name AS "firstName",last_name AS "lastName",email,phone,city,source,current_title AS "currentTitle",cv_url AS "cvUrl",status,created_at AS "createdAt" FROM hr_candidates WHERE tenant_id=$1 AND company_id=$2 ORDER BY created_at DESC`,
+      tenantId,
+      companyId,
+    );
+  }
+
+  async createCandidate(body: any) {
+    const { tenantId, companyId } = this.scope();
+    const firstName = String(body.firstName ?? '').trim();
+    const lastName = String(body.lastName ?? '').trim();
+    const email = String(body.email ?? '').trim().toLowerCase() || null;
+    if (!firstName || !lastName) throw new BadRequestException('Aday adı ve soyadı zorunludur.');
+    if (email) {
+      const duplicate = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id FROM hr_candidates WHERE tenant_id=$1 AND company_id=$2 AND LOWER(email)=LOWER($3) LIMIT 1`,
+        tenantId,
+        companyId,
+        email,
+      );
+      if (duplicate.length) throw new BadRequestException('Bu e-posta adresiyle kayıtlı bir aday zaten bulunuyor.');
+    }
+    const id = randomUUID();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO hr_candidates(id,tenant_id,company_id,first_name,last_name,email,phone,city,source,current_title,cv_url,notes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      id, tenantId, companyId, firstName, lastName, email, body.phone ?? null, body.city ?? null, body.source ?? null, body.currentTitle ?? null, body.cvUrl ?? null, body.notes ?? null,
+    );
+    return { id };
+  }
+
+  async applications() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT a.id,a.stage,a.rating,a.hired_staff_id AS "hiredStaffId",a.applied_at AS "appliedAt",j.title AS "jobTitle",c.first_name AS "firstName",c.last_name AS "lastName",c.email,c.phone FROM hr_job_applications a JOIN hr_job_postings j ON j.id=a.job_posting_id JOIN hr_candidates c ON c.id=a.candidate_id WHERE a.tenant_id=$1 AND a.company_id=$2 ORDER BY a.applied_at DESC`,
+      tenantId,
+      companyId,
+    );
+  }
+
+  async createApplication(body: any) {
+    const { tenantId, companyId } = this.scope();
+    if (!body.jobPostingId || !body.candidateId) throw new BadRequestException('Job posting and candidate are required.');
+    const id = randomUUID();
+    const inserted = await this.prisma.$queryRawUnsafe<any[]>(
+      `INSERT INTO hr_job_applications(id,tenant_id,company_id,branch_id,job_posting_id,candidate_id,stage,rating,owner_staff_id) SELECT $1,$2,$3,j.branch_id,j.id,c.id,$6,$7,$8 FROM hr_job_postings j,hr_candidates c WHERE j.id=$4 AND c.id=$5 AND j.tenant_id=$2 AND j.company_id=$3 AND c.tenant_id=$2 AND c.company_id=$3 RETURNING id`,
+      id, tenantId, companyId, body.jobPostingId, body.candidateId, body.stage ?? 'APPLIED', body.rating ?? null, body.ownerStaffId ?? null,
+    );
+    if (!inserted.length) throw new NotFoundException('Job posting or candidate not found.');
+    return { id };
+  }
+
+  async updateStage(id: string, body: any) {
+    const { tenantId, companyId } = this.scope();
+    const stage = String(body.stage ?? '').toUpperCase();
+    if (stage === 'HIRED') {
+      throw new BadRequestException('İşe alım tamamlamak için “İşe Al” işlemini kullanın. Bu işlem çalışan kaydı ve işe başlangıç planını birlikte oluşturur.');
+    }
+    if (!['APPLIED','SCREENING','INTERVIEW','OFFER','REJECTED'].includes(stage)) {
+      throw new BadRequestException('Geçersiz başvuru aşaması.');
+    }
+    const changed = await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_job_applications SET stage=$1,rating=COALESCE($2,rating),rejected_at=CASE WHEN $1='REJECTED' THEN CURRENT_TIMESTAMP ELSE rejected_at END,rejection_reason=CASE WHEN $1='REJECTED' THEN $3 ELSE rejection_reason END,updated_at=CURRENT_TIMESTAMP WHERE id=$4 AND tenant_id=$5 AND company_id=$6 AND hired_staff_id IS NULL`,
+      stage, body.rating ?? null, body.rejectionReason ?? null, id, tenantId, companyId,
+    );
+    if (!changed) throw new NotFoundException('Başvuru bulunamadı veya başvuru daha önce işe alımla tamamlandı.');
+    return { id, stage };
+  }
+
+  async interviews() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT i.id,i.application_id AS "applicationId",i.interview_type AS "interviewType",i.scheduled_at AS "scheduledAt",i.location,i.score,i.status,c.first_name AS "firstName",c.last_name AS "lastName",j.title AS "jobTitle" FROM hr_interviews i JOIN hr_job_applications a ON a.id=i.application_id JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE i.tenant_id=$1 AND i.company_id=$2 ORDER BY i.scheduled_at DESC`,
+      tenantId,
+      companyId,
+    );
+  }
+
+  async createInterview(body: any) {
+    const { tenantId, companyId } = this.scope();
+    if (!body.applicationId || !body.scheduledAt) throw new BadRequestException('Application and interview time are required.');
+    await this.assertApplication(String(body.applicationId));
+    const id = randomUUID();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO hr_interviews(id,tenant_id,company_id,application_id,interview_type,scheduled_at,interviewer_staff_id,location,notes,status) VALUES($1,$2,$3,$4,$5,$6::timestamptz,$7,$8,$9,$10)`,
+      id, tenantId, companyId, body.applicationId, body.interviewType ?? 'INTERVIEW', body.scheduledAt, body.interviewerStaffId ?? null, body.location ?? null, body.notes ?? null, 'SCHEDULED',
+    );
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_job_applications SET stage='INTERVIEW',updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND stage IN('APPLIED','SCREENING')`,
+      body.applicationId, tenantId, companyId,
+    );
+    return { id };
+  }
+
+  async updateInterview(id: string, body: any) {
+    const { tenantId, companyId } = this.scope();
+    const status = body.status ? String(body.status).toUpperCase() : null;
+    if (status && !['SCHEDULED','COMPLETED','CANCELLED','NO_SHOW'].includes(status)) throw new BadRequestException('Invalid interview status.');
+    const score = body.score === '' || body.score == null ? null : Number(body.score);
+    if (score != null && (!Number.isFinite(score) || score < 0 || score > 100)) throw new BadRequestException('Interview score must be between 0 and 100.');
+    const changed = await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_interviews SET score=COALESCE($1,score),notes=COALESCE($2,notes),status=COALESCE($3,status),updated_at=CURRENT_TIMESTAMP WHERE id=$4 AND tenant_id=$5 AND company_id=$6`,
+      score, body.notes ?? null, status, id, tenantId, companyId,
+    );
+    if (!changed) throw new NotFoundException('Interview not found.');
+    return { id, status: status ?? undefined, score: score ?? undefined };
+  }
+
+  async offers() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT o.id,o.application_id AS "applicationId",o.offered_title AS "offeredTitle",o.gross_salary::text AS "grossSalary",o.currency,o.start_date::text AS "startDate",o.expires_at AS "expiresAt",o.status,c.first_name AS "firstName",c.last_name AS "lastName",j.title AS "jobTitle" FROM hr_job_offers o JOIN hr_job_applications a ON a.id=o.application_id JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE o.tenant_id=$1 AND o.company_id=$2 ORDER BY o.created_at DESC`,
+      tenantId,
+      companyId,
+    );
+  }
+
+  async createOffer(body: any) {
+    const { tenantId, companyId } = this.scope();
+    if (!body.applicationId) throw new BadRequestException('Başvuru seçimi zorunludur.');
+    await this.assertApplication(String(body.applicationId));
+    const status = String(body.status ?? 'DRAFT').toUpperCase();
+    if (!['DRAFT','SENT'].includes(status)) throw new BadRequestException('Yeni teklif yalnız taslak veya gönderildi durumunda oluşturulabilir.');
+    const grossSalary = body.grossSalary === '' || body.grossSalary == null ? null : Number(body.grossSalary);
+    if (grossSalary != null && (!Number.isFinite(grossSalary) || grossSalary < 0)) throw new BadRequestException('Brüt ücret 0 veya daha büyük olmalıdır.');
+    const id = randomUUID();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO hr_job_offers(id,tenant_id,company_id,application_id,offered_title,gross_salary,currency,start_date,expires_at,status,notes,sent_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::date,$9::timestamptz,$10,$11,CASE WHEN $10='SENT' THEN CURRENT_TIMESTAMP ELSE NULL END)`,
+      id, tenantId, companyId, body.applicationId, body.offeredTitle ?? null, grossSalary, body.currency ?? 'TRY', body.startDate ?? null, body.expiresAt ?? null, status, body.notes ?? null,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_job_applications SET stage='OFFER',updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND hired_staff_id IS NULL`,
+      body.applicationId, tenantId, companyId,
+    );
+    return { id };
+  }
+
+  async respondOffer(id: string, body: any) {
+    const { tenantId, companyId } = this.scope();
+    const status = String(body.status ?? '').toUpperCase();
+    if (!['ACCEPTED','REJECTED'].includes(status)) throw new BadRequestException('Teklif sonucu kabul veya ret olmalıdır.');
+
+    const currentRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT application_id AS "applicationId",status FROM hr_job_offers WHERE id=$1 AND tenant_id=$2 AND company_id=$3 LIMIT 1`,
+      id, tenantId, companyId,
+    );
+    const current = currentRows[0];
+    if (!current) throw new NotFoundException('Teklif bulunamadı.');
+    if (current.status === status) {
+      return { id, status, applicationId: current.applicationId, idempotent: true };
+    }
+    if (['ACCEPTED','REJECTED','CANCELLED','EXPIRED'].includes(String(current.status))) {
+      throw new BadRequestException('Sonuçlanmış bir teklif yeniden değiştirilemez.');
+    }
+    if (current.status !== 'SENT') {
+      throw new BadRequestException('Aday yanıtı kaydedilmeden önce teklif gönderilmiş olmalıdır.');
+    }
+
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `UPDATE hr_job_offers SET status=$1,responded_at=CURRENT_TIMESTAMP,notes=COALESCE($2,notes),updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5 AND status='SENT' RETURNING application_id AS "applicationId"`,
+      status, body.note ?? null, id, tenantId, companyId,
+    );
+    const offer = rows[0];
+    if (!offer) throw new BadRequestException('Teklif durumu değişti. Güncel veriyi yenileyip tekrar deneyin.');
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_job_applications SET stage=$1,rejected_at=CASE WHEN $1='REJECTED' THEN CURRENT_TIMESTAMP ELSE rejected_at END,rejection_reason=CASE WHEN $1='REJECTED' THEN $2 ELSE rejection_reason END,updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5 AND hired_staff_id IS NULL`,
+      status === 'ACCEPTED' ? 'OFFER' : 'REJECTED', body.note ?? null, offer.applicationId, tenantId, companyId,
+    );
+    return { id, status, applicationId: offer.applicationId };
+  }
+
+  async hire(id: string, body: any, actorId: string) {
+    const { tenantId, companyId } = this.scope();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT a.id,a.stage,a.hired_staff_id AS "hiredStaffId",c.first_name AS "firstName",c.last_name AS "lastName",c.email,c.phone,j.branch_id AS "branchId",j.department_id AS "departmentId",j.department_name AS "department",j.position_id AS "positionId",COALESCE(j.position_name,j.title) AS "position",j.employment_type AS "employmentType",(SELECT o.start_date::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStartDate",(SELECT o.gross_salary::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerGrossSalary",(SELECT o.status FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStatus" FROM hr_job_applications a JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.company_id=$3 LIMIT 1`,
+      id, tenantId, companyId,
+    );
+    const application = rows[0];
+    if (!application) throw new NotFoundException('Application not found.');
+    if (application.hiredStaffId) {
+      const existingOnboarding = await this.onboarding.get(application.hiredStaffId);
+      return {
+        applicationId: id,
+        employeeId: application.hiredStaffId,
+        stage: 'HIRED',
+        onboardingStarted: Boolean(existingOnboarding.current || existingOnboarding.plans?.length),
+        idempotent: true,
+      };
+    }
+    if (application.offerStatus && application.offerStatus !== 'ACCEPTED') {
+      throw new BadRequestException('The latest job offer must be accepted before hiring.');
+    }
+    const employee = await this.hr.createEmployee({
+      branchId: application.branchId ?? body.branchId,
+      firstName: application.firstName,
+      lastName: application.lastName,
+      email: application.email ?? undefined,
+      phone: application.phone ?? undefined,
+      departmentId: application.departmentId ?? undefined,
+      positionId: application.positionId ?? undefined,
+      department: application.department ?? undefined,
+      position: application.position ?? undefined,
+      employmentType: application.employmentType ?? body.employmentType ?? undefined,
+      hireDate: body.hireDate ?? application.offerStartDate ?? new Date().toISOString().slice(0, 10),
+      grossSalary: body.grossSalary ?? application.offerGrossSalary ?? undefined,
+      status: 'ACTIVE',
+    });
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_job_applications SET stage='HIRED',hired_staff_id=$4,hired_at=COALESCE(hired_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND tenant_id=$2 AND company_id=$3`,
+      id, tenantId, companyId, employee.id,
+    );
+    let onboardingStarted = false;
+    try {
+      await this.onboarding.create(employee.id, {
+        name: 'İşe Başlangıç Planı',
+        startedAt: body.hireDate ?? application.offerStartDate ?? new Date().toISOString().slice(0, 10),
+      }, actorId);
+      onboardingStarted = true;
+    } catch {
+      onboardingStarted = false;
+    }
+    return { applicationId: id, employeeId: employee.id, stage: 'HIRED', onboardingStarted };
+  }
+}

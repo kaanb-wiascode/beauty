@@ -1,0 +1,106 @@
+name: Configure main protection
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configure-main-protection
+  cancel-in-progress: false
+
+jobs:
+  protect:
+    name: Enforce main release gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate admin token
+        env:
+          REPO_ADMIN_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        shell: bash
+        run: |
+          : "${REPO_ADMIN_TOKEN:?REPO_ADMIN_TOKEN secret is required}"
+
+      - name: Protect main
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        shell: bash
+        run: |
+          payload="$(jq -nc '{
+            required_status_checks: {
+              strict: true,
+              contexts: [
+                "quality",
+                "Dependency audit",
+                "Secret scan",
+                "CodeQL",
+                "Build API image",
+                "Build Web image"
+              ]
+            },
+            enforce_admins: true,
+            required_pull_request_reviews: {
+              dismiss_stale_reviews: true,
+              require_code_owner_reviews: false,
+              required_approving_review_count: 0,
+              require_last_push_approval: false
+            },
+            restrictions: null,
+            required_linear_history: false,
+            allow_force_pushes: false,
+            allow_deletions: false,
+            block_creations: false,
+            required_conversation_resolution: true,
+            lock_branch: false,
+            allow_fork_syncing: false
+          }')"
+
+          curl --fail --silent --show-error             --request PUT             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer $GH_TOKEN"             --header "X-GitHub-Api-Version: 2026-03-10"             --data "$payload"             "https://api.github.com/repos/$GITHUB_REPOSITORY/branches/main/protection"             >/tmp/main-protection.json
+
+      - name: Verify main protection
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        shell: bash
+        run: |
+          protection="$(curl --fail --silent --show-error             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer $GH_TOKEN"             --header "X-GitHub-Api-Version: 2026-03-10"             "https://api.github.com/repos/$GITHUB_REPOSITORY/branches/main/protection")"
+
+          jq -e '
+            .enforce_admins.enabled == true and
+            .allow_force_pushes.enabled == false and
+            .allow_deletions.enabled == false and
+            .required_status_checks.strict == true and
+            .required_pull_request_reviews.required_approving_review_count == 0
+          ' <<<"$protection" >/dev/null
+
+          required=(
+            "quality"
+            "Dependency audit"
+            "Secret scan"
+            "CodeQL"
+            "Build API image"
+            "Build Web image"
+          )
+
+          for check_name in "${required[@]}"; do
+            jq -e --arg name "$check_name"               '.required_status_checks.contexts | index($name) != null'               <<<"$protection" >/dev/null || {
+                echo "Required check missing from main protection: $check_name" >&2
+                exit 1
+              }
+          done
+
+      - name: Write protection summary
+        shell: bash
+        run: |
+          {
+            echo "## Main branch protection"
+            echo
+            echo "- Pull request required: yes"
+            echo "- Required approvals: 0"
+            echo "- Branch must be up to date: yes"
+            echo "- Admin enforcement: yes"
+            echo "- Force pushes: blocked"
+            echo "- Branch deletion: blocked"
+            echo "- Conversation resolution: required"
+          } >> "$GITHUB_STEP_SUMMARY"

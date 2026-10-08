@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { CardInfo } from "@/components/card-info";
+import { DatePicker } from "@/components/date-picker";
+import { DateTimePicker } from "@/components/date-time-picker";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import { Alert, Button, GlassCard, PageHeader, Spinner, StatusBadge, TextInput, Field } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import { PaymentModal } from "@/components/payment-modal";
+import { TeamShareAction } from "@/components/team-share-action";
+import { ValooSelect } from "@/components/valoo-controls";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
+import { opportunityStageLabels, type CrmInteraction } from "@/lib/crm-types";
 
 type CustomerSource = "INSTAGRAM" | "GOOGLE" | "REFERRAL" | "WALK_IN" | "OTHER";
 type CustomerHealthProfile = { id: string; formVersion: string; allergies: string | null; sensitivities: string | null; medications: string | null; conditions: string | null; notes: string | null; confirmedAt: string | null; createdAt: string; updatedAt: string };
@@ -17,9 +25,45 @@ type CustomerCareEvent = { id: string; type: "REACTION" | "AFTERCARE" | "COMPLAI
 type CustomerDetail = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null; birthDate: string | null; customerSource: CustomerSource | null; createdAt: string; updatedAt: string; healthProfile: CustomerHealthProfile | null; documents: CustomerDocument[]; consents: CustomerConsent[]; careEvents: CustomerCareEvent[]; stats: { totalAppointments: number; completedAppointments: number; upcomingAppointments: number; totalPaid: number; totalRefunded: number; netSpent: number; lastPaymentAt: string | null }; payments: Payment[]; appointments: Appointment[] };
 type Payment = { id: string; appointmentId: string; amount: number; method: "CASH" | "CARD" | "TRANSFER"; status: "COMPLETED" | "REFUNDED"; paidAt: string; refundedAt: string | null; refundReason: string | null; service: { id: string; name: string } };
 type Appointment = { id: string; startAt: string; endAt: string; status: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"; notes: string | null; service: { id: string; name: string; price: string | number; durationMinutes: number }; staff: { id: string; firstName: string; lastName: string }; payment: { id: string; amount: string | number; method: "CASH" | "CARD" | "TRANSFER"; paidAt: string } | null };
+type Customer360 = {
+  summary: {
+    opportunityCount: number;
+    openOpportunityCount: number;
+    wonOpportunityCount: number;
+    totalPipeline: number;
+    weightedPipeline: number;
+    openFollowUpCount: number;
+    overdueFollowUpCount: number;
+    lastCrmActivityAt: string | null;
+  };
+  opportunities: Array<{
+    id: string;
+    title: string;
+    stage: keyof typeof opportunityStageLabels;
+    estimatedValue: number | null;
+    currency: string;
+    probability: number;
+    expectedCloseDate: string | null;
+    updatedAt: string;
+  }>;
+  followUps: Array<{
+    id: string;
+    opportunityId: string | null;
+    assignedUserId: string;
+    channel: string;
+    status: string;
+    dueAt: string;
+    note: string | null;
+    version: number;
+  }>;
+  interactions: CrmInteraction[];
+  events: Array<{ id: string; opportunityId: string | null; eventType: string; createdAt: string }>;
+};
+
 type CareEventForm = { appointmentId: string; type: CustomerCareEvent["type"]; status: CustomerCareEvent["status"]; severity: NonNullable<CustomerCareEvent["severity"]>; title: string; description: string; onsetAt: string; occurredAt: string; actionTaken: string; followUpAt: string };
 
 const emptyCareEvent: CareEventForm = { appointmentId: "", type: "NOTE", status: "OPEN", severity: "LOW", title: "", description: "", onsetAt: "", occurredAt: "", actionTaken: "", followUpAt: "" };
+const CUSTOMER_SOURCE_LABELS: Record<CustomerSource, string> = { INSTAGRAM: "Instagram", GOOGLE: "Google", REFERRAL: "Tavsiye", WALK_IN: "Doğrudan", OTHER: "Diğer" };
 const PAYMENT_METHOD_LABELS: Record<Payment["method"], string> = { CASH: "Nakit", CARD: "Kart", TRANSFER: "Havale / EFT" };
 const STATUS_LABELS: Record<Appointment["status"], string> = { SCHEDULED: "Planlandı", CONFIRMED: "Onaylandı", COMPLETED: "Tamamlandı", CANCELLED: "İptal", NO_SHOW: "Gelmedi" };
 const CARE_TYPE_LABELS: Record<CustomerCareEvent["type"], string> = { REACTION: "Reaksiyon", AFTERCARE: "İşlem sonrası bakım", COMPLAINT: "Şikâyet", FOLLOW_UP: "Takip", INCIDENT: "Olay", NOTE: "Not" };
@@ -37,7 +81,9 @@ function latestConsent(consents: CustomerConsent[], type: string) { return conse
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const canUpdateCustomer = hasPermission("customers", "update");
   const canDeleteCustomer = hasPermission("customers", "delete");
+  const canManageCrm = hasPermission("crm", "manage");
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
+  const [crm360, setCrm360] = useState<Customer360 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paymentAppointment, setPaymentAppointment] = useState<Appointment | null>(null);
@@ -51,17 +97,74 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const [profileError, setProfileError] = useState("");
   const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "", phone: "", email: "", birthDate: "", customerSource: "" as CustomerSource | "", allergies: "", sensitivities: "", medications: "", conditions: "", notes: "" });
 
-  const load = async () => { setLoading(true); setError(""); try { const { id } = await params; const result = await api<CustomerDetail>(`/customers/${id}`); setCustomer(result); } catch (err) { setError(err instanceof ApiError ? err.message : "Müşteri bilgileri yüklenemedi."); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [params]);
+  const load = useCallback(async () => { setLoading(true); setError(""); try { const { id } = await params; const [result, crmResult] = await Promise.all([api<CustomerDetail>(`/customers/${id}`), api<Customer360>(`/crm/operations/customer-360/${id}`).catch(() => null)]); setCustomer(result); setCrm360(crmResult); } catch (err) { setError(err instanceof ApiError ? userErrorMessage(err.message, "Müşteri bilgileri yüklenemedi.") : "Müşteri bilgileri yüklenemedi."); } finally { setLoading(false); } }, [params]);
+  useEffect(() => { void load(); }, [load]);
   const initials = useMemo(() => { if (!customer) return "?"; return `${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`.toUpperCase(); }, [customer]);
+  const crmTimeline = useMemo(() => {
+    if (!crm360) return [];
+    const interactionItems = crm360.interactions.map((item) => ({
+      id: `interaction-${item.id}`,
+      date: item.startedAt,
+      title: item.type === "CALL" ? "Telefon görüşmesi" : item.type === "WHATSAPP" ? "WhatsApp görüşmesi" : item.type === "EMAIL" ? "E-posta görüşmesi" : item.type === "SMS" ? "SMS görüşmesi" : item.type === "IN_PERSON" ? "Yüz yüze görüşme" : item.type === "VIDEO_CALL" ? "Görüntülü görüşme" : "Müşteri görüşmesi",
+      detail: item.result || item.notes || "Görüşme kaydı",
+    }));
+    const followUpItems = crm360.followUps.map((item) => ({
+      id: `followup-${item.id}`,
+      date: item.dueAt,
+      title: "Takip görevi",
+      detail: item.note || "Takip görevi oluşturuldu",
+    }));
+    const eventLabels: Record<string, string> = {
+      OPPORTUNITY_CREATED: "Satış fırsatı oluşturuldu",
+      OPPORTUNITY_STAGE_CHANGED: "Satış aşaması değiştirildi",
+      OPPORTUNITY_SALE_CREATED: "Satış oluşturuldu",
+      OPPORTUNITY_SALE_LINKED: "Satış bağlantısı oluşturuldu",
+      INTERACTION_CREATED: "Görüşme kaydedildi",
+      FOLLOW_UP_CREATED: "Takip oluşturuldu",
+      FOLLOW_UP_COMPLETED: "Takip tamamlandı",
+      FOLLOW_UP_RESCHEDULED: "Takip yeniden planlandı",
+      FOLLOW_UP_CANCELLED: "Takip iptal edildi",
+      APPOINTMENT_CREATED: "Randevu oluşturuldu",
+      APPOINTMENT_CONFIRMED: "Randevu onaylandı",
+      APPOINTMENT_RESCHEDULED: "Randevu yeniden planlandı",
+      APPOINTMENT_COMPLETED: "Randevu tamamlandı",
+      APPOINTMENT_NO_SHOW: "Müşteri randevuya gelmedi",
+      APPOINTMENT_CANCELLED: "Randevu iptal edildi",
+      SALE_CONFIRMED: "Satış onaylandı",
+      SALE_CANCELLED: "Satış iptal edildi",
+      SALE_PAYMENT_RECEIVED: "Ödeme alındı",
+      SALE_PAYMENT_REFUNDED: "Ödeme iade edildi",
+      QUOTE_CREATED: "Teklif oluşturuldu",
+      QUOTE_STATUS_CHANGED: "Teklif durumu güncellendi",
+    };
+    const dedicatedEventTypes = new Set([
+      "INTERACTION_CREATED",
+      "FOLLOW_UP_CREATED",
+      "FOLLOW_UP_COMPLETED",
+      "FOLLOW_UP_RESCHEDULED",
+      "FOLLOW_UP_CANCELLED",
+    ]);
+    const eventItems = crm360.events
+      .filter((item) => !dedicatedEventTypes.has(item.eventType))
+      .map((item) => ({
+        id: `event-${item.id}`,
+        date: item.createdAt,
+        title: eventLabels[item.eventType] ?? "CRM işlemi",
+        detail: "",
+      }));
+    return [...interactionItems, ...followUpItems, ...eventItems]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 16);
+  }, [crm360]);
+
 
   function openProfileModal() { if (!customer || !canUpdateCustomer) return; setProfileForm({ firstName: customer.firstName, lastName: customer.lastName, phone: customer.phone ?? "", email: customer.email ?? "", birthDate: customer.birthDate ? customer.birthDate.slice(0, 10) : "", customerSource: customer.customerSource ?? "", allergies: customer.healthProfile?.allergies ?? "", sensitivities: customer.healthProfile?.sensitivities ?? "", medications: customer.healthProfile?.medications ?? "", conditions: customer.healthProfile?.conditions ?? "", notes: customer.healthProfile?.notes ?? "" }); setProfileError(""); setProfileModalOpen(true); }
   function closeProfileModal() { if (profileSaving) return; setProfileModalOpen(false); setProfileError(""); }
-  async function saveProfile(event: FormEvent) { event.preventDefault(); if (!customer) return; if (!profileForm.firstName.trim() || !profileForm.lastName.trim()) { setProfileError("Ad ve soyad gerekli."); return; } setProfileSaving(true); setProfileError(""); try { await api<CustomerDetail>(`/customers/${customer.id}`, { method: "PATCH", body: { firstName: profileForm.firstName.trim(), lastName: profileForm.lastName.trim(), phone: profileForm.phone.trim() || null, email: profileForm.email.trim().toLowerCase() || null, birthDate: profileForm.birthDate || null, customerSource: profileForm.customerSource || null } }); await api(`/customers/${customer.id}/health-profile`, { method: "PATCH", body: { allergies: profileForm.allergies.trim() || null, sensitivities: profileForm.sensitivities.trim() || null, medications: profileForm.medications.trim() || null, conditions: profileForm.conditions.trim() || null, notes: profileForm.notes.trim() || null } }); setProfileModalOpen(false); setProfileError(""); await load(); } catch (err) { setProfileError(err instanceof ApiError ? err.message : "Profil güncellenemedi."); } finally { setProfileSaving(false); } }
+  async function saveProfile(event: FormEvent) { event.preventDefault(); if (!customer) return; if (!profileForm.firstName.trim() || !profileForm.lastName.trim()) { setProfileError("Ad ve soyad gerekli."); return; } setProfileSaving(true); setProfileError(""); try { await api<CustomerDetail>(`/customers/${customer.id}`, { method: "PATCH", body: { firstName: profileForm.firstName.trim(), lastName: profileForm.lastName.trim(), phone: profileForm.phone.trim() || null, email: profileForm.email.trim().toLowerCase() || null, birthDate: profileForm.birthDate || null, customerSource: profileForm.customerSource || null } }); await api(`/customers/${customer.id}/health-profile`, { method: "PATCH", body: { allergies: profileForm.allergies.trim() || null, sensitivities: profileForm.sensitivities.trim() || null, medications: profileForm.medications.trim() || null, conditions: profileForm.conditions.trim() || null, notes: profileForm.notes.trim() || null } }); setProfileModalOpen(false); setProfileError(""); await load(); } catch (err) { setProfileError(err instanceof ApiError ? userErrorMessage(err.message, "Profil güncellenemedi.") : "Profil güncellenemedi."); } finally { setProfileSaving(false); } }
   function openCareModal() { setCareForm({ ...emptyCareEvent, occurredAt: new Date().toISOString().slice(0, 16) }); setCareError(""); setCareModalOpen(true); }
   function closeCareModal() { if (careSaving) return; setCareModalOpen(false); setCareError(""); setCareForm(emptyCareEvent); }
-  async function createCareEvent(event: FormEvent) { event.preventDefault(); if (!customer) return; if (!careForm.title.trim()) { setCareError("Kayıt başlığı gerekli."); return; } setCareSaving(true); setCareError(""); try { await api(`/customers/${customer.id}/care-events`, { method: "POST", body: { ...(careForm.appointmentId ? { appointmentId: careForm.appointmentId } : {}), type: careForm.type, status: careForm.status, severity: careForm.severity, title: careForm.title.trim(), ...(careForm.description.trim() ? { description: careForm.description.trim() } : {}), ...(careForm.onsetAt ? { onsetAt: new Date(careForm.onsetAt).toISOString() } : {}), ...(careForm.occurredAt ? { occurredAt: new Date(careForm.occurredAt).toISOString() } : {}), ...(careForm.actionTaken.trim() ? { actionTaken: careForm.actionTaken.trim() } : {}), ...(careForm.followUpAt ? { followUpAt: new Date(careForm.followUpAt).toISOString() } : {}) } }); closeCareModal(); await load(); } catch (err) { setCareError(err instanceof ApiError ? err.message : "Bakım kaydı oluşturulamadı."); } finally { setCareSaving(false); } }
-  async function deleteCareEvent() { if (!customer || !pendingCareDelete) return; setCareSaving(true); try { await api(`/customers/${customer.id}/care-events/${pendingCareDelete.id}`, { method: "DELETE" }); setPendingCareDelete(null); await load(); } catch (err) { setError(err instanceof ApiError ? err.message : "Bakım kaydı silinemedi."); setPendingCareDelete(null); } finally { setCareSaving(false); } }
+  async function createCareEvent(event: FormEvent) { event.preventDefault(); if (!customer) return; if (!careForm.title.trim()) { setCareError("Kayıt başlığı gerekli."); return; } setCareSaving(true); setCareError(""); try { await api(`/customers/${customer.id}/care-events`, { method: "POST", body: { ...(careForm.appointmentId ? { appointmentId: careForm.appointmentId } : {}), type: careForm.type, status: careForm.status, severity: careForm.severity, title: careForm.title.trim(), ...(careForm.description.trim() ? { description: careForm.description.trim() } : {}), ...(careForm.onsetAt ? { onsetAt: new Date(careForm.onsetAt).toISOString() } : {}), ...(careForm.occurredAt ? { occurredAt: new Date(careForm.occurredAt).toISOString() } : {}), ...(careForm.actionTaken.trim() ? { actionTaken: careForm.actionTaken.trim() } : {}), ...(careForm.followUpAt ? { followUpAt: new Date(careForm.followUpAt).toISOString() } : {}) } }); closeCareModal(); await load(); } catch (err) { setCareError(err instanceof ApiError ? userErrorMessage(err.message, "Bakım kaydı oluşturulamadı.") : "Bakım kaydı oluşturulamadı."); } finally { setCareSaving(false); } }
+  async function deleteCareEvent() { if (!customer || !pendingCareDelete) return; setCareSaving(true); try { await api(`/customers/${customer.id}/care-events/${pendingCareDelete.id}`, { method: "DELETE" }); setPendingCareDelete(null); await load(); } catch (err) { setError(err instanceof ApiError ? userErrorMessage(err.message, "Bakım kaydı silinemedi.") : "Bakım kaydı silinemedi."); setPendingCareDelete(null); } finally { setCareSaving(false); } }
 
   if (loading) return <div className="mx-auto max-w-6xl"><PageHeader title="Müşteri" /><div className="mt-10"><Spinner label="Müşteri bilgileri yükleniyor..." /></div></div>;
   if (error || !customer) return <div className="mx-auto max-w-6xl space-y-6"><PageHeader title="Müşteri" /><Alert>{error || "Müşteri bulunamadı."}</Alert><Link href="/customers"><Button variant="secondary">Müşterilere dön</Button></Link></div>;
@@ -70,27 +173,169 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const explicitConsent = latestConsent(customer.consents, "EXPLICIT_CONSENT");
   const membership = latestConsent(customer.consents, "MEMBERSHIP_AGREEMENT");
   const healthConsent = latestConsent(customer.consents, "HEALTH_DATA_CONSENT");
+  const openCareEvents = customer.careEvents.filter((event) => event.status === "OPEN" || event.status === "IN_PROGRESS");
+  const criticalCareEvents = openCareEvents.filter((event) => event.severity === "HIGH" || event.severity === "CRITICAL");
+  const upcomingAppointment = customer.appointments
+    .filter((appointment) => new Date(appointment.startAt).getTime() >= Date.now() && appointment.status !== "CANCELLED" && appointment.status !== "NO_SHOW" && appointment.status !== "COMPLETED")
+    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())[0] ?? null;
+  const relationshipStatus = criticalCareEvents.length || (crm360?.summary.overdueFollowUpCount ?? 0) > 0
+    ? "Kontrol Gerekli"
+    : upcomingAppointment
+      ? "Planlı Müşteri"
+      : customer.stats.completedAppointments > 0
+        ? "Aktif Müşteri"
+        : "Yeni Müşteri";
 
-  return <div className="mx-auto max-w-6xl space-y-5 sm:space-y-7">
-    <PageHeader title={fullName(customer.firstName, customer.lastName)} description="Müşteri dosyası ve geçmiş işlemler." action={<div className="flex w-full gap-2 sm:w-auto sm:items-center"><Link href={`/appointments?customerId=${customer.id}`} className="min-w-0 flex-1 sm:flex-none"><Button className="w-full whitespace-nowrap sm:w-auto">Yeni randevu</Button></Link><Link href="/customers" className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">Müşteriler</Button></Link></div>} />
+  return <div className="mx-auto max-w-[1320px] space-y-5 sm:space-y-6">
+    <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)] sm:p-6">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0">
+          <Link href="/customers" className="text-[9px] font-semibold text-[var(--muted)] hover:text-[var(--ink)]">← Müşteri Merkezi</Link>
+          <div className="mt-4 flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[16px] bg-[var(--accent-soft)] text-[17px] font-semibold text-[var(--accent)]">{initials}</div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-[26px] font-semibold tracking-[-.04em] text-[var(--ink)] sm:text-[30px]">{fullName(customer.firstName, customer.lastName)}</h1>
+                <span className={relationshipStatus === "Kontrol Gerekli" ? "rounded-full bg-[var(--danger-soft)] px-2.5 py-1 text-[8px] font-semibold text-[var(--danger)]" : "rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[8px] font-semibold text-[var(--accent)]"}>{relationshipStatus}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-[var(--muted)]">
+                <span>{customer.phone || "Telefon bilgisi yok"}</span>
+                <span>{customer.email || "E-posta bilgisi yok"}</span>
+                <span>{customer.customerSource ? CUSTOMER_SOURCE_LABELS[customer.customerSource] : "Kaynak belirtilmedi"}</span>
+                <span>Kayıt: {formatShortDate(customer.createdAt)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {canManageCrm ? <Link href={"/crm/interactions?new=1&customerId=" + customer.id + "&label=" + encodeURIComponent(fullName(customer.firstName, customer.lastName))}><Button variant="secondary">Görüşme Kaydet</Button></Link> : null}
+          {canManageCrm ? <Link href={"/crm/opportunities/new?customerId=" + customer.id}><Button variant="secondary">Satış Fırsatı</Button></Link> : null}
+          <Link href={"/appointments?customerId=" + customer.id}><Button>Yeni Randevu</Button></Link>
+          <details className="relative">
+            <summary className="flex h-10 cursor-pointer list-none items-center justify-center rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]">•••</summary>
+            <div className="absolute right-0 z-40 mt-2 w-[210px] rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-[0_18px_48px_rgba(23,35,28,.14)]">
+              <Link href={"/customers/" + customer.id + "/ledger"} className="block rounded-[9px] px-3 py-2 text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Cari Ekstre</Link>
+              {canUpdateCustomer ? <button type="button" onClick={openProfileModal} className="block w-full rounded-[9px] px-3 py-2 text-left text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Profili Düzenle</button> : null}
+              <div className="p-1">
+                <TeamShareAction payload={{ kind: "CUSTOMER", id: customer.id, title: fullName(customer.firstName, customer.lastName), subtitle: customer.phone ?? customer.email ?? "İletişim bilgisi yok", meta: [customer.email ?? "", String(customer.stats.totalAppointments) + " randevu", "Net harcama: " + formatMoney(customer.stats.netSpent)].filter(Boolean), href: "/customers/" + customer.id }} className="inline-flex h-9 w-full items-center justify-start rounded-[9px] px-2 text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]" />
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </header>
+
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-    <section className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4"><StatCard label="Toplam randevu" value={customer.stats.totalAppointments} /><StatCard label="Tamamlanan" value={customer.stats.completedAppointments} /><StatCard label="Yaklaşan" value={customer.stats.upcomingAppointments} /><StatCard label="Net harcama" value={formatMoney(customer.stats.netSpent)} /></section>
-    <section className="grid gap-3 sm:gap-5 lg:grid-cols-[340px_minmax(0,1fr)]"><GlassCard><div className="flex items-center gap-4"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-[var(--accent-soft)] text-[18px] font-semibold text-[var(--accent)]">{initials}</div><div className="min-w-0"><h2 className="truncate text-[18px] font-semibold text-[var(--ink)]">{fullName(customer.firstName, customer.lastName)}</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Müşteri</p></div></div><div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4 sm:mt-7 sm:space-y-4 sm:pt-5"><InfoRow label="Telefon" value={customer.phone || "—"} /><InfoRow label="E-posta" value={customer.email || "—"} /><InfoRow label="Doğum tarihi" value={customer.birthDate ? formatDate(customer.birthDate) : "—"} /><InfoRow label="Müşteri kaynağı" value={customer.customerSource || "—"} /><InfoRow label="Kayıt tarihi" value={formatDate(customer.createdAt)} /></div></GlassCard>
-      <GlassCard><SectionHeading eyebrow="Müşteri dosyası" title="Sağlık & Profil" action={canUpdateCustomer ? <Button variant="secondary" className="h-9 px-3 text-[11px]" onClick={openProfileModal}>Düzenle</Button> : null} />{customer.healthProfile ? <div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-x-6 sm:gap-y-5 sm:grid-cols-2"><DetailBlock label="Alerjiler" value={customer.healthProfile.allergies || "Belirtilmedi"} /><DetailBlock label="Hassasiyetler" value={customer.healthProfile.sensitivities || "Belirtilmedi"} /><DetailBlock label="Kullanılan ilaçlar" value={customer.healthProfile.medications || "Belirtilmedi"} /><DetailBlock label="Bilinen sağlık bilgileri" value={customer.healthProfile.conditions || "Belirtilmedi"} /><div className="sm:col-span-2"><DetailBlock label="Ek not" value={customer.healthProfile.notes || "Not bulunmuyor."} /></div></div> : <EmptyInline>Henüz sağlık profili oluşturulmamış.</EmptyInline>}</GlassCard></section>
-    <section><GlassCard><SectionHeading eyebrow="Kayıt ve izinler" title="Belgeler & İzinler" /><div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-3 lg:grid-cols-2"><ConsentRow label="KVKK Aydınlatma" consent={kvkk} /><ConsentRow label="Açık Rıza" consent={explicitConsent} /><ConsentRow label="Üyelik Sözleşmesi" consent={membership} /><ConsentRow label="Sağlık Verisi Rızası" consent={healthConsent} />{(["MARKETING_SMS", "MARKETING_EMAIL", "MARKETING_PHONE"] as const).map((type) => <ConsentRow key={type} label={CONSENT_LABELS[type]} consent={latestConsent(customer.consents, type)} />)}</div>{customer.documents.length > 0 ? <div className="mt-5 border-t border-[var(--line)] pt-5"><p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Belgeler</p><div className="mt-3 space-y-2">{customer.documents.map((document) => <div key={document.id} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] px-4 py-3"><div><p className="text-[12px] font-medium text-[var(--ink)]">{document.title || CONSENT_LABELS[document.type] || document.type}</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">{document.version || document.documentVersion || "Sürüm bilgisi yok"}{" · "}{formatShortDate(document.createdAt)}</p></div><span className="text-[10px] font-medium text-[var(--muted)]">{document.status}</span></div>)}</div></div> : null}</GlassCard></section>
-    <section><GlassCard className="p-0"><div className="flex flex-col gap-4 border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Takip</p><h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">Bakım & İşlem Geçmişi</h2></div>{canUpdateCustomer ? <Button onClick={openCareModal} className="w-full sm:w-auto">+ Yeni kayıt</Button> : null}</div>{customer.careEvents.length === 0 ? <EmptyInline>Bu müşteri için henüz bakım veya işlem sonrası kayıt bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.careEvents.map((event) => <CareEventRow key={event.id} event={event} onDelete={canDeleteCustomer ? () => setPendingCareDelete(event) : undefined} />)}</div>}</GlassCard></section>
-    <section className="grid gap-3 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_340px]"><GlassCard className="p-0"><div className="border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5"><h2 className="text-[18px] font-semibold text-[var(--ink)]">Ödeme geçmişi</h2></div>{customer.payments.length === 0 ? <EmptyInline>Henüz ödeme kaydı bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.payments.map((payment) => <div key={payment.id} className="flex flex-col gap-2.5 px-4 py-3.5 sm:gap-3 sm:px-6 sm:py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-[14px] font-medium text-[var(--ink)]">{payment.service.name}</p><p className="mt-1 text-[12px] text-[var(--muted)]">{formatDateTime(payment.paidAt)}{" · "}{PAYMENT_METHOD_LABELS[payment.method]}</p>{payment.status === "REFUNDED" && payment.refundReason ? <p className="mt-1 text-[12px] text-[var(--muted-soft)]">İade nedeni: {payment.refundReason}</p> : null}</div><div className="flex shrink-0 items-center gap-3"><span className="text-[13px] font-semibold text-[var(--ink)]">{formatMoney(payment.amount)}</span><StatusBadge status={payment.status} label={payment.status === "REFUNDED" ? "İade edildi" : "Tamamlandı"} /></div></div>)}</div>}</GlassCard><GlassCard><SectionHeading eyebrow="Finans" title="Finansal özet" /><div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5"><InfoRow label="Toplam tahsilat" value={formatMoney(customer.stats.totalPaid)} /><InfoRow label="Toplam iade" value={formatMoney(customer.stats.totalRefunded)} /><InfoRow label="Net harcama" value={formatMoney(customer.stats.netSpent)} /><InfoRow label="Son ödeme" value={customer.stats.lastPaymentAt ? formatDateTime(customer.stats.lastPaymentAt) : "—"} /></div></GlassCard></section>
-    <section><GlassCard className="p-0"><div className="border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5"><h2 className="text-[18px] font-semibold text-[var(--ink)]">Randevu geçmişi</h2></div>{customer.appointments.length === 0 ? <EmptyInline>Henüz randevu bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.appointments.map((appointment) => <div key={appointment.id} className="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-[14px] font-medium text-[var(--ink)]">{appointment.service.name}</p><p className="mt-1 text-[12px] text-[var(--muted)]">{formatDateTime(appointment.startAt)}{" · "}{fullName(appointment.staff.firstName, appointment.staff.lastName)}</p>{appointment.notes ? <p className="mt-1 text-[12px] text-[var(--muted-soft)]">{appointment.notes}</p> : null}</div><div className="flex shrink-0 flex-wrap items-center justify-end gap-3"><span className="text-[13px] font-medium text-[var(--ink)]">{formatMoney(appointment.service.price)}</span>{!appointment.payment && appointment.status !== "CANCELLED" && appointment.status !== "NO_SHOW" ? <Button variant="secondary" onClick={() => setPaymentAppointment(appointment)}>Ödeme al</Button> : appointment.payment ? <span className="text-[12px] text-[var(--muted)]">{PAYMENT_METHOD_LABELS[appointment.payment.method]}</span> : null}<StatusBadge status={appointment.status} label={STATUS_LABELS[appointment.status]} /></div></div>)}</div>}</GlassCard></section>
 
-    <Modal open={profileModalOpen} onClose={closeProfileModal} title="Sağlık & Profil düzenle" description="Müşterinin temel ve sağlık bilgilerini güncelleyin."><form onSubmit={saveProfile} className="flex max-h-[72vh] flex-col"><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><div className="space-y-6 pb-2"><section><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Profil bilgileri</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Ad"><TextInput required value={profileForm.firstName} onChange={(event) => setProfileForm((current) => ({ ...current, firstName: event.target.value }))} /></Field><Field label="Soyad"><TextInput required value={profileForm.lastName} onChange={(event) => setProfileForm((current) => ({ ...current, lastName: event.target.value }))} /></Field><Field label="Telefon"><TextInput value={profileForm.phone} onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))} /></Field><Field label="E-posta"><TextInput type="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} /></Field><Field label="Doğum tarihi"><TextInput type="date" value={profileForm.birthDate} onChange={(event) => setProfileForm((current) => ({ ...current, birthDate: event.target.value }))} /></Field><Field label="Müşteri kaynağı"><select value={profileForm.customerSource} onChange={(event) => setProfileForm((current) => ({ ...current, customerSource: event.target.value as CustomerSource | "" }))} className="h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]"><option value="">Seçin</option><option value="INSTAGRAM">Instagram</option><option value="GOOGLE">Google</option><option value="REFERRAL">Tavsiye</option><option value="WALK_IN">Doğrudan</option><option value="OTHER">Diğer</option></select></Field></div></section><section className="border-t border-[var(--line)] pt-5"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Sağlık bilgileri</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Alerjiler"><TextInput value={profileForm.allergies} onChange={(event) => setProfileForm((current) => ({ ...current, allergies: event.target.value }))} /></Field><Field label="Hassasiyetler"><TextInput value={profileForm.sensitivities} onChange={(event) => setProfileForm((current) => ({ ...current, sensitivities: event.target.value }))} /></Field><Field label="Kullanılan ilaçlar"><TextInput value={profileForm.medications} onChange={(event) => setProfileForm((current) => ({ ...current, medications: event.target.value }))} /></Field><Field label="Bilinen sağlık bilgileri"><TextInput value={profileForm.conditions} onChange={(event) => setProfileForm((current) => ({ ...current, conditions: event.target.value }))} /></Field><div className="sm:col-span-2"><Field label="Ek not"><textarea rows={4} value={profileForm.notes} onChange={(event) => setProfileForm((current) => ({ ...current, notes: event.target.value }))} className="w-full resize-none rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-[13px] text-[var(--ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--muted-soft)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]" /></Field></div></div></section><div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3"><p className="text-[11px] leading-5 text-[var(--muted)]">Sağlık bilgilerinde yapılan değişiklikler mevcut izin ve onay kayıtlarının geçmişini değiştirmez.</p></div>{profileError ? <Alert>{profileError}</Alert> : null}</div></div><div className="mt-4 flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--line)] pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="secondary" onClick={closeProfileModal} disabled={profileSaving}>Vazgeç</Button><Button type="submit" disabled={profileSaving}>{profileSaving ? "Kaydediliyor..." : "Değişiklikleri kaydet"}</Button></div></form></Modal>
-    <Modal open={careModalOpen} onClose={closeCareModal} title="Bakım / işlem kaydı" description="Reaksiyon, işlem sonrası bakım veya müşteri takibi kaydedin."><form onSubmit={createCareEvent} className="flex max-h-[72vh] flex-col"><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><div className="space-y-5 pb-2"><div className="grid gap-4 sm:grid-cols-2"><Field label="Kayıt tipi"><select value={careForm.type} onChange={(event) => setCareForm((current) => ({ ...current, type: event.target.value as CustomerCareEvent["type"] }))} className="h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]">{Object.entries(CARE_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Durum"><select value={careForm.status} onChange={(event) => setCareForm((current) => ({ ...current, status: event.target.value as CustomerCareEvent["status"] }))} className="h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]">{Object.entries(CARE_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="Şiddet"><select value={careForm.severity} onChange={(event) => setCareForm((current) => ({ ...current, severity: event.target.value as NonNullable<CustomerCareEvent["severity"]> }))} className="h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]">{Object.entries(CARE_SEVERITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><Field label="İlgili randevu"><select value={careForm.appointmentId} onChange={(event) => setCareForm((current) => ({ ...current, appointmentId: event.target.value }))} className="h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]"><option value="">Randevu seçmeden devam et</option>{customer.appointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{formatShortDate(appointment.startAt)} · {appointment.service.name}</option>)}</select></Field><Field label="Başlık"><TextInput required value={careForm.title} onChange={(event) => setCareForm((current) => ({ ...current, title: event.target.value }))} placeholder="Örn. İşlem sonrası hafif kızarıklık" /></Field><Field label="Gerçekleşme tarihi"><TextInput type="datetime-local" value={careForm.occurredAt} onChange={(event) => setCareForm((current) => ({ ...current, occurredAt: event.target.value }))} /></Field><Field label="Başlangıç zamanı"><TextInput type="datetime-local" value={careForm.onsetAt} onChange={(event) => setCareForm((current) => ({ ...current, onsetAt: event.target.value }))} /></Field><Field label="Takip tarihi"><TextInput type="datetime-local" value={careForm.followUpAt} onChange={(event) => setCareForm((current) => ({ ...current, followUpAt: event.target.value }))} /></Field><div className="sm:col-span-2"><Field label="Açıklama"><textarea value={careForm.description} onChange={(event) => setCareForm((current) => ({ ...current, description: event.target.value }))} rows={4} className="w-full resize-none rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-[13px] text-[var(--ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--muted-soft)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]" placeholder="Belirti, müşteri bildirimi veya gözlemi yazın." /></Field></div><div className="sm:col-span-2"><Field label="Alınan aksiyon"><textarea value={careForm.actionTaken} onChange={(event) => setCareForm((current) => ({ ...current, actionTaken: event.target.value }))} rows={3} className="w-full resize-none rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-[13px] text-[var(--ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--muted-soft)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]" placeholder="Örn. Soğuk kompres önerildi, kontrol planlandı." /></Field></div></div>{careError ? <Alert>{careError}</Alert> : null}</div></div><div className="mt-4 flex shrink-0 justify-end gap-3 border-t border-[var(--line)] pt-4"><Button type="button" variant="secondary" onClick={closeCareModal} disabled={careSaving}>Vazgeç</Button><Button type="submit" disabled={careSaving}>{careSaving ? "Kaydediliyor..." : "Kaydı oluştur"}</Button></div></form></Modal>
+    {(criticalCareEvents.length > 0 || (crm360?.summary.overdueFollowUpCount ?? 0) > 0) ? (
+      <section className="rounded-[16px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <strong className="text-[10px] text-[var(--danger)]">Kontrol Gerekiyor</strong>
+            <p className="mt-1 text-[9px] leading-5 text-[var(--ink)]">
+              {criticalCareEvents.length > 0 ? String(criticalCareEvents.length) + " yüksek/kritik bakım kaydı" : ""}
+              {criticalCareEvents.length > 0 && (crm360?.summary.overdueFollowUpCount ?? 0) > 0 ? " · " : ""}
+              {(crm360?.summary.overdueFollowUpCount ?? 0) > 0 ? String(crm360?.summary.overdueFollowUpCount ?? 0) + " geciken CRM takibi" : ""}
+            </p>
+          </div>
+          <a href="#care-history" className="text-[9px] font-semibold text-[var(--danger)]">Kayıtları İncele →</a>
+        </div>
+      </section>
+    ) : null}
+
+    <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <CustomerPulseCard label="Net Harcama" value={formatMoney(customer.stats.netSpent)} detail="Toplam tahsilat eksi iadeler" />
+      <CustomerPulseCard label="Tamamlanan Ziyaret" value={customer.stats.completedAppointments} detail={String(customer.stats.totalAppointments) + " toplam randevu"} />
+      <CustomerPulseCard label="Yaklaşan Randevu" value={upcomingAppointment ? formatDateTime(upcomingAppointment.startAt) : "Yok"} detail={upcomingAppointment ? upcomingAppointment.service.name : "Planlı randevu bulunmuyor"} />
+      <CustomerPulseCard label="Açık Takip" value={crm360?.summary.openFollowUpCount ?? 0} detail={(crm360?.summary.overdueFollowUpCount ?? 0) > 0 ? String(crm360?.summary.overdueFollowUpCount ?? 0) + " geciken takip var" : "Geciken takip yok"} alert={(crm360?.summary.overdueFollowUpCount ?? 0) > 0} />
+    </section>
+
+    <nav className="overflow-x-auto rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-1.5">
+      <div className="flex min-w-max gap-1">
+        <a href="#profile" className="rounded-[9px] px-3 py-2 text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">Profil & Sağlık</a>
+        <a href="#crm-sales" className="rounded-[9px] px-3 py-2 text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">CRM & Satış</a>
+        <a href="#consents" className="rounded-[9px] px-3 py-2 text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">İzinler</a>
+        <a href="#care-history" className="rounded-[9px] px-3 py-2 text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">Bakım & Takip</a>
+        <a href="#finance" className="rounded-[9px] px-3 py-2 text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">Finans</a>
+        <a href="#appointments" className="rounded-[9px] px-3 py-2 text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">Randevular</a>
+      </div>
+    </nav>
+
+    <section id="profile" className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <GlassCard>
+        <SectionHeading eyebrow="Müşteri bilgileri" title="Profil" action={canUpdateCustomer ? <Button variant="secondary" className="h-8 px-3 text-[9px]" onClick={openProfileModal}>Düzenle</Button> : null} />
+        <div className="mt-5 space-y-4">
+          <InfoRow label="Telefon" value={customer.phone || "—"} />
+          <InfoRow label="E-posta" value={customer.email || "—"} />
+          <InfoRow label="Doğum Tarihi" value={customer.birthDate ? formatDate(customer.birthDate) : "—"} />
+          <InfoRow label="Müşteri Kaynağı" value={customer.customerSource ? CUSTOMER_SOURCE_LABELS[customer.customerSource] : "—"} />
+          <InfoRow label="Müşterilik Başlangıcı" value={formatDate(customer.createdAt)} />
+        </div>
+      </GlassCard>
+      <GlassCard>
+        <SectionHeading eyebrow="Hizmet güvenliği" title="Sağlık Bilgileri" />
+        {customer.healthProfile ? <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <DetailBlock label="Alerjiler" value={customer.healthProfile.allergies || "Belirtilmedi"} />
+          <DetailBlock label="Hassasiyetler" value={customer.healthProfile.sensitivities || "Belirtilmedi"} />
+          <DetailBlock label="Kullanılan İlaçlar" value={customer.healthProfile.medications || "Belirtilmedi"} />
+          <DetailBlock label="Bilinen Sağlık Bilgileri" value={customer.healthProfile.conditions || "Belirtilmedi"} />
+          <div className="sm:col-span-2"><DetailBlock label="Ek Not" value={customer.healthProfile.notes || "Not bulunmuyor."} /></div>
+        </div> : <EmptyInline>Henüz sağlık profili oluşturulmamış.</EmptyInline>}
+      </GlassCard>
+    </section>
+    {crm360 ? <section id="crm-sales"><GlassCard className="p-0">
+      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Müşteri ilişkileri</p><h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">CRM & Satış</h2></div>
+        <Link href={`/crm/interactions?customerId=${customer.id}`} className="text-[11px] font-semibold text-[var(--accent)]">Tüm görüşmeler →</Link>
+      </div>
+      <div className="grid gap-3 border-b border-[var(--line)] p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
+        <StatCard label="Açık satış fırsatı" value={crm360.summary.openOpportunityCount} />
+        <StatCard label="Beklenen satış" value={formatMoney(crm360.summary.weightedPipeline)} />
+        <StatCard label="Açık takip" value={crm360.summary.openFollowUpCount} />
+        <StatCard label="Geciken takip" value={crm360.summary.overdueFollowUpCount} />
+      </div>
+      <div className="grid gap-0 lg:grid-cols-2">
+        <div className="border-b border-[var(--line)] lg:border-b-0 lg:border-r">
+          <div className="px-4 py-3 sm:px-6"><h3 className="text-[12px] font-semibold">Satış fırsatları</h3></div>
+          {crm360.opportunities.length ? <div className="divide-y divide-[var(--line)]">{crm360.opportunities.map((opportunity) => <Link key={opportunity.id} href={`/crm/opportunities/${opportunity.id}`} className="block px-4 py-3.5 transition hover:bg-[var(--surface-2)] sm:px-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-[12px] font-medium">{opportunity.title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{opportunityStageLabels[opportunity.stage]} · %{opportunity.probability}</p></div><span className="shrink-0 text-[11px] font-semibold">{formatMoney(opportunity.estimatedValue ?? 0)}</span></div></Link>)}</div> : <EmptyInline>Bu müşteri için satış fırsatı bulunmuyor.</EmptyInline>}
+        </div>
+        <div>
+          <div className="px-4 py-3 sm:px-6"><h3 className="text-[12px] font-semibold">Son görüşmeler</h3></div>
+          {crm360.interactions.length ? <div className="divide-y divide-[var(--line)]">{crm360.interactions.slice(0,6).map((interaction) => <div key={interaction.id} className="px-4 py-3.5 sm:px-6"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-medium">{interaction.type === "CALL" ? "Telefon" : interaction.type === "WHATSAPP" ? "WhatsApp" : interaction.type === "EMAIL" ? "E-posta" : interaction.type === "SMS" ? "SMS" : interaction.type === "IN_PERSON" ? "Yüz yüze" : interaction.type === "VIDEO_CALL" ? "Görüntülü görüşme" : "Diğer"}</p><p className="mt-1 truncate text-[10px] text-[var(--muted)]">{interaction.result || interaction.notes || "Görüşme sonucu girilmemiş"}</p>{interaction.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted-soft)]">Sonraki: {interaction.nextAction}</p> : null}</div><time className="shrink-0 text-[9px] text-[var(--muted-soft)]">{formatDateTime(interaction.startedAt)}</time></div></div>)}</div> : <EmptyInline>Bu müşteri için görüşme kaydı bulunmuyor.</EmptyInline>}
+        </div>
+      </div>
+      {crmTimeline.length ? <div className="border-t border-[var(--line)]">
+        <div className="px-4 py-3 sm:px-6"><h3 className="text-[12px] font-semibold">CRM zaman çizelgesi</h3><p className="mt-1 text-[10px] text-[var(--muted)]">Görüşme, takip ve satış hareketleri tek akışta</p></div>
+        <div className="divide-y divide-[var(--line)]">
+          {crmTimeline.map((item) => <div key={item.id} className="flex gap-3 px-4 py-3.5 sm:px-6">
+            <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--accent)]" />
+            <div className="min-w-0 flex-1"><div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><p className="text-[11px] font-semibold text-[var(--ink)]">{item.title}</p><time className="text-[9px] text-[var(--muted-soft)]">{formatDateTime(item.date)}</time></div>{item.detail ? <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">{item.detail}</p> : null}</div>
+          </div>)}
+        </div>
+      </div> : null}
+    </GlassCard></section> : null}
+    <section id="consents"><GlassCard><SectionHeading eyebrow="Kayıt ve izinler" title="Belgeler & İzinler" /><div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-3 lg:grid-cols-2"><ConsentRow label="KVKK Aydınlatma" consent={kvkk} /><ConsentRow label="Açık Rıza" consent={explicitConsent} /><ConsentRow label="Üyelik Sözleşmesi" consent={membership} /><ConsentRow label="Sağlık Verisi Rızası" consent={healthConsent} />{(["MARKETING_SMS", "MARKETING_EMAIL", "MARKETING_PHONE"] as const).map((type) => <ConsentRow key={type} label={CONSENT_LABELS[type]} consent={latestConsent(customer.consents, type)} />)}</div>{customer.documents.length > 0 ? <div className="mt-5 border-t border-[var(--line)] pt-5"><p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Belgeler</p><div className="mt-3 space-y-2">{customer.documents.map((document) => <div key={document.id} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] px-4 py-3"><div><p className="text-[12px] font-medium text-[var(--ink)]">{document.title || CONSENT_LABELS[document.type] || userLabel(document.type)}</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">{document.version || document.documentVersion || "Sürüm bilgisi yok"}{" · "}{formatShortDate(document.createdAt)}</p></div><span className="text-[10px] font-medium text-[var(--muted)]">{userLabel(document.status)}</span></div>)}</div></div> : null}</GlassCard></section>
+    <section id="care-history"><GlassCard className="p-0"><div className="flex flex-col gap-4 border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Takip</p><h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">Bakım & İşlem Geçmişi</h2></div>{canUpdateCustomer ? <Button onClick={openCareModal} className="w-full sm:w-auto">+ Yeni kayıt</Button> : null}</div>{customer.careEvents.length === 0 ? <EmptyInline>Bu müşteri için henüz bakım veya işlem sonrası kayıt bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.careEvents.map((event) => <CareEventRow key={event.id} event={event} onDelete={canDeleteCustomer ? () => setPendingCareDelete(event) : undefined} />)}</div>}</GlassCard></section>
+    <section id="finance" className="grid gap-3 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_340px]"><GlassCard className="p-0"><div className="border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5"><h2 className="text-[18px] font-semibold text-[var(--ink)]">Ödeme geçmişi</h2></div>{customer.payments.length === 0 ? <EmptyInline>Henüz ödeme kaydı bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.payments.map((payment) => <div key={payment.id} className="flex flex-col gap-2.5 px-4 py-3.5 sm:gap-3 sm:px-6 sm:py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-[14px] font-medium text-[var(--ink)]">{payment.service.name}</p><p className="mt-1 text-[12px] text-[var(--muted)]">{formatDateTime(payment.paidAt)}{" · "}{PAYMENT_METHOD_LABELS[payment.method]}</p>{payment.status === "REFUNDED" && payment.refundReason ? <p className="mt-1 text-[12px] text-[var(--muted-soft)]">İade nedeni: {payment.refundReason}</p> : null}</div><div className="flex shrink-0 items-center gap-3"><span className="text-[13px] font-semibold text-[var(--ink)]">{formatMoney(payment.amount)}</span><StatusBadge status={payment.status} label={payment.status === "REFUNDED" ? "İade edildi" : "Tamamlandı"} /></div></div>)}</div>}</GlassCard><GlassCard><SectionHeading eyebrow="Finans" title="Finansal özet" /><div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5"><InfoRow label="Toplam tahsilat" value={formatMoney(customer.stats.totalPaid)} /><InfoRow label="Toplam iade" value={formatMoney(customer.stats.totalRefunded)} /><InfoRow label="Net harcama" value={formatMoney(customer.stats.netSpent)} /><InfoRow label="Son ödeme" value={customer.stats.lastPaymentAt ? formatDateTime(customer.stats.lastPaymentAt) : "—"} /></div></GlassCard></section>
+    <section id="appointments"><GlassCard className="p-0"><div className="border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5"><h2 className="text-[18px] font-semibold text-[var(--ink)]">Randevu geçmişi</h2></div>{customer.appointments.length === 0 ? <EmptyInline>Henüz randevu bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.appointments.map((appointment) => <div key={appointment.id} className="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-[14px] font-medium text-[var(--ink)]">{appointment.service.name}</p><p className="mt-1 text-[12px] text-[var(--muted)]">{formatDateTime(appointment.startAt)}{" · "}{fullName(appointment.staff.firstName, appointment.staff.lastName)}</p>{appointment.notes ? <p className="mt-1 text-[12px] text-[var(--muted-soft)]">{appointment.notes}</p> : null}</div><div className="flex shrink-0 flex-wrap items-center justify-end gap-3"><span className="text-[13px] font-medium text-[var(--ink)]">{formatMoney(appointment.service.price)}</span>{!appointment.payment && appointment.status !== "CANCELLED" && appointment.status !== "NO_SHOW" ? <Button variant="secondary" onClick={() => setPaymentAppointment(appointment)}>Ödeme al</Button> : appointment.payment ? <span className="text-[12px] text-[var(--muted)]">{PAYMENT_METHOD_LABELS[appointment.payment.method]}</span> : null}<StatusBadge status={appointment.status} label={STATUS_LABELS[appointment.status]} /></div></div>)}</div>}</GlassCard></section>
+
+    <Modal open={profileModalOpen} onClose={closeProfileModal} title="Sağlık & Profil düzenle" description="Müşterinin temel ve sağlık bilgilerini güncelleyin."><form onSubmit={saveProfile} className="flex max-h-[72vh] flex-col"><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><div className="space-y-6 pb-2"><section><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Profil bilgileri</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Ad"><TextInput required value={profileForm.firstName} onChange={(event) => setProfileForm((current) => ({ ...current, firstName: event.target.value }))} /></Field><Field label="Soyad"><TextInput required value={profileForm.lastName} onChange={(event) => setProfileForm((current) => ({ ...current, lastName: event.target.value }))} /></Field><Field label="Telefon"><TextInput value={profileForm.phone} onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))} /></Field><Field label="E-posta"><TextInput type="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} /></Field><Field label="Doğum tarihi"><DatePicker value={profileForm.birthDate} max={new Date().toISOString().slice(0,10)} ariaLabel="Doğum tarihi" onChange={(birthDate) => setProfileForm((current) => ({ ...current, birthDate }))} /></Field><Field label="Müşteri kaynağı"><ValooSelect value={profileForm.customerSource} onChange={(customerSource) => setProfileForm((current) => ({ ...current, customerSource: customerSource as CustomerSource | "" }))} searchable={false} placeholder="Seçin" options={[{value:"INSTAGRAM",label:"Instagram"},{value:"GOOGLE",label:"Google"},{value:"REFERRAL",label:"Tavsiye"},{value:"WALK_IN",label:"Doğrudan"},{value:"OTHER",label:"Diğer"}]}/></Field></div></section><section className="border-t border-[var(--line)] pt-5"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Sağlık bilgileri</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Alerjiler"><TextInput value={profileForm.allergies} onChange={(event) => setProfileForm((current) => ({ ...current, allergies: event.target.value }))} /></Field><Field label="Hassasiyetler"><TextInput value={profileForm.sensitivities} onChange={(event) => setProfileForm((current) => ({ ...current, sensitivities: event.target.value }))} /></Field><Field label="Kullanılan ilaçlar"><TextInput value={profileForm.medications} onChange={(event) => setProfileForm((current) => ({ ...current, medications: event.target.value }))} /></Field><Field label="Bilinen sağlık bilgileri"><TextInput value={profileForm.conditions} onChange={(event) => setProfileForm((current) => ({ ...current, conditions: event.target.value }))} /></Field><div className="sm:col-span-2"><Field label="Ek not"><textarea rows={4} value={profileForm.notes} onChange={(event) => setProfileForm((current) => ({ ...current, notes: event.target.value }))} className="w-full resize-none rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-[13px] text-[var(--ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--muted-soft)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]" /></Field></div></div></section><div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3"><p className="text-[11px] leading-5 text-[var(--muted)]">Sağlık bilgilerinde yapılan değişiklikler mevcut izin ve onay kayıtlarının geçmişini değiştirmez.</p></div>{profileError ? <Alert>{profileError}</Alert> : null}</div></div><div className="mt-4 flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--line)] pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="secondary" onClick={closeProfileModal} disabled={profileSaving}>Vazgeç</Button><Button type="submit" disabled={profileSaving}>{profileSaving ? "Kaydediliyor..." : "Değişiklikleri kaydet"}</Button></div></form></Modal>
+    <Modal open={careModalOpen} onClose={closeCareModal} title="Bakım / işlem kaydı" description="Reaksiyon, işlem sonrası bakım veya müşteri takibi kaydedin."><form onSubmit={createCareEvent} className="flex max-h-[72vh] flex-col"><div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"><div className="space-y-5 pb-2"><div className="grid gap-4 sm:grid-cols-2"><Field label="Kayıt tipi"><ValooSelect value={careForm.type} onChange={(type) => setCareForm((current) => ({ ...current, type: type as CustomerCareEvent["type"] }))} searchable={false} options={Object.entries(CARE_TYPE_LABELS).map(([value,label])=>({value,label}))}/></Field><Field label="Durum"><ValooSelect value={careForm.status} onChange={(status) => setCareForm((current) => ({ ...current, status: status as CustomerCareEvent["status"] }))} searchable={false} options={Object.entries(CARE_STATUS_LABELS).map(([value,label])=>({value,label}))}/></Field><Field label="Şiddet"><ValooSelect value={careForm.severity} onChange={(severity) => setCareForm((current) => ({ ...current, severity: severity as NonNullable<CustomerCareEvent["severity"]> }))} searchable={false} options={Object.entries(CARE_SEVERITY_LABELS).map(([value,label])=>({value,label}))}/></Field><Field label="İlgili randevu"><ValooSelect value={careForm.appointmentId} onChange={(appointmentId) => setCareForm((current) => ({ ...current, appointmentId }))} placeholder="Randevu seçmeden devam et" searchPlaceholder="Randevu ara…" options={customer.appointments.map((appointment)=>({value:appointment.id,label:`${formatShortDate(appointment.startAt)} · ${appointment.service.name}`}))}/></Field><Field label="Başlık"><TextInput required value={careForm.title} onChange={(event) => setCareForm((current) => ({ ...current, title: event.target.value }))} placeholder="Örn. İşlem sonrası hafif kızarıklık" /></Field><Field label="Gerçekleşme tarihi"><DateTimePicker value={careForm.occurredAt} ariaLabel="Gerçekleşme tarihi" onChange={(value) => setCareForm((current) => ({ ...current, occurredAt: value }))} /></Field><Field label="Başlangıç zamanı"><DateTimePicker value={careForm.onsetAt} max={careForm.occurredAt || undefined} ariaLabel="Başlangıç zamanı" onChange={(value) => setCareForm((current) => ({ ...current, onsetAt: value }))} /></Field><Field label="Takip tarihi"><DateTimePicker value={careForm.followUpAt} min={careForm.occurredAt || undefined} ariaLabel="Takip tarihi" onChange={(value) => setCareForm((current) => ({ ...current, followUpAt: value }))} /></Field><div className="sm:col-span-2"><Field label="Açıklama"><textarea value={careForm.description} onChange={(event) => setCareForm((current) => ({ ...current, description: event.target.value }))} rows={4} className="w-full resize-none rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-[13px] text-[var(--ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--muted-soft)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]" placeholder="Belirti, müşteri bildirimi veya gözlemi yazın." /></Field></div><div className="sm:col-span-2"><Field label="Alınan aksiyon"><textarea value={careForm.actionTaken} onChange={(event) => setCareForm((current) => ({ ...current, actionTaken: event.target.value }))} rows={3} className="w-full resize-none rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-[13px] text-[var(--ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--muted-soft)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]" placeholder="Örn. Soğuk kompres önerildi, kontrol planlandı." /></Field></div></div>{careError ? <Alert>{careError}</Alert> : null}</div></div><div className="mt-4 flex shrink-0 justify-end gap-3 border-t border-[var(--line)] pt-4"><Button type="button" variant="secondary" onClick={closeCareModal} disabled={careSaving}>Vazgeç</Button><Button type="submit" disabled={careSaving}>{careSaving ? "Kaydediliyor..." : "Kaydı oluştur"}</Button></div></form></Modal>
     <PaymentModal open={paymentAppointment !== null} onClose={() => setPaymentAppointment(null)} appointment={paymentAppointment} customerName={fullName(customer.firstName, customer.lastName)} serviceName={paymentAppointment?.service.name ?? "Hizmet"} defaultAmount={paymentAppointment?.service.price ?? ""} onSaved={async () => { setPaymentAppointment(null); await load(); }} />
     <ConfirmDialog open={Boolean(pendingCareDelete)} title="Bakım kaydını sil" description="Bu kayıt kalıcı olarak silinecek. Devam edilsin mi?" loading={careSaving} onClose={() => setPendingCareDelete(null)} onConfirm={() => void deleteCareEvent()} />
   </div>;
 }
 
+function CustomerPulseCard({ label, value, detail, alert }: { label: string; value: string | number; detail: string; alert?: boolean }) {
+  return <div className={alert ? "rounded-[16px] border border-[var(--danger)]/20 bg-[var(--danger-soft)] p-4" : "rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]"}>
+    <span className="text-[8px] font-medium text-[var(--muted)]">{label}</span>
+    <strong className={alert ? "mt-2 block text-[18px] font-semibold text-[var(--danger)]" : "mt-2 block text-[18px] font-semibold text-[var(--ink)]"}>{value}</strong>
+    <span className="mt-1.5 block text-[8px] leading-4 text-[var(--muted)]">{detail}</span>
+  </div>;
+}
 function SectionHeading({ eyebrow, title, action }: { eyebrow?: string; title: string; action?: React.ReactNode }) { return <div className="flex items-start justify-between gap-4"><div>{eyebrow ? <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{eyebrow}</p> : null}<h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">{title}</h2></div>{action}</div>; }
-function StatCard({ label, value }: { label: string; value: string | number }) { return <GlassCard className="p-4 sm:p-6"><p className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted-soft)] sm:text-[12px] sm:normal-case sm:tracking-normal sm:text-[var(--muted)]">{label}</p><p className="mt-2 text-[22px] font-semibold tracking-[-0.04em] text-[var(--ink)] sm:mt-3 sm:text-[26px]">{value}</p></GlassCard>; }
+function StatCard({ label, value }: { label: string; value: string | number }) { return <GlassCard className="p-4 sm:p-6"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted-soft)] sm:text-[12px] sm:normal-case sm:tracking-normal sm:text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-2 text-[22px] font-semibold tracking-[-0.04em] text-[var(--ink)] sm:mt-3 sm:text-[26px]">{value}</p></GlassCard>; }
 function InfoRow({ label, value }: { label: string; value: string }) { return <div><p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-1 text-[13px] text-[var(--ink)]">{value}</p></div>; }
 function DetailBlock({ label, value }: { label: string; value: string }) { return <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-3.5 py-3 sm:rounded-[16px] sm:px-4 sm:py-3.5"><p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-1.5 text-[12px] leading-5 text-[var(--ink)]">{value}</p></div>; }
 function EmptyInline({ children }: { children: React.ReactNode }) { return <div className="px-4 py-7 text-center text-[12px] text-[var(--muted)] sm:px-6 sm:py-10">{children}</div>; }

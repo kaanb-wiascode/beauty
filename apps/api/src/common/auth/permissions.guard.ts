@@ -11,6 +11,7 @@ import { PrismaService } from '@beauty-erp/database';
 
 import {
   REQUIRED_PERMISSION_KEY,
+  REQUIRED_PERMISSIONS_KEY,
   RequiredPermission,
 } from './permissions.decorator';
 import type { JwtPayload } from './jwt.strategy';
@@ -30,8 +31,17 @@ export class PermissionsGuard implements CanActivate {
         REQUIRED_PERMISSION_KEY,
         [context.getHandler(), context.getClass()],
       );
+    const requiredAll =
+      this.reflector.getAllAndOverride<readonly RequiredPermission[]>(
+        REQUIRED_PERMISSIONS_KEY,
+        [context.getHandler(), context.getClass()],
+      );
+    const requirements = [
+      ...(required ? [required] : []),
+      ...(requiredAll ?? []),
+    ];
 
-    if (!required) {
+    if (requirements.length === 0) {
       return true;
     }
 
@@ -143,14 +153,25 @@ export class PermissionsGuard implements CanActivate {
       );
     }
 
-    const rolePermission =
-      await this.prisma.rolePermission.findFirst({
+    const uniqueRequirements = Array.from(
+      new Map(
+        requirements.map((permission) => [
+          `${permission.resource}:${permission.action}`,
+          permission,
+        ]),
+      ).values(),
+    );
+
+    const rolePermissions =
+      await this.prisma.rolePermission.findMany({
         where: {
           roleId: user.roleId,
-          permission: {
-            resource: required.resource,
-            action: required.action,
-          },
+          OR: uniqueRequirements.map((permission) => ({
+            permission: {
+              resource: permission.resource,
+              action: permission.action,
+            },
+          })),
           role: {
             tenantId: user.tenantId,
             OR: [
@@ -160,11 +181,56 @@ export class PermissionsGuard implements CanActivate {
           },
         },
         select: {
-          roleId: true,
+          permission: {
+            select: {
+              resource: true,
+              action: true,
+            },
+          },
         },
       });
 
-    if (!rolePermission) {
+    const granted = new Set(
+      rolePermissions.map(
+        ({ permission }) =>
+          `${permission.resource}:${permission.action}`,
+      ),
+    );
+
+    const missing = uniqueRequirements.filter(
+      (permission) => !granted.has(`${permission.resource}:${permission.action}`),
+    );
+
+    if (missing.length > 0) {
+      const temporaryPermissions = await this.prisma.$queryRaw<
+        Array<{ resource: string; action: string }>
+      >`
+        SELECT DISTINCT p.resource, p.action
+        FROM temporary_permission_grants g
+        JOIN permissions p ON p.id = g."permissionId"
+        WHERE g."tenantId" = ${user.tenantId}
+          AND g."companyId" = ${user.companyId}
+          AND g."membershipId" = ${user.membershipId}
+          AND g."revokedAt" IS NULL
+          AND g."startsAt" <= CURRENT_TIMESTAMP
+          AND g."endsAt" > CURRENT_TIMESTAMP
+          AND (
+            g."branchId" IS NULL
+            OR g."branchId" IS NOT DISTINCT FROM ${user.branchId}
+          )
+      `;
+
+      for (const permission of temporaryPermissions) {
+        granted.add(`${permission.resource}:${permission.action}`);
+      }
+    }
+
+    const hasAllPermissions = uniqueRequirements.every(
+      (permission) =>
+        granted.has(`${permission.resource}:${permission.action}`),
+    );
+
+    if (!hasAllPermissions) {
       throw new ForbiddenException(
         'You do not have permission to perform this action',
       );

@@ -13,7 +13,10 @@ import {
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
-import { RequirePermission } from '../../common/auth/permissions.decorator';
+import {
+  RequirePermission,
+  RequirePermissions,
+} from '../../common/auth/permissions.decorator';
 
 import {
   createServiceSchema,
@@ -63,7 +66,10 @@ export class ServicesController {
 
   @Get('performance')
     @UseGuards(PermissionsGuard)
-    @RequirePermission('reports', 'read')
+    @RequirePermissions(
+      { resource: 'reports', action: 'read' },
+      { resource: 'services', action: 'read' },
+    )
   async performance(@Query() query: unknown) {
     const input = servicePerformanceSchema.parse(query);
 

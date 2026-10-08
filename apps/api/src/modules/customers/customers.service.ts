@@ -6,6 +6,7 @@ import {
 
 import { PrismaService } from '@beauty-erp/database';
 
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreateCustomerInput } from './dto/create-customer.dto';
 import { ListCustomersInput } from './dto/list-customers.dto';
@@ -17,6 +18,7 @@ export class CustomersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
   ) {}
 
   private requireBranchId(): string {
@@ -24,70 +26,16 @@ export class CustomersService {
 
     if (!branchId) {
       throw new BadRequestException(
-        "A branch must be selected for this operation.",
+        'A branch must be selected for this operation.',
       );
     }
 
     return branchId;
   }
 
-  private getAppointmentScope() {
-    const tenantId = this.tenantContext.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    // CENTRAL + no active branch = company-wide view.
-    if (roleScope === "CENTRAL" && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    // COMPANY / BRANCH, or CENTRAL with an active branch,
-    // are restricted to the active branch.
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
-  }
-
-  private getCustomerScope() {
-    const tenantId = this.tenantContext.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    // CENTRAL + no active branch = company-wide view.
-    if (roleScope === "CENTRAL" && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    // COMPANY / BRANCH, or CENTRAL with an active branch,
-    // are restricted to the active branch.
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
-  }
-
   async create(input: CreateCustomerInput) {
     const tenantId = this.tenantContext.getTenantId();
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        "A branch must be selected for this operation.",
-      );
-    }
+    const branchId = this.requireBranchId();
 
     const consents = input.consents ?? {
       kvkkAcknowledgement: false,
@@ -103,9 +51,7 @@ export class CustomersService {
 
     const hasHealthData = Boolean(
       healthProfile &&
-        Object.values(healthProfile).some(
-          (value) => value?.trim(),
-        ),
+        Object.values(healthProfile).some((value) => value?.trim()),
     );
 
     if (hasHealthData && !consents.healthDataConsent) {
@@ -142,90 +88,32 @@ export class CustomersService {
             medications: healthProfile.medications?.trim() || null,
             conditions: healthProfile.conditions?.trim() || null,
             notes: healthProfile.notes?.trim() || null,
-            confirmedAt: consents.healthFormCompletion
-              ? new Date()
-              : null,
+            confirmedAt: consents.healthFormCompletion ? new Date() : null,
           },
         });
       }
 
       const now = new Date();
-
       const consentRows = [
-        {
-          type: 'KVKK_ACKNOWLEDGEMENT' as const,
-          status: consents.kvkkAcknowledgement
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.kvkkAcknowledgement ? now : null,
-        },
-        {
-          type: 'EXPLICIT_CONSENT' as const,
-          status: consents.explicitConsent
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.explicitConsent ? now : null,
-        },
-        {
-          type: 'MEMBERSHIP_AGREEMENT' as const,
-          status: consents.membershipAgreement
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.membershipAgreement ? now : null      },
-        {
-          type: 'HEALTH_FORM_COMPLETION' as const,
-          status: consents.healthFormCompletion
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.healthFormCompletion ? now : null,
-        },
-        {
-          type: 'HEALTH_DATA_CONSENT' as const,
-          status: consents.healthDataConsent
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.healthDataConsent ? now : null,
-        },
-        {
-          type: 'MARKETING_SMS' as const,
-          status: consents.marketingSms
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.marketingSms ? now : null,
-        },
-        {
-          type: 'MARKETING_EMAIL' as const,
-          status: consents.marketingEmail
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.marketingEmail ? now : null,
-        },
-        {
-          type: 'MARKETING_PHONE' as const,
-          status: consents.marketingPhone
-            ? 'ACCEPTED'
-            : 'DECLINED',
-          version: '1.0',
-          acceptedAt: consents.marketingPhone ? now : null,
-        },
-      ];
+        ['KVKK_ACKNOWLEDGEMENT', consents.kvkkAcknowledgement],
+        ['EXPLICIT_CONSENT', consents.explicitConsent],
+        ['MEMBERSHIP_AGREEMENT', consents.membershipAgreement],
+        ['HEALTH_FORM_COMPLETION', consents.healthFormCompletion],
+        ['HEALTH_DATA_CONSENT', consents.healthDataConsent],
+        ['MARKETING_SMS', consents.marketingSms],
+        ['MARKETING_EMAIL', consents.marketingEmail],
+        ['MARKETING_PHONE', consents.marketingPhone],
+      ] as const;
 
       await tx.customerConsent.createMany({
-        data: consentRows.map((consent) => ({
+        data: consentRows.map(([type, accepted]) => ({
           tenantId,
           branchId,
           customerId: customer.id,
-          type: consent.type,
-          status: consent.status as 'ACCEPTED' | 'DECLINED',
-          documentVersion: consent.version,
-          acceptedAt: consent.acceptedAt,
+          type,
+          status: accepted ? ('ACCEPTED' as const) : ('DECLINED' as const),
+          documentVersion: '1.0',
+          acceptedAt: accepted ? now : null,
           source: 'STAFF' as const,
         })),
       });
@@ -235,56 +123,188 @@ export class CustomersService {
   }
 
   async findAll(input: ListCustomersInput) {
-    const customerScope = this.getCustomerScope();
-    const { page, limit, search } = input;
+    const customerScope = await this.organizationScope.getBranchScopedWhere();
+    const appointmentScope = await this.organizationScope.getBranchScopedWhere();
+    const { page, limit, search, segment } = input;
     const skip = (page - 1) * limit;
+    const now = new Date();
+    const recentSince = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const segmentWhere =
+      segment === 'RECENT'
+        ? { createdAt: { gte: recentSince } }
+        : segment === 'UPCOMING'
+          ? {
+              appointments: {
+                some: {
+                  ...appointmentScope,
+                  startAt: { gte: now },
+                  status: { in: ['SCHEDULED' as const, 'CONFIRMED' as const] },
+                },
+              },
+            }
+          : segment === 'NEEDS_ATTENTION'
+            ? {
+                careEvents: {
+                  some: {
+                    ...customerScope,
+                    status: { in: ['OPEN' as const, 'IN_PROGRESS' as const] },
+                  },
+                },
+              }
+            : {};
 
     const where = {
       ...customerScope,
+      ...segmentWhere,
       ...(search
         ? {
             OR: [
-              {
-                firstName: {
-                  contains: search,
-                  mode: 'insensitive' as const,
-                },
-              },
-              {
-                lastName: {
-                  contains: search,
-                  mode: 'insensitive' as const,
-                },
-              },
-              {
-                email: {
-                  contains: search,
-                  mode: 'insensitive' as const,
-                },
-              },
-              {
-                phone: {
-                  contains: search,
-                },
-              },
+              { firstName: { contains: search, mode: 'insensitive' as const } },
+              { lastName: { contains: search, mode: 'insensitive' as const } },
+              { email: { contains: search, mode: 'insensitive' as const } },
+              { phone: { contains: search } },
             ],
           }
         : {}),
     };
 
-    const [data, total] = await Promise.all([
+    const [
+      baseCustomers,
+      total,
+      allCustomerCount,
+      newCustomerCount,
+      upcomingCustomerCount,
+      needsAttentionCount,
+    ] = await Promise.all([
       this.prisma.customer.findMany({
         where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: 'desc',
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.customer.count({ where }),
+      this.prisma.customer.count({ where: customerScope }),
+      this.prisma.customer.count({
+        where: {
+          ...customerScope,
+          createdAt: { gte: recentSince },
         },
       }),
       this.prisma.customer.count({
-        where,
+        where: {
+          ...customerScope,
+          appointments: {
+            some: {
+              ...appointmentScope,
+              startAt: { gte: now },
+              status: { in: ['SCHEDULED', 'CONFIRMED'] },
+            },
+          },
+        },
+      }),
+      this.prisma.customer.count({
+        where: {
+          ...customerScope,
+          careEvents: {
+            some: {
+              ...customerScope,
+              status: { in: ['OPEN', 'IN_PROGRESS'] },
+            },
+          },
+        },
       }),
     ]);
+
+    const customerIds = baseCustomers.map((customer) => customer.id);
+
+    const [appointments, openCareEvents] = customerIds.length
+      ? await Promise.all([
+          this.prisma.appointment.findMany({
+            where: {
+              ...appointmentScope,
+              customerId: { in: customerIds },
+            },
+            select: {
+              id: true,
+              customerId: true,
+              startAt: true,
+              status: true,
+              payment: {
+                select: {
+                  amount: true,
+                  status: true,
+                },
+              },
+            },
+            orderBy: { startAt: 'desc' },
+          }),
+          this.prisma.customerCareEvent.findMany({
+            where: {
+              ...customerScope,
+              customerId: { in: customerIds },
+              status: { in: ['OPEN', 'IN_PROGRESS'] },
+            },
+            select: {
+              customerId: true,
+              severity: true,
+              followUpAt: true,
+            },
+          }),
+        ])
+      : [[], []];
+
+    const data = baseCustomers.map((customer) => {
+      const customerAppointments = appointments.filter(
+        (appointment) => appointment.customerId === customer.id,
+      );
+      const completedAppointments = customerAppointments.filter(
+        (appointment) => appointment.status === 'COMPLETED',
+      );
+      const upcomingAppointments = customerAppointments
+        .filter(
+          (appointment) =>
+            appointment.startAt >= now &&
+            (appointment.status === 'SCHEDULED' ||
+              appointment.status === 'CONFIRMED'),
+        )
+        .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+      const customerCareEvents = openCareEvents.filter(
+        (event) => event.customerId === customer.id,
+      );
+
+      const totalPaid = customerAppointments.reduce((sum, appointment) => {
+        if (appointment.payment?.status !== 'COMPLETED') return sum;
+        return sum + Number(appointment.payment.amount);
+      }, 0);
+      const totalRefunded = customerAppointments.reduce((sum, appointment) => {
+        if (appointment.payment?.status !== 'REFUNDED') return sum;
+        return sum + Number(appointment.payment.amount);
+      }, 0);
+
+      return {
+        ...customer,
+        summary: {
+          totalAppointments: customerAppointments.length,
+          completedAppointments: completedAppointments.length,
+          lastVisitAt: completedAppointments[0]?.startAt ?? null,
+          nextAppointmentAt: upcomingAppointments[0]?.startAt ?? null,
+          netSpent: totalPaid - totalRefunded,
+          openCareEventCount: customerCareEvents.length,
+          criticalCareEventCount: customerCareEvents.filter(
+            (event) =>
+              event.severity === 'HIGH' || event.severity === 'CRITICAL',
+          ).length,
+          nextCareFollowUpAt:
+            customerCareEvents
+              .filter((event) => event.followUpAt && event.followUpAt >= now)
+              .sort(
+                (a, b) =>
+                  a.followUpAt!.getTime() - b.followUpAt!.getTime(),
+              )[0]?.followUpAt ?? null,
+        },
+      };
+    });
 
     return {
       data,
@@ -293,12 +313,19 @@ export class CustomersService {
         limit,
         total,
         totalPages: Math.ceil(total / limit),
+        summary: {
+          totalCustomers: allCustomerCount,
+          newCustomersLast7Days: newCustomerCount,
+          customersWithUpcomingAppointments: upcomingCustomerCount,
+          customersNeedingAttention: needsAttentionCount,
+        },
       },
     };
   }
 
   async findOne(id: string) {
-    const customerScope = this.getCustomerScope();
+    const customerScope = await this.organizationScope.getBranchScopedWhere();
+    const appointmentScope = await this.organizationScope.getBranchScopedWhere();
 
     const customer = await this.prisma.customer.findFirst({
       where: {
@@ -307,49 +334,35 @@ export class CustomersService {
       },
       include: {
         healthProfile: true,
-
         documents: {
-          orderBy: {
-            createdAt: 'desc',
-          },
+          orderBy: { createdAt: 'desc' },
         },
-
         consents: {
-          orderBy: {
-            createdAt: 'desc',
-          },
+          orderBy: { createdAt: 'desc' },
         },
-
         careEvents: {
+          where: {
+            ...customerScope,
+          },
           include: {
             appointment: {
               select: {
                 id: true,
                 startAt: true,
                 service: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
+                  select: { id: true, name: true },
                 },
               },
             },
             staff: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
+              select: { id: true, firstName: true, lastName: true },
             },
           },
-          orderBy: {
-            occurredAt: 'desc',
-          },
+          orderBy: { occurredAt: 'desc' },
         },
-
         appointments: {
           where: {
-            ...this.getAppointmentScope(),
+            ...appointmentScope,
           },
           include: {
             service: {
@@ -361,11 +374,7 @@ export class CustomersService {
               },
             },
             staff: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
+              select: { id: true, firstName: true, lastName: true },
             },
             payment: {
               select: {
@@ -379,9 +388,7 @@ export class CustomersService {
               },
             },
           },
-          orderBy: {
-            startAt: 'desc',
-          },
+          orderBy: { startAt: 'desc' },
         },
       },
     });
@@ -391,13 +398,10 @@ export class CustomersService {
     }
 
     const now = new Date();
-
     const totalAppointments = customer.appointments.length;
-
     const completedAppointments = customer.appointments.filter(
       (appointment) => appointment.status === 'COMPLETED',
     ).length;
-
     const upcomingAppointments = customer.appointments.filter(
       (appointment) =>
         appointment.startAt >= now &&
@@ -423,19 +427,15 @@ export class CustomersService {
       }))
       .sort(
         (a, b) =>
-          new Date(b.paidAt).getTime() -
-          new Date(a.paidAt).getTime(),
+          new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime(),
       );
 
     const totalPaid = customerPayments
       .filter((payment) => payment.status === 'COMPLETED')
       .reduce((total, payment) => total + payment.amount, 0);
-
     const totalRefunded = customerPayments
       .filter((payment) => payment.status === 'REFUNDED')
       .reduce((total, payment) => total + payment.amount, 0);
-
-    const netSpent = totalPaid - totalRefunded;
 
     return {
       id: customer.id,
@@ -449,38 +449,33 @@ export class CustomersService {
       customerSource: customer.customerSource,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
-
       healthProfile: customer.healthProfile,
       documents: customer.documents,
       consents: customer.consents,
       careEvents: customer.careEvents,
-
       stats: {
         totalAppointments,
         completedAppointments,
         upcomingAppointments,
         totalPaid,
         totalRefunded,
-        netSpent,
+        netSpent: totalPaid - totalRefunded,
         lastPaymentAt: customerPayments[0]?.paidAt ?? null,
       },
-
       payments: customerPayments,
       appointments: customer.appointments,
     };
   }
 
   async update(id: string, input: UpdateCustomerInput) {
-    const customerScope = this.getCustomerScope();
+    const customerScope = await this.organizationScope.getBranchScopedWhere();
 
     const customer = await this.prisma.customer.findFirst({
       where: {
         id,
         ...customerScope,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!customer) {
@@ -488,9 +483,7 @@ export class CustomersService {
     }
 
     return this.prisma.customer.update({
-      where: {
-        id: customer.id,
-      },
+      where: { id: customer.id },
       data: {
         ...(input.firstName !== undefined && {
           firstName: input.firstName.trim(),
@@ -520,7 +513,7 @@ export class CustomersService {
     customerId: string,
     input: UpdateHealthProfileInput,
   ) {
-    const customerScope = this.getCustomerScope();
+    const customerScope = await this.organizationScope.getBranchScopedWhere();
 
     const customer = await this.prisma.customer.findFirst({
       where: {
@@ -538,11 +531,9 @@ export class CustomersService {
     }
 
     return this.prisma.customerHealthProfile.upsert({
-      where: {
-        customerId: customer.id,
-      },
+      where: { customerId: customer.id },
       create: {
-          tenantId: this.tenantContext.getTenantId(),
+        tenantId: this.tenantContext.getTenantId(),
         branchId: customer.branchId,
         customerId: customer.id,
         formVersion: '1.0',
@@ -558,16 +549,13 @@ export class CustomersService {
           allergies: input.allergies?.trim() || null,
         }),
         ...(input.sensitivities !== undefined && {
-          sensitivities:
-            input.sensitivities?.trim() || null,
+          sensitivities: input.sensitivities?.trim() || null,
         }),
         ...(input.medications !== undefined && {
-          medications:
-            input.medications?.trim() || null,
+          medications: input.medications?.trim() || null,
         }),
         ...(input.conditions !== undefined && {
-          conditions:
-            input.conditions?.trim() || null,
+          conditions: input.conditions?.trim() || null,
         }),
         ...(input.notes !== undefined && {
           notes: input.notes?.trim() || null,
@@ -578,16 +566,14 @@ export class CustomersService {
   }
 
   async remove(id: string) {
-    const customerScope = this.getCustomerScope();
+    const customerScope = await this.organizationScope.getBranchScopedWhere();
 
     const customer = await this.prisma.customer.findFirst({
       where: {
         id,
         ...customerScope,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!customer) {
@@ -595,9 +581,7 @@ export class CustomersService {
     }
 
     await this.prisma.customer.delete({
-      where: {
-        id: customer.id,
-      },
+      where: { id: customer.id },
     });
 
     return {
