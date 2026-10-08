@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -79,6 +80,14 @@ const expenseLabels: Record<string, string> = {
   SPONSORSHIP: "Sponsorluk",
   PR_MEDIA: "PR & Medya",
 };
+
+function expenseSourceHref(sourceType: string) {
+  if (sourceType === "CAMPAIGN") return "/communications/campaigns";
+  if (sourceType === "VENDOR") return "/communications/vendors";
+  if (sourceType === "CREATOR") return "/communications/creators";
+  if (sourceType === "PR_MEDIA") return "/communications/pr-media";
+  return "/communications";
+}
 
 function inputDate(date: Date) {
   const year = date.getFullYear();
@@ -699,9 +708,19 @@ function ExpenseBreakdown({
                   ) : null}
                 </div>
               </div>
-              <p className="text-[9px] font-semibold text-[var(--ink)]">
-                {money.format(row.amount)}
-              </p>
+              <div className="text-right">
+                <p className="text-[9px] font-semibold text-[var(--ink)]">
+                  {money.format(row.amount)}
+                </p>
+                {row.pendingCount > 0 ? (
+                  <Link
+                    href={expenseSourceHref(row.sourceType)}
+                    className="mt-1 inline-block text-[7px] font-semibold text-[var(--accent)]"
+                  >
+                    İlgili kayıtları aç →
+                  </Link>
+                ) : null}
+              </div>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
               <div
