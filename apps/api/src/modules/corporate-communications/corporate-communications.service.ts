@@ -365,10 +365,15 @@ export class CorporateCommunicationsService {
             sourceType: string;
             amount: unknown;
             count: bigint;
+            pendingCount: bigint;
           }>
         >(
           `SELECT e.category,e.source_type AS "sourceType",
-                  COALESCE(sum(e.amount),0) AS amount,count(*) AS count
+                  COALESCE(sum(e.amount),0) AS amount,
+                  count(*) AS count,
+                  count(*) FILTER (
+                    WHERE e.status IN ('PENDING_FINANCE','APPROVED')
+                  ) AS "pendingCount"
              FROM corporate_marketing_expenses e
             WHERE e.tenant_id=$1::text AND e.company_id=$2::text
               AND ($3::text IS NULL OR e.branch_id IS NULL OR e.branch_id=$3::text)
@@ -456,6 +461,7 @@ export class CorporateCommunicationsService {
         sourceType: row.sourceType,
         amount: Number(row.amount ?? 0),
         count: Number(row.count),
+        pendingCount: Number(row.pendingCount),
       })),
       daily: daily.map((row) => ({
         date:
