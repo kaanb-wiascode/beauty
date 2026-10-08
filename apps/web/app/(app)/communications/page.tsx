@@ -51,6 +51,7 @@ type ReportSnapshot = {
     sales: number;
     revenue: number;
     spend: number;
+    financePending: number;
     roas: number | null;
   };
   previous: {
@@ -59,6 +60,7 @@ type ReportSnapshot = {
     sales: number;
     revenue: number;
     spend: number;
+    financePending: number;
     roas: number | null;
   };
 };
@@ -491,6 +493,17 @@ export default function CommunicationsOverviewPage() {
               " kampanya planlanan bütçenin %90'ına ulaştı",
             detail: "Bütçe ve devam kararını gözden geçirin.",
             href: "/communications/campaigns",
+            tone: "warning" as const,
+          }
+        : null,
+      (data.report?.current.financePending ?? 0) > 0
+        ? {
+            title:
+              (data.report?.current.financePending ?? 0) +
+              " pazarlama gideri finans aktarımı bekliyor",
+            detail:
+              "Kampanya, PR, ajans veya içerik üreticisi giderlerini finans kuyruğunda tamamlayın.",
+            href: "/communications/reports",
             tone: "warning" as const,
           }
         : null,
