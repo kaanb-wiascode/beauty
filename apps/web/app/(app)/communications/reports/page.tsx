@@ -50,6 +50,7 @@ type Report = {
     sourceType: string;
     amount: number;
     count: number;
+    pendingCount: number;
   }>;
   daily: Array<{
     date: string;
@@ -687,9 +688,16 @@ function ExpenseBreakdown({
                 <p className="text-[9px] font-semibold text-[var(--ink)]">
                   {expenseLabels[row.category] ?? userLabel(row.category)}
                 </p>
-                <p className="mt-1 text-[7px] text-[var(--muted)]">
-                  {row.count} kayıt · {userLabel(row.sourceType)}
-                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="text-[7px] text-[var(--muted)]">
+                    {row.count} kayıt · {userLabel(row.sourceType)}
+                  </p>
+                  {row.pendingCount > 0 ? (
+                    <span className="rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]">
+                      {row.pendingCount} finans bekliyor
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <p className="text-[9px] font-semibold text-[var(--ink)]">
                 {money.format(row.amount)}
