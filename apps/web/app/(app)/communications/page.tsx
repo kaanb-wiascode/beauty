@@ -924,7 +924,7 @@ export default function CommunicationsOverviewPage() {
           href="/communications/reports"
           title="Yönetim Raporları"
           detail="Dönem karşılaştırmaları, dönüşüm ve gider analizi"
-          value={data.dashboard?.activeCampaigns ?? 0}
+          value={data.dashboard?.leads ?? 0}
         />
         <QuickAccess
           href="/communications/integrations"
