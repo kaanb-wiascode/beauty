@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MarketingFinanceTransferPanel } from "@/components/marketing-finance-transfer-panel";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type PeriodMetrics = {
@@ -64,6 +66,25 @@ type Report = {
   }>;
 };
 
+type FinanceExpense = {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  periodKey?: string | null;
+  vendorName?: string | null;
+  campaignName?: string | null;
+  supplierBillId?: string | null;
+  category: string;
+  description: string;
+  amount: string | number;
+  currency: string;
+  incurredOn: string;
+  dueOn?: string | null;
+  invoiceNumber?: string | null;
+  status: string;
+  createdAt: string;
+};
+
 type TrendMetric = "LEADS" | "SPEND" | "REVENUE" | "CONTENT";
 
 const money = new Intl.NumberFormat("tr-TR", {
@@ -87,6 +108,14 @@ function expenseSourceHref(sourceType: string) {
   if (sourceType === "CREATOR") return "/communications/creators";
   if (sourceType === "PR_MEDIA") return "/communications/pr-media";
   return "/communications";
+}
+
+function expenseSourceLabel(sourceType: string) {
+  if (sourceType === "CAMPAIGN") return "Kampanya";
+  if (sourceType === "VENDOR") return "Ajans / İş Ortağı";
+  if (sourceType === "CREATOR") return "İçerik Üreticisi";
+  if (sourceType === "PR_MEDIA") return "PR & Medya";
+  return userLabel(sourceType);
 }
 
 function inputDate(date: Date) {
@@ -129,10 +158,18 @@ function rateDelta(current: number, previous: number) {
 }
 
 export default function CommunicationsReportsPage() {
+  const canFinanceRead =
+    hasPermission("finance", "read") || hasPermission("finance", "manage");
+  const canFinanceManage = hasPermission("finance", "manage");
   const initial = useMemo(() => rangeFor(30), []);
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [report, setReport] = useState<Report | null>(null);
+  const [pendingExpenses, setPendingExpenses] = useState<FinanceExpense[]>([]);
+  const [transferExpense, setTransferExpense] = useState<FinanceExpense | null>(
+    null,
+  );
+  const [financeWarning, setFinanceWarning] = useState("");
   const [trendMetric, setTrendMetric] = useState<TrendMetric>("LEADS");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -143,14 +180,44 @@ export default function CommunicationsReportsPage() {
     setError("");
 
     try {
-      setReport(
-        await api<Report>(
-          "/corporate-communications/reports/summary?from=" +
-            encodeURIComponent(from) +
-            "&to=" +
-            encodeURIComponent(to),
-        ),
+      const reportResult = await api<Report>(
+        "/corporate-communications/reports/summary?from=" +
+          encodeURIComponent(from) +
+          "&to=" +
+          encodeURIComponent(to),
       );
+      setReport(reportResult);
+
+      if (canFinanceRead) {
+        const financeResults = await Promise.allSettled([
+          api<FinanceExpense[]>(
+            "/marketing-finance/expenses?status=PENDING_FINANCE",
+          ),
+          api<FinanceExpense[]>("/marketing-finance/expenses?status=APPROVED"),
+        ]);
+
+        const financeFailed = financeResults.some(
+          (result) => result.status === "rejected",
+        );
+        const financeRows = financeResults.flatMap((result) =>
+          result.status === "fulfilled" ? result.value : [],
+        );
+
+        setPendingExpenses(
+          financeRows.filter((item) => {
+            const date = String(item.incurredOn).slice(0, 10);
+            return date >= from && date <= to;
+          }),
+        );
+        setFinanceWarning(
+          financeFailed
+            ? "Finans bekleyen giderlerin bir bölümü yüklenemedi."
+            : "",
+        );
+      } else {
+        setPendingExpenses([]);
+        setFinanceWarning("");
+      }
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -163,7 +230,7 @@ export default function CommunicationsReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, canFinanceRead]);
 
   useEffect(() => {
     void load();
@@ -254,6 +321,9 @@ export default function CommunicationsReportsPage() {
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+      {financeWarning ? (
+        <Alert onClose={() => setFinanceWarning("")}>{financeWarning}</Alert>
+      ) : null}
 
       <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
@@ -426,6 +496,40 @@ export default function CommunicationsReportsPage() {
               <ExpenseBreakdown rows={report.expenseCategories} />
             </Panel>
           </section>
+
+          {canFinanceRead && report.current.financePending > 0 ? (
+            <Panel
+              title="Finans Bekleyen Giderler"
+              description="Seçili dönemde henüz tedarikçi borcu kaydına dönüşmemiş gerçek pazarlama giderleri."
+              action={
+                <Link
+                  href="/finance"
+                  className="text-[8px] font-semibold text-[var(--accent)]"
+                >
+                  Finans Merkezi →
+                </Link>
+              }
+            >
+              <PendingFinanceExpenses
+                rows={pendingExpenses}
+                canManage={canFinanceManage}
+                onTransfer={setTransferExpense}
+              />
+            </Panel>
+          ) : null}
+
+          {transferExpense ? (
+            <MarketingFinanceTransferPanel
+              expenseId={transferExpense.id}
+              title={transferExpense.description}
+              amountLabel={money.format(Number(transferExpense.amount || 0))}
+              onClose={() => setTransferExpense(null)}
+              onDone={async () => {
+                setTransferExpense(null);
+                await load();
+              }}
+            />
+          ) : null}
 
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <OperationalMetric
@@ -731,6 +835,90 @@ function ExpenseBreakdown({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function PendingFinanceExpenses({
+  rows,
+  canManage,
+  onTransfer,
+}: {
+  rows: FinanceExpense[];
+  canManage: boolean;
+  onTransfer: (row: FinanceExpense) => void;
+}) {
+  if (!rows.length) {
+    return (
+      <div className="rounded-[12px] bg-[var(--surface-2)] p-5 text-center text-[8px] text-[var(--muted)]">
+        Rapor toplamında finans bekleyen gider bulunuyor ancak seçili dönem için
+        ayrıntı görüntüleme yetkisiyle eşleşen kayıt bulunamadı.
+      </div>
+    );
+  }
+
+  const visible = rows.slice(0, 20);
+
+  return (
+    <div className="divide-y divide-[var(--line)]">
+      {visible.map((row) => (
+        <div
+          key={row.id}
+          className="grid gap-3 py-3 first:pt-0 last:pb-0 lg:grid-cols-[minmax(240px,1.3fr)_150px_130px_150px]"
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-[9px] font-semibold text-[var(--ink)]">
+                {row.description}
+              </p>
+              <span className="rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]">
+                {row.status === "APPROVED"
+                  ? "Finansa Hazır"
+                  : "Finans Bekliyor"}
+              </span>
+            </div>
+            <p className="mt-1 text-[7px] text-[var(--muted)]">
+              {expenseSourceLabel(row.sourceType)}
+              {row.campaignName ? " · " + row.campaignName : ""}
+              {row.vendorName ? " · " + row.vendorName : ""}
+            </p>
+          </div>
+
+          <DataCell
+            label="Gider Tarihi"
+            value={displayDate(String(row.incurredOn).slice(0, 10))}
+          />
+
+          <DataCell
+            label="Tutar"
+            value={money.format(Number(row.amount || 0))}
+          />
+
+          <div className="flex items-center gap-2 lg:justify-end">
+            <Link
+              href={expenseSourceHref(row.sourceType)}
+              className="inline-flex h-8 items-center rounded-[9px] border border-[var(--line)] px-2.5 text-[7px] font-semibold text-[var(--ink)]"
+            >
+              Kaynağı Aç
+            </Link>
+            {canManage ? (
+              <button
+                type="button"
+                onClick={() => onTransfer(row)}
+                className="h-8 rounded-[9px] bg-[var(--accent)] px-2.5 text-[7px] font-semibold text-white"
+              >
+                Finansa Aktar
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ))}
+
+      {rows.length > visible.length ? (
+        <p className="pt-3 text-[7px] font-medium text-[var(--muted)]">
+          +{rows.length - visible.length} finans bekleyen kayıt daha var.
+        </p>
+      ) : null}
     </div>
   );
 }
