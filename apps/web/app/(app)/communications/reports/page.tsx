@@ -410,7 +410,7 @@ export default function CommunicationsReportsPage() {
                 report.current.revenue,
                 report.previous.revenue,
               )}
-              detail="Dönem lead kohortu"
+              detail="Seçili dönemde gelen talepler"
             />
             <CompareMetric
               label="Reklam Getirisi"
@@ -457,7 +457,7 @@ export default function CommunicationsReportsPage() {
 
             <Panel
               title="Dönüşüm Hunisi"
-              description="Seçili dönemde gelen lead kohortunun bugünkü dönüşüm seviyesi."
+              description="Seçili dönemde gelen taleplerin bugünkü dönüşüm seviyesi."
             >
               <Funnel metrics={report.current} />
               <div className="mt-4 grid grid-cols-2 gap-2">
