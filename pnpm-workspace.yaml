@@ -10,7 +10,6 @@ overrides:
   multer: 2.3.0
   # Security advisories confirmed by pnpm audit on 2026-10-11.
   # Target vulnerable resolved versions only; preserve unaffected major lines.
-  'braces@3.0.3': 3.0.4
   'source-map-js@1.2.1': 1.2.2
   'proxy-addr@2.0.7': 2.0.8
   'compression@1.8.1': 1.8.2
