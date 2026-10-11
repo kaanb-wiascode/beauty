@@ -67,7 +67,10 @@ const paymentFields = {
   note: optionalNote,
 };
 
-export const payQueueItemSchema = z.object(paymentFields);
+export const payQueueItemSchema = z.object({
+  ...paymentFields,
+  amount: positivePayment.optional(),
+});
 export const salaryPaymentSchema = z.object({
   ...paymentFields,
   staffId: uuid,
