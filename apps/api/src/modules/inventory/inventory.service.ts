@@ -454,11 +454,11 @@ export class InventoryService {
       await this.requireWarehouseInActiveScope(tx, warehouseId, companyId);
 
       if (outbound) {
-        const stock = await tx.$queryRawUnsafe<any[]>(
-          `SELECT quantity FROM inventory_stock WHERE product_id=$1::text AND warehouse_id=$2::text FOR UPDATE`,
-          productId,
-          warehouseId,
-        );
+        const stock = await tx.$queryRaw<any[]>`
+          SELECT quantity FROM inventory_stock
+          WHERE product_id=${productId}::text AND warehouse_id=${warehouseId}::text
+          FOR UPDATE
+        `;
         if (!stock.length || Number(stock[0].quantity) < quantity) {
           throw new BadRequestException('Yeterli stok bulunmuyor.');
         }
@@ -468,11 +468,11 @@ export class InventoryService {
           productId,
           warehouseId,
         );
-        await tx.$queryRawUnsafe<any[]>(
-          `SELECT quantity FROM inventory_stock WHERE product_id=$1::text AND warehouse_id=$2::text FOR UPDATE`,
-          productId,
-          warehouseId,
-        );
+        await tx.$queryRaw<any[]>`
+          SELECT quantity FROM inventory_stock
+          WHERE product_id=${productId}::text AND warehouse_id=${warehouseId}::text
+          FOR UPDATE
+        `;
       }
 
       await tx.$executeRawUnsafe(
@@ -935,26 +935,20 @@ export class InventoryService {
       const totalAmount =
         Math.round((subtotalAmount + taxAmount + Number.EPSILON) * 100) / 100;
 
-      const rows = await tx.$queryRawUnsafe<any[]>(
-        `INSERT INTO inventory_purchase_orders(
-           tenant_id,company_id,supplier_id,warehouse_id,status,
-           subtotal_amount,tax_amount,total_amount,note,ordered_at
-         ) VALUES(
-           $1::text,$2::text,$3::text,$4::text,$5::"InventoryPurchaseStatus",
-           $6,$7,$8,$9,$10::timestamptz
-         )
-         RETURNING id,status,subtotal_amount AS "subtotalAmount",tax_amount AS "taxAmount",total_amount AS "totalAmount"`,
-        tenantId,
-        companyId,
-        input.supplierId || null,
-        input.warehouseId,
-        input.status === 'PENDING' ? 'PENDING' : 'DRAFT',
-        subtotalAmount,
-        taxAmount,
-        totalAmount,
-        input.note || null,
-        input.orderedAt || null,
-      );
+      const rows = await tx.$queryRaw<any[]>`
+        INSERT INTO inventory_purchase_orders(
+          tenant_id,company_id,supplier_id,warehouse_id,status,
+          subtotal_amount,tax_amount,total_amount,note,ordered_at
+        ) VALUES (
+          ${tenantId}::text,${companyId}::text,${input.supplierId || null}::text,
+          ${input.warehouseId}::text,
+          ${input.status === 'PENDING' ? 'PENDING' : 'DRAFT'}::"InventoryPurchaseStatus",
+          ${subtotalAmount},${taxAmount},${totalAmount},${input.note || null},
+          ${input.orderedAt || null}::timestamptz
+        )
+        RETURNING id,status,subtotal_amount AS "subtotalAmount",
+                  tax_amount AS "taxAmount",total_amount AS "totalAmount"
+      `;
 
       for (const item of preparedItems) {
         await tx.$executeRawUnsafe(
@@ -1553,14 +1547,15 @@ export class InventoryService {
         await this.requireProduct(tx, item.productId, companyId);
       }
 
-      const created = await tx.$queryRawUnsafe<any[]>(
-        `INSERT INTO inventory_transfers(tenant_id,company_id,source_warehouse_id,destination_warehouse_id,status,note) VALUES($1::text,$2::text,$3::text,$4::text,'PENDING',$5) RETURNING id`,
-        tenantId,
-        companyId,
-        input.sourceWarehouseId,
-        input.destinationWarehouseId,
-        input.note || null,
-      );
+      const created = await tx.$queryRaw<any[]>`
+        INSERT INTO inventory_transfers(
+          tenant_id,company_id,source_warehouse_id,destination_warehouse_id,status,note
+        ) VALUES(
+          ${tenantId}::text,${companyId}::text,
+          ${input.sourceWarehouseId}::text,${input.destinationWarehouseId}::text,
+          'PENDING',${input.note || null}
+        ) RETURNING id
+      `;
 
       for (const item of input.items) {
         await tx.$executeRawUnsafe(
