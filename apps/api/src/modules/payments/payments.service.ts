@@ -121,55 +121,65 @@ export class PaymentsService {
     const companyId = this.tenantContext.getCompanyId();
     const appointmentScope = await this.organizationScope.getBranchScopedWhere();
 
-    const appointment = await this.prisma.appointment.findFirst({
-      where: {
-        id: input.appointmentId,
-        ...appointmentScope,
-      },
-      include: {
-        customer: {
-          select: { firstName: true, lastName: true },
-        },
-        service: {
-          select: { name: true, price: true },
-        },
-        session: {
-          select: { id: true },
-        },
-      },
-    });
-
-    if (!appointment) {
-      throw new NotFoundException('Randevu bulunamadı.');
-    }
-
-    if (
-      appointment.status === 'CANCELLED' ||
-      appointment.status === 'NO_SHOW'
-    ) {
-      throw new BadRequestException(
-        'İptal edilmiş veya gelmedi olarak işaretlenmiş randevu için ödeme alınamaz.',
-      );
-    }
-
-    if (appointment.session) {
-      throw new BadRequestException(
-        'Bu randevu paket seansından karşılanıyor. Ayrıca ödeme alınamaz.',
-      );
-    }
-
-    const serviceAmount = Number(appointment.service.price);
-    const paymentAmount = Math.round((Number(input.amount) + Number.EPSILON) * 100) / 100;
-    if (Math.abs(paymentAmount - serviceAmount) > 0.01) {
-      throw new BadRequestException(
-        'Randevu ödeme tutarı hizmet bedeliyle aynı olmalıdır. Kısmi tahsilat için randevunun alacak kaydını Finans > Gelirler alanından yönetin.',
-      );
-    }
-
     try {
       let eventId: string | null = null;
       const payment = await this.prisma.$transaction(
         async (tx) => {
+          // Appointment edits, cancellations and payments must serialize on the same key.
+          await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+            `SELECT 1::int AS locked
+             FROM (
+               SELECT pg_advisory_xact_lock(hashtext($1))
+             ) AS advisory_lock`,
+            `appointment:${input.appointmentId}`,
+          );
+
+          const appointment = await tx.appointment.findFirst({
+            where: {
+              id: input.appointmentId,
+              ...appointmentScope,
+            },
+            include: {
+              customer: {
+                select: { firstName: true, lastName: true },
+              },
+              service: {
+                select: { name: true, price: true },
+              },
+              session: {
+                select: { id: true },
+              },
+            },
+          });
+
+          if (!appointment) {
+            throw new NotFoundException('Randevu bulunamadı.');
+          }
+
+          if (
+            appointment.status === 'CANCELLED' ||
+            appointment.status === 'NO_SHOW'
+          ) {
+            throw new BadRequestException(
+              'İptal edilmiş veya gelmedi olarak işaretlenmiş randevu için ödeme alınamaz.',
+            );
+          }
+
+          if (appointment.session) {
+            throw new BadRequestException(
+              'Bu randevu paket seansından karşılanıyor. Ayrıca ödeme alınamaz.',
+            );
+          }
+
+          const serviceAmount = Number(appointment.service.price);
+          const paymentAmount =
+            Math.round((Number(input.amount) + Number.EPSILON) * 100) / 100;
+          if (Math.abs(paymentAmount - serviceAmount) > 0.01) {
+            throw new BadRequestException(
+              'Randevu ödeme tutarı hizmet bedeliyle aynı olmalıdır. Kısmi tahsilat için randevunun alacak kaydını Finans > Gelirler alanından yönetin.',
+            );
+          }
+
           const existing = await tx.payment.findUnique({
             where: { appointmentId: appointment.id },
             select: { id: true },
