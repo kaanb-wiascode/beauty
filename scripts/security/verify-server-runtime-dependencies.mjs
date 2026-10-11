@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, posix, resolve } from 'node:path';
+import { posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SERVER_APPS = ['apps/api', 'apps/web', 'apps/marketing'];
@@ -101,7 +101,7 @@ export function traceProductionDependency(graph, root, packageName) {
     const current = queue[cursor];
     if (current.version.startsWith('link:')) {
       const linkedImporter = posix.normalize(posix.join(
-        posix.dirname(current.importer), current.version.slice('link:'.length),
+        current.importer, current.version.slice('link:'.length),
       ));
       const linked = graph.importers.get(linkedImporter);
       if (!linked) {
