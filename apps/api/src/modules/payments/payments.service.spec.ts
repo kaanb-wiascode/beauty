@@ -96,6 +96,74 @@ describe('PaymentsService concurrency guards', () => {
     };
   }
 
+  it('reads the appointment only after taking the shared appointment lock', async () => {
+    const { service, prisma, accountingService } = createService();
+    let inTransaction = false;
+    let locked = false;
+    const appointment = await prisma.appointment.findFirst();
+    prisma.appointment.findFirst.mockClear();
+    prisma.$transaction.mockImplementation(async (callback: any) => {
+      inTransaction = true;
+      try {
+        return await callback(prisma);
+      } finally {
+        inTransaction = false;
+      }
+    });
+    prisma.$queryRawUnsafe.mockImplementation(
+      async (sql: string, ...parameters: unknown[]) => {
+        if (sql.includes('pg_advisory_xact_lock')) {
+          expect(inTransaction).toBe(true);
+          expect(parameters).toEqual(['appointment:appointment-a']);
+          locked = true;
+          return [{ locked: 1 }];
+        }
+        return [{ userId: 'user-a' }];
+      },
+    );
+    prisma.appointment.findFirst.mockImplementation(async () => {
+      expect(inTransaction).toBe(true);
+      expect(locked).toBe(true);
+      return appointment;
+    });
+
+    await service.create({
+      appointmentId: 'appointment-a',
+      amount: 100,
+      method: 'CARD',
+    });
+
+    expect(prisma.appointment.findFirst).toHaveBeenCalledTimes(1);
+    expect(accountingService.recordAppointmentPayment).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects payment for a cancelled appointment re-read under the lock', async () => {
+    const { service, prisma, accountingService } = createService();
+    prisma.appointment.findFirst.mockResolvedValueOnce({
+      id: 'appointment-a',
+      branchId: 'branch-a',
+      status: 'CANCELLED',
+      session: null,
+      customer: { firstName: 'Test', lastName: 'Müşteri' },
+      service: { name: 'Test Hizmet', price: 100 },
+    });
+
+    await expect(
+      service.create({
+        appointmentId: 'appointment-a',
+        amount: 100,
+        method: 'CARD',
+      }),
+    ).rejects.toThrow('İptal edilmiş veya gelmedi');
+
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('pg_advisory_xact_lock'),
+      'appointment:appointment-a',
+    );
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(accountingService.recordAppointmentPayment).not.toHaveBeenCalled();
+  });
+
   it('maps a concurrent appointment payment unique violation to 409 Conflict', async () => {
     const { service, prisma } = createService();
     prisma.payment.create.mockRejectedValueOnce({ code: 'P2002' });
