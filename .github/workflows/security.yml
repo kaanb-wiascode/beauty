@@ -19,6 +19,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  server-runtime-dependency-boundary:
+    name: Server runtime dependency boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+
+      - name: Test lockfile graph inspection
+        run: node --test scripts/security/verify-server-runtime-dependencies.test.mjs
+
+      - name: Block vulnerable tooling in server production dependency closures
+        run: node scripts/security/verify-server-runtime-dependencies.mjs
+
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest
