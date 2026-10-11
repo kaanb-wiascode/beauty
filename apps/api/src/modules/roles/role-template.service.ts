@@ -49,6 +49,35 @@ const TEMPLATES: TemplateDefinition[] = [
   { key: 'auditor', name: 'Denetçi', description: 'Denetim ve raporlama için ağırlıklı okuma erişimi.', scope: 'COMPANY', permissions: ['reports.read','finance.read','accounting.read','payments.read','inventory.read','hr.read'] },
 ];
 
+// Keep new role templates aligned with the granular permissions enforced by controllers.
+// Retain legacy permissions for existing clients and migration compatibility.
+const payrollRoleKeys = new Set([
+  'hr-director',
+  'hr-manager',
+  'payroll-officer',
+]);
+for (const template of TEMPLATES) {
+  const original = new Set(template.permissions);
+  if (original.has('inventory.write')) {
+    ['inventory.create', 'inventory.update', 'inventory.delete'].forEach((permission) =>
+      original.add(permission),
+    );
+  }
+  if (original.has('hr.manage')) {
+    ['hr.create', 'hr.update', 'hr.delete'].forEach((permission) =>
+      original.add(permission),
+    );
+  }
+  if (payrollRoleKeys.has(template.key)) {
+    ['hr_payroll.read', 'hr_payroll.create', 'hr_payroll.update'].forEach((permission) =>
+      original.add(permission),
+    );
+  } else if (template.key === 'general-manager') {
+    original.add('hr_payroll.read');
+  }
+  template.permissions = [...original];
+}
+
 @Injectable()
 export class RoleTemplateService {
   constructor(
