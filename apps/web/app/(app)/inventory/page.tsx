@@ -22,7 +22,7 @@ import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { ValooSelect } from "@/components/valoo-controls";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
-import { getActiveBranchId } from "@/lib/auth";
+import { getActiveBranchId, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage } from "@/lib/user-language";
 import {
@@ -77,6 +77,17 @@ function Icon({ name }: { name: IconName }) {
 }
 
 export default function InventoryPage() {
+  const [isReady, setIsReady] = useState(false);
+  useEffect(() => setIsReady(true), []);
+
+  if (!isReady) return <Spinner />;
+  if (!hasPermission('inventory', 'read')) {
+    return <Alert>Bu modülü görüntüleme yetkiniz bulunmuyor.</Alert>;
+  }
+  return <InventoryPageContent />;
+}
+
+function InventoryPageContent() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const activeBranchId = getActiveBranchId();
