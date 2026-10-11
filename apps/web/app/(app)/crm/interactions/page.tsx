@@ -333,8 +333,8 @@ export default function CrmInteractionsPage() {
     });
   }, [rows, type, direction, status, outcome, search]);
 
-  const now = Date.now();
-  const todayKey = new Date().toDateString();
+  const [now] = useState(() => Date.now());
+  const todayKey = new Date(now).toDateString();
   const todayCount = rows.filter((row) => new Date(row.startedAt).toDateString() === todayKey).length;
   const reached = rows.filter((row) => ["REACHED", "INTERESTED", "UNDECIDED", "AWAITING_QUOTE", "APPOINTMENT_CREATED", "CALLBACK", "SALE"].includes(row.outcomeCode ?? "")).length;
   const callbacks = rows.filter((row) => row.outcomeCode === "CALLBACK" || (row.nextActionAt && new Date(row.nextActionAt).getTime() >= now)).length;
