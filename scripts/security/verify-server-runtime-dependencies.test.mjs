@@ -159,3 +159,36 @@ test('fails closed on unresolved linked workspace importer', () => {
     /Unresolved workspace link/,
   );
 });
+
+test('reports unpatched node-forge when present in mobile Expo tooling', () => {
+  const lockfile = safeLockfile.replace(
+    '  expo@57.0.16:\n    dependencies:\n      micromatch: 4.0.8',
+    `  expo@57.0.16:
+    dependencies:
+      micromatch: 4.0.8
+      node-forge: 1.4.0
+  node-forge@1.4.0: {}`,
+  );
+  const report = verifyServerDependencyBoundary(lockfile);
+  assert.deepEqual(report.violations, []);
+  assert.deepEqual(
+    report.mobileExposures.map((item) => item.packageName).sort(),
+    ['braces', 'node-forge'],
+  );
+  const forge = report.mobileExposures.find((item) => item.packageName === 'node-forge');
+  assert.deepEqual(forge?.path, ['apps/mobile', 'expo', 'node-forge']);
+  assert.equal(forge?.version, '1.4.0');
+});
+
+test('blocks node-forge introduced transitively into an API production dependency', () => {
+  const lockfile = safeLockfile.replace(
+    '  server@1.0.0: {}',
+    `  server@1.0.0:
+    dependencies:
+      node-forge: 1.4.0
+  node-forge@1.4.0: {}`,
+  );
+  const report = verifyServerDependencyBoundary(lockfile);
+  assert.deepEqual(report.violations.map((entry) => entry.packageName), ['node-forge']);
+  assert.deepEqual(report.violations[0].path, ['apps/api', 'server', 'node-forge']);
+});
