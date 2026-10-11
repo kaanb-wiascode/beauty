@@ -96,6 +96,7 @@ export function traceProductionDependency(graph, root, packageName) {
     ([name, version]) => ({ name, version, importer: root, path: [root, name] }),
   );
   const visited = new Set();
+  const visitedWorkspaceImporters = new Set();
 
   for (let cursor = 0; cursor < queue.length; cursor += 1) {
     const current = queue[cursor];
@@ -107,6 +108,10 @@ export function traceProductionDependency(graph, root, packageName) {
       if (!linked) {
         throw new Error(`Unresolved workspace link ${current.importer} -> ${linkedImporter}`);
       }
+      // Linked workspaces may depend on one another (or themselves).
+      // Traverse each importer once to keep CI finite without skipping unique edges.
+      if (visitedWorkspaceImporters.has(linkedImporter)) continue;
+      visitedWorkspaceImporters.add(linkedImporter);
       for (const [name, version] of [...linked.dependencies, ...linked.optionalDependencies]) {
         queue.push({
           name, version, importer: linkedImporter, path: [...current.path, name],
