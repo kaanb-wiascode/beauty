@@ -22,6 +22,7 @@ type SessionContextValue = {
   verifyCode: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
+  cancelChallenge: () => void;
 };
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -165,6 +166,12 @@ export function ValooSessionProvider({ children }: PropsWithChildren) {
     verifyCode,
     signOut,
     clearError: () => setError(null),
+    cancelChallenge: () => {
+      if (busy) return;
+      setChallenge(null);
+      setEnrollment(null);
+      setError(null);
+    },
   }), [session, me, challenge, enrollment, busy, error, login, beginEnrollment, verifyCode, signOut]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
