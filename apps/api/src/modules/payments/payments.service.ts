@@ -441,7 +441,7 @@ export class PaymentsService {
       this.prisma.payment.aggregate({
         where: {
           ...paymentScope,
-          status: 'COMPLETED',
+          status: { in: ['COMPLETED', 'REFUNDED'] },
           paidAt: {
             gte: input.from,
             lte: input.to,
@@ -477,7 +477,7 @@ export class PaymentsService {
       by: ['method'],
       where: {
         ...paymentScope,
-        status: 'COMPLETED',
+        status: { in: ['COMPLETED', 'REFUNDED'] },
         paidAt: {
           gte: input.from,
           lte: input.to,
