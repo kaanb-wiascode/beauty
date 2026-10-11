@@ -50,33 +50,33 @@ const productSchema = z.object({
   model: optionalText(160),
   description: optionalText(4000),
   originCountry: optionalText(120),
-  packageQuantity: z.coerce.number().positive().nullable().optional(),
+  packageQuantity: z.coerce.number().finite().positive().max(1_000_000).nullable().optional(),
   unit: inventoryUnit.optional(),
   trackStock: z.boolean().optional(),
   trackExpiry: z.boolean().optional(),
-  taxRate: z.coerce.number().min(0).max(100).optional(),
-  purchasePrice: z.coerce.number().min(0).optional(),
-  salePrice: z.coerce.number().min(0).optional(),
+  taxRate: z.coerce.number().finite().min(0).max(100).optional(),
+  purchasePrice: z.coerce.number().finite().min(0).max(100_000_000).optional(),
+  salePrice: z.coerce.number().finite().min(0).max(100_000_000).optional(),
   currency,
-  minimumOrderQuantity: z.coerce.number().positive().optional(),
-  orderMultiple: z.coerce.number().positive().optional(),
-  leadTimeDays: z.coerce.number().int().min(0).max(3650).optional(),
-  preparationDays: z.coerce.number().int().min(0).max(3650).optional(),
-  shippingDays: z.coerce.number().int().min(0).max(3650).optional(),
+  minimumOrderQuantity: z.coerce.number().finite().positive().max(1_000_000).optional(),
+  orderMultiple: z.coerce.number().finite().positive().max(1_000_000).optional(),
+  leadTimeDays: z.coerce.number().finite().int().min(0).max(3650).optional(),
+  preparationDays: z.coerce.number().finite().int().min(0).max(3650).optional(),
+  shippingDays: z.coerce.number().finite().int().min(0).max(3650).optional(),
   returnable: z.boolean().optional(),
   imageUrl: optionalText(2000),
   notes: optionalText(4000),
-  initialQuantity: z.coerce.number().min(0).optional(),
-  minimumQuantity: z.coerce.number().min(0).optional(),
-  targetQuantity: z.coerce.number().min(0).optional(),
+  initialQuantity: z.coerce.number().finite().min(0).max(100_000_000).optional(),
+  minimumQuantity: z.coerce.number().finite().min(0).max(100_000_000).optional(),
+  targetQuantity: z.coerce.number().finite().min(0).max(100_000_000).optional(),
   supplierProductCode: optionalText(120),
   isPrimary: z.boolean().optional(),
-  unitCost: z.coerce.number().min(0).optional(),
-  supplierMinimumOrderQuantity: z.coerce.number().positive().optional(),
-  supplierOrderMultiple: z.coerce.number().positive().optional(),
-  supplierLeadTimeDays: z.coerce.number().int().min(0).max(3650).optional(),
-  supplierPreparationDays: z.coerce.number().int().min(0).max(3650).optional(),
-  supplierShippingDays: z.coerce.number().int().min(0).max(3650).optional(),
+  unitCost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
+  supplierMinimumOrderQuantity: z.coerce.number().finite().positive().max(1_000_000).optional(),
+  supplierOrderMultiple: z.coerce.number().finite().positive().max(1_000_000).optional(),
+  supplierLeadTimeDays: z.coerce.number().finite().int().min(0).max(3650).optional(),
+  supplierPreparationDays: z.coerce.number().finite().int().min(0).max(3650).optional(),
+  supplierShippingDays: z.coerce.number().finite().int().min(0).max(3650).optional(),
 });
 
 const categorySchema = z.object({
@@ -88,7 +88,7 @@ const categorySchema = z.object({
 });
 
 const movementListSchema = z.object({
-  limit: z.coerce.number().int().min(1).max(200).optional(),
+  limit: z.coerce.number().finite().int().min(1).max(200).optional(),
 });
 
 const serviceMaterialsSchema = z.object({
@@ -96,7 +96,7 @@ const serviceMaterialsSchema = z.object({
     .array(
       z.object({
         productId: uuid,
-        quantity: z.coerce.number().positive(),
+        quantity: z.coerce.number().finite().positive().max(1_000_000),
       }),
     )
     .max(500),
@@ -136,9 +136,9 @@ const purchaseOrderSchema = z.object({
     .array(
       z.object({
         productId: uuid,
-        quantity: z.coerce.number().positive(),
-        unitCost: z.coerce.number().min(0),
-        taxRate: z.coerce.number().min(0).max(100).optional(),
+        quantity: z.coerce.number().finite().positive().max(1_000_000),
+        unitCost: z.coerce.number().finite().min(0).max(100_000_000),
+        taxRate: z.coerce.number().finite().min(0).max(100).optional(),
       }),
     )
     .min(1)
@@ -161,11 +161,11 @@ const assetSchema = z.object({
   purchaseDate: z.coerce.date().nullable().optional(),
   supplierId: uuid.nullable().optional(),
   invoiceNumber: optionalText(160),
-  purchasePrice: z.coerce.number().min(0).optional(),
+  purchasePrice: z.coerce.number().finite().min(0).max(100_000_000).optional(),
   currency,
   warrantyStart: z.coerce.date().nullable().optional(),
   warrantyEnd: z.coerce.date().nullable().optional(),
-  maintenanceIntervalDays: z.coerce.number().int().positive().max(36500).nullable().optional(),
+  maintenanceIntervalDays: z.coerce.number().finite().int().positive().max(36500).nullable().optional(),
   nextMaintenanceAt: z.coerce.date().nullable().optional(),
   imageUrl: optionalText(2000),
   notes: optionalText(4000),
@@ -178,7 +178,7 @@ const assetMaintenanceSchema = z.object({
   scheduledAt: z.coerce.date().nullable().optional(),
   completedAt: z.coerce.date().nullable().optional(),
   provider: optionalText(200),
-  cost: z.coerce.number().min(0).optional(),
+  cost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
   currency,
   description: optionalText(4000),
 });
@@ -192,7 +192,7 @@ const transferSchema = z
       .array(
         z.object({
           productId: uuid,
-          quantity: z.coerce.number().positive(),
+          quantity: z.coerce.number().finite().positive().max(1_000_000),
         }),
       )
       .min(1)
@@ -214,8 +214,8 @@ const adjustmentSchema = z.object({
     .array(
       z.object({
         productId: uuid,
-        quantity: z.coerce.number().positive(),
-        unitCost: z.coerce.number().min(0).optional(),
+        quantity: z.coerce.number().finite().positive().max(1_000_000),
+        unitCost: z.coerce.number().finite().min(0).max(100_000_000).optional(),
       }),
     )
     .min(1),
@@ -228,7 +228,7 @@ const cycleCountSchema = z.object({
     .array(
       z.object({
         productId: uuid,
-        countedQuantity: z.coerce.number().min(0),
+        countedQuantity: z.coerce.number().finite().min(0).max(100_000_000),
       }),
     )
     .min(1),
