@@ -37,7 +37,7 @@ function formatMoney(value: string | number | null, currency: string) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(value ?? 0));
 }
 function formatDate(value: string) { return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)); }
-function daysSince(value: string) { return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000)); }
+function daysSince(value: string, now: number) { return Math.max(0, Math.floor((now - new Date(value).getTime()) / 86400000)); }
 function staleBefore() { const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString(); }
 function newSaleItem(index: number): DraftSaleItem { return { key: `sale-item-${index}`, type: "SERVICE", referenceId: "", quantity: "1" }; }
 
@@ -95,12 +95,13 @@ export default function CrmPipelinePage() {
   }, [ownerUserId, stageFilter, debouncedSearch, staleOnly]);
   useEffect(() => { void load(); }, [load]);
 
+  const [now] = useState(() => Date.now());
   const totals = useMemo(() => {
     const open = rows.filter((row) => !["WON", "LOST"].includes(row.stage));
-    const overdue = open.filter((row) => row.expectedCloseDate && new Date(row.expectedCloseDate).getTime() < Date.now()).length;
+    const overdue = open.filter((row) => row.expectedCloseDate && new Date(row.expectedCloseDate).getTime() < now).length;
     const closingSoon = open.filter((row) => {
       if (!row.expectedCloseDate) return false;
-      const diff = new Date(row.expectedCloseDate).getTime() - Date.now();
+      const diff = new Date(row.expectedCloseDate).getTime() - now;
       return diff >= 0 && diff <= 30 * 86400000;
     }).length;
     return {
@@ -109,10 +110,10 @@ export default function CrmPipelinePage() {
       weighted: open.reduce((s, r) => s + Number(r.estimatedValue ?? 0) * r.probability / 100, 0),
       overdue,
       closingSoon,
-      stale: open.filter((row) => daysSince(row.updatedAt) >= 14).length,
+      stale: open.filter((row) => daysSince(row.updatedAt, now) >= 14).length,
       highProbability: open.filter((row) => row.probability >= 80).length,
     };
-  }, [rows]);
+  }, [rows, now]);
 
   const assigneeNames = useMemo(
     () => new Map(assignees.map((person) => [person.id, `${person.firstName} ${person.lastName}`])),
@@ -317,10 +318,10 @@ export default function CrmPipelinePage() {
               <div className="space-y-2.5 p-3">
                 {stageRows.map((row)=>{
                   const subjectName=[row.leadFirstName,row.leadLastName].filter(Boolean).join(" ")||[row.customerFirstName,row.customerLastName].filter(Boolean).join(" ")||"Müşteri bağlantısı yok";
-                  const age=daysSince(row.updatedAt);
+                  const age=daysSince(row.updatedAt, now);
                   const ownerName=row.ownerUserId?(assigneeNames.get(row.ownerUserId)||"Atanmış kullanıcı"):"Sorumlu atanmamış";
                   const closeTime=row.expectedCloseDate?new Date(row.expectedCloseDate).getTime():null;
-                  const diffDays=closeTime==null?null:Math.ceil((closeTime-Date.now())/86400000);
+                  const diffDays=closeTime==null?null:Math.ceil((closeTime-now)/86400000);
                   const closeLate=diffDays!=null&&diffDays<0&&!closedStages.includes(row.stage);
                   const canDrag=canManage&&viewGroup==="ACTIVE"&&nextStages[row.stage].some((target)=>activeStages.includes(target));
                   return <article
@@ -413,7 +414,7 @@ export default function CrmPipelinePage() {
 
         <div className="mt-5 rounded-[14px] border border-[var(--line)] p-4">
           <h3 className="text-[10px] font-semibold text-[var(--ink)]">Fırsat Durumu</h3>
-          <div className="mt-3 flex items-center justify-between text-[9px] text-[var(--muted)]"><span>Bu aşamada geçen süre</span><strong className={daysSince(selectedOpportunity.updatedAt)>=14?"text-[var(--warning)]":"text-[var(--ink)]"}>{daysSince(selectedOpportunity.updatedAt)} gün</strong></div>
+          <div className="mt-3 flex items-center justify-between text-[9px] text-[var(--muted)]"><span>Bu aşamada geçen süre</span><strong className={daysSince(selectedOpportunity.updatedAt, now)>=14?"text-[var(--warning)]":"text-[var(--ink)]"}>{daysSince(selectedOpportunity.updatedAt, now)} gün</strong></div>
           <div className="mt-2 flex items-center justify-between text-[9px] text-[var(--muted)]"><span>Son güncelleme</span><strong className="text-[var(--ink)]">{formatDate(selectedOpportunity.updatedAt)}</strong></div>
         </div>
 
