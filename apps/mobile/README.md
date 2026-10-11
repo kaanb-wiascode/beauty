@@ -1,56 +1,44 @@
-# Welcome to your Expo app 👋
+# VALOO Mobil — İlk entegrasyon
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Bu Expo uygulaması VALOO API ile gerçek personel girişini, sunucu tarafında kullanıcı/şirket/üyelik doğrulamasını ve izin verilen randevuları **salt okunur** görüntülemeyi destekler.
 
-## Get started
+## Yapılandırma
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Node 22.13.1 ve pnpm 11.9.0 kullanın. Repository kökünden:
 
 ```bash
-npm run reset-project
+pnpm install --frozen-lockfile
+EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+`EXPO_PUBLIC_API_URL`, **API'nin gerçek kök adresi** olmalıdır (örneğin `/auth/login` isteklerini alan sunucu). Yerel geliştirmede yalnızca `localhost` veya `127.0.0.1` için HTTP kullanılabilir. Gerçek telefonlarda `localhost` geliştirme bilgisayarını değil telefonu gösterir: erişilebilir HTTPS adresi kullanın.
 
-### Other setup steps
+- Bu adrese JWT, API anahtarı, parola veya erişim belirteci koymayın. `EXPO_PUBLIC_*` değerleri uygulama paketine gömülür ve herkese açıktır.
+- Mobil tarayıcıda kullanım için web-origin CORS izinlerinin API'de ayrıca yapılandırılması gerekir.
+- GitHub CI yalnızca TypeScript ve Android/iOS imzasız JavaScript export işlemini gerçekleştirir; uygulamayı mağazalara dağıtmaz.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Kimlik doğrulama ve veri kapsamı
 
-## Learn more
+1. `POST /auth/login`: kayıtlı VALOO kullanıcı adı/şifresi.
+2. Güvenlik politikası MFA gerektiriyorsa `POST /auth/mfa/verify`; ilk kurulumda `POST /auth/mfa/challenge/:id/setup` ve `POST /auth/mfa/challenge/:id/enroll`.
+3. Giriş başarılı olunca `GET /auth/me` ile kullanıcı, tenant ve üyelik kimlikleri doğrulanır.
+4. `appointments.read` izni varsa `GET /appointments` ile 7 günlük randevu listesi gösterilir; şube/şirket kısıtlaması sunucu tarafından uygulanır.
+5. Oturum belirteci **yalnızca uygulama belleğinde** tutulur; uygulama kapanınca yeni giriş gerekir. Kalıcı oturum ve güvenli cihaz-bağımlı yenileme yönetimi henüz uygulanmadı.
+6. Çıkışta yerel belirteç hemen silinir, sunucudaki oturum çerez aracılığıyla iptal edilmeye çalışılır. Native HTTP ortamı çerezleri taşımıyorsa sunucu iptali garanti değildir; üretime geçmeden cihaz tabanlı oturum iptalini tamamlayın.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Bilinen kapsam sınırları
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Randevu ekleme, güncelleme, iptal, tahsilat ve personel puantajı **aktif değildir**.
+- Bu aşamada kimlik doğrulama ve veri listesi için uçtan uca gerçek cihaz testleri yapılmadı.
+- MFA, kimlik ve yetki kontrolü sunucunun yerine mobil UI'da uygulanmaz; sunucu kesin otoritedir.
+- `braces` ve `node-forge` Expo araç zinciri bağımlılıkları için yüksek önem dereceli güvenlik bildirimleri açık: GitHub Issue #11 ve #12. Genel bağımlılık denetimi devre dışı bırakılmadı.
 
-## Join the community
+## Doğrulama
 
-Join our community of developers creating universal apps.
+```bash
+pnpm --filter mobile exec tsc --noEmit
+pnpm --filter mobile exec expo export --platform android --output-dir /tmp/valoo-mobile-android
+pnpm --filter mobile exec expo export --platform ios --output-dir /tmp/valoo-mobile-ios
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Güncel CI: `.github/workflows/mobile-quality.yml`.
