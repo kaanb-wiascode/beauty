@@ -1,4 +1,10 @@
 import { ConflictException } from '@nestjs/common';
+import { PrismaService } from '@beauty-erp/database';
+
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { AccountingService } from '../accounting/accounting.service';
+import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { AppointmentsService } from './appointments.service';
 
 describe('AppointmentsService paid appointment integrity', () => {
@@ -22,34 +28,42 @@ describe('AppointmentsService paid appointment integrity', () => {
         update: jest.fn(),
       },
       $queryRawUnsafe: jest.fn().mockResolvedValue([{ locked: 1 }]),
-      $transaction: jest.fn(async (callback: any) => callback(prisma)),
-    } as any;
+      $transaction: jest.fn(),
+    };
+
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback(prisma),
+    );
+
     const tenant = {
       getTenantId: jest.fn().mockReturnValue('tenant-a'),
       getCompanyId: jest.fn().mockReturnValue('company-a'),
-    } as any;
+    };
     const organizationScope = {
       getBranchScopedWhere: jest.fn().mockResolvedValue({
         tenantId: 'tenant-a',
         branchId: 'branch-a',
       }),
-    } as any;
+    };
+
     const service = new AppointmentsService(
-      prisma,
-      tenant,
-      organizationScope,
-      {} as any,
-      {} as any,
+      prisma as unknown as PrismaService,
+      tenant as unknown as TenantContext,
+      organizationScope as unknown as OrganizationScopeService,
+      {} as AccountingService,
+      {} as CommerceFinanceSyncService,
     );
+
     return { service, prisma };
   }
 
   it('does not reassign the customer of an appointment with recorded payment', async () => {
     const { service, prisma } = createService();
 
-    await expect(service.update('appointment-a', {
-      customerId: 'customer-b',
-    })).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.update('appointment-a', { customerId: 'customer-b' }),
+    ).rejects.toBeInstanceOf(ConflictException);
 
     expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -65,26 +79,27 @@ describe('AppointmentsService paid appointment integrity', () => {
   it('does not change the purchased service after a payment is recorded', async () => {
     const { service, prisma } = createService();
 
-    await expect(service.update('appointment-a', {
-      serviceId: 'service-b',
-    })).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.update('appointment-a', { serviceId: 'service-b' }),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.appointment.update).not.toHaveBeenCalled();
   });
 
   it('requires a refund before cancellation via PATCH', async () => {
     const { service, prisma } = createService();
 
-    await expect(service.update('appointment-a', {
-      status: 'CANCELLED',
-    })).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.update('appointment-a', { status: 'CANCELLED' }),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.appointment.update).not.toHaveBeenCalled();
   });
 
   it('requires a refund before cancellation via DELETE', async () => {
     const { service, prisma } = createService();
 
-    await expect(service.remove('appointment-a'))
-      .rejects.toBeInstanceOf(ConflictException);
+    await expect(service.remove('appointment-a')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     expect(prisma.appointment.update).not.toHaveBeenCalled();
   });
 });
