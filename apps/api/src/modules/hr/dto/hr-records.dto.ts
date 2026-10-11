@@ -94,7 +94,8 @@ export const periodQuerySchema = z.object({
 });
 
 export const requiredPeriodQuerySchema = z.object({
-  year: z.coerce.number().int().min(2000).max(2100),
+  // PayrollPeriodService accepts 2000..2200 (also used by distant-future e2e periods).
+  year: z.coerce.number().int().min(2000).max(2200),
   month: z.coerce.number().int().min(1).max(12),
 });
 
