@@ -282,7 +282,7 @@ export class InventoryController {
   }
 
   @Post('products')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createProduct(@Body() body: unknown) {
     return this.inventory.createProduct(productSchema.parse(body));
   }
@@ -293,13 +293,13 @@ export class InventoryController {
   }
 
   @Post('categories')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createCategory(@Body() body: unknown) {
     return this.inventory.createCategory(categorySchema.parse(body));
   }
 
   @Post('movements')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   movement() {
     throw new BadRequestException(
       'Stok hareketleri güvenli işlem akışlarından oluşturulmalıdır. Stok düzeltmesi, depo transferi, satın alma veya hizmet sarf ekranını kullanın.',
@@ -320,7 +320,7 @@ export class InventoryController {
   }
 
   @Post('services/:serviceId/materials')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   setServiceMaterials(
     @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
     @Body() body: unknown,
@@ -340,7 +340,7 @@ export class InventoryController {
   }
 
   @Post('suppliers')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createSupplier(@Body() body: unknown) {
     return this.inventory.createSupplier(supplierSchema.parse(body));
   }
@@ -351,19 +351,19 @@ export class InventoryController {
   }
 
   @Post('purchase-orders')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createPurchaseOrder(@Body() body: unknown) {
     return this.inventory.createPurchaseOrder(purchaseOrderSchema.parse(body));
   }
 
   @Post('purchase-orders/:id/approve')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   approvePurchaseOrder(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.inventory.approvePurchaseOrder(id);
   }
 
   @Post('purchase-orders/:id/order')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   orderPurchaseOrder(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
@@ -373,13 +373,13 @@ export class InventoryController {
   }
 
   @Post('purchase-orders/:id/cancel')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   cancelPurchaseOrder(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.inventory.cancelPurchaseOrder(id);
   }
 
   @Post('purchase-orders/:id/receive')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   receivePurchaseOrder(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
@@ -393,7 +393,7 @@ export class InventoryController {
   }
 
   @Post('purchase-orders/:id/return')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   returnPurchaseOrder(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
@@ -412,7 +412,7 @@ export class InventoryController {
   }
 
   @Post('assets')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createAsset(@Body() body: unknown) {
     return this.inventory.createAsset(assetSchema.parse(body));
   }
@@ -423,7 +423,7 @@ export class InventoryController {
   }
 
   @Post('assets/maintenance')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createAssetMaintenance(@Body() body: unknown) {
     return this.inventory.createAssetMaintenance(
       assetMaintenanceSchema.parse(body),
@@ -441,13 +441,13 @@ export class InventoryController {
   }
 
   @Post('transfers')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createTransfer(@Body() body: unknown) {
     return this.inventory.createTransfer(transferSchema.parse(body));
   }
 
   @Post('transfers/:id/approve')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   approveTransfer(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: { user?: { sub?: string } },
@@ -456,7 +456,7 @@ export class InventoryController {
   }
 
   @Post('transfers/:id/dispatch')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   dispatchTransfer(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: { user?: { sub?: string } },
@@ -465,7 +465,7 @@ export class InventoryController {
   }
 
   @Post('transfers/:id/receive')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   receiveTransfer(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: { user?: { sub?: string } },
@@ -484,7 +484,7 @@ export class InventoryController {
   }
 
   @Post('accounting/adjustments')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   postAdjustment(
     @Body() body: unknown,
     @Req() req: { user?: { sub?: string } },
@@ -518,7 +518,7 @@ export class InventoryController {
   }
 
   @Post('cycle-counts')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'create')
   createCycleCount(
     @Body() body: unknown,
     @Req() req: { user?: { sub?: string } },
@@ -537,7 +537,7 @@ export class InventoryController {
   }
 
   @Post('cycle-counts/:id/submit')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   submitCycleCount(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: { user?: { sub?: string } },
@@ -546,7 +546,7 @@ export class InventoryController {
   }
 
   @Post('cycle-counts/:id/approve')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   approveCycleCount(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: { user?: { sub?: string } },
@@ -555,7 +555,7 @@ export class InventoryController {
   }
 
   @Post('cycle-counts/:id/reject')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   rejectCycleCount(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
@@ -569,7 +569,7 @@ export class InventoryController {
   }
 
   @Post('cycle-counts/:id/post')
-  @RequirePermission('inventory', 'write')
+  @RequirePermission('inventory', 'update')
   postCycleCount(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: { user?: { sub?: string } },
