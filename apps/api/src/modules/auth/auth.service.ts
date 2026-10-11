@@ -70,6 +70,7 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['finance_period', 'reopen'],
   ['hr', 'read'],
   ['hr', 'manage'],
+  ['hr_sensitive', 'read'],
   ['financial_integrations', 'read'],
   ['financial_integrations', 'manage'],
 ] as const;
