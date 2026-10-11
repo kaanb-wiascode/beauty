@@ -347,8 +347,9 @@ export default function CommunicationsOverviewPage() {
     void load();
   }, [load]);
 
+  const [operationalNow] = useState(() => Date.now());
   const operational = useMemo(() => {
-    const now = new Date();
+    const now = new Date(operationalNow);
     const inSevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const inThirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -540,7 +541,20 @@ export default function CommunicationsOverviewPage() {
       totalCreatorReach,
       attentionItems,
     };
-  }, [data]);
+  }, [
+    data.approvals,
+    data.content,
+    data.connectionHealth,
+    data.assets,
+    data.vendors,
+    data.campaigns,
+    data.prActivities,
+    data.creators,
+    data.routingRules,
+    data.report?.current.financePending,
+    data.dashboard?.leads,
+    operationalNow,
+  ]);
 
   if (loading && !data.dashboard) {
     return (
