@@ -134,6 +134,15 @@ export class PaymentsService {
             `appointment:${input.appointmentId}`,
           );
 
+          // A row lock also detects stale Serializable snapshots after waiting
+          // for a concurrent appointment cancellation or edit.
+          await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM appointments
+            WHERE id=${input.appointmentId}::text
+              AND "tenantId"=${tenantId}::text
+            FOR UPDATE
+          `;
+
           const appointment = await tx.appointment.findFirst({
             where: {
               id: input.appointmentId,
