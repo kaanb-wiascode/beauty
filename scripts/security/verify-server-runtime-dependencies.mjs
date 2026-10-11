@@ -62,7 +62,7 @@ export function parsePnpmDependencyGraph(lockfile) {
         importers.get(importer)[importerKind].set(dependencyName, version);
       }
     } else if (section === 'snapshots') {
-      let match = /^  (.+):(?: \{\})?$/.exec(line);
+      let match = /^  (\S.*):(?: \{\})?$/.exec(line);
       if (match) {
         snapshot = unquote(match[1]);
         snapshots.set(snapshot, []);
