@@ -87,6 +87,10 @@ const categorySchema = z.object({
   defaultUnit: inventoryUnit.nullable().optional(),
 });
 
+const productListSchema = z.object({
+  search: z.string().trim().max(200).optional(),
+});
+
 const movementListSchema = z.object({
   limit: z.coerce.number().finite().int().min(1).max(200).optional(),
 });
@@ -277,8 +281,9 @@ export class InventoryController {
   }
 
   @Get('products')
-  products(@Query('search') search?: string) {
-    return this.inventory.products(search?.trim().slice(0, 200));
+  products(@Query() query: unknown) {
+    const input = productListSchema.parse(query);
+    return this.inventory.products(input.search);
   }
 
   @Post('products')
