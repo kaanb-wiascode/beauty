@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 const SERVER_APPS = ['apps/api', 'apps/web', 'apps/marketing'];
 const BUILD_TOOL_APP = 'apps/mobile';
+// Both advisories currently have no published patched npm version.
+const TRACKED_UNPATCHED_PACKAGES = ['braces', 'node-forge'];
 
 function unquote(value) {
   if (
@@ -141,12 +143,19 @@ export function traceProductionDependency(graph, root, packageName) {
 
 export function verifyServerDependencyBoundary(lockfile) {
   const graph = parsePnpmDependencyGraph(lockfile);
-  const violations = SERVER_APPS.flatMap((root) => {
-    const trace = traceProductionDependency(graph, root, 'braces');
-    return trace ? [{ app: root, ...trace }] : [];
+  const violations = SERVER_APPS.flatMap((root) =>
+    TRACKED_UNPATCHED_PACKAGES.flatMap((packageName) => {
+      const trace = traceProductionDependency(graph, root, packageName);
+      return trace ? [{ app: root, packageName, ...trace }] : [];
+    }),
+  );
+  const mobileExposures = TRACKED_UNPATCHED_PACKAGES.flatMap((packageName) => {
+    const trace = traceProductionDependency(graph, BUILD_TOOL_APP, packageName);
+    return trace ? [{ packageName, ...trace }] : [];
   });
-  const mobile = traceProductionDependency(graph, BUILD_TOOL_APP, 'braces');
-  return { violations, mobile, serverApps: SERVER_APPS };
+  // Preserve the existing consumer contract for the braces-specific regression tests.
+  const mobile = mobileExposures.find((item) => item.packageName === 'braces') ?? null;
+  return { violations, mobile, mobileExposures, serverApps: SERVER_APPS };
 }
 
 function main() {
@@ -155,17 +164,18 @@ function main() {
   for (const app of report.serverApps) {
     const violation = report.violations.find((entry) => entry.app === app);
     console.log(violation
-      ? `FAIL ${app}: ${violation.path.join(' > ')}@${violation.version}`
-      : `PASS ${app}: no braces in production dependency closure`);
+      ? `FAIL ${app}: unpatched ${violation.packageName} at ${violation.path.join(' > ')}@${violation.version}`
+      : `PASS ${app}: no tracked unpatched packages in production dependency closure`);
   }
-  if (report.mobile) {
-    console.log(`KNOWN MOBILE BUILD-TOOL EXPOSURE: ${report.mobile.path.join(' > ')}@${report.mobile.version}`);
-    console.log('This check does not waive the independent full-workspace vulnerability audit.');
-  } else {
-    console.log('Mobile production dependency closure does not include braces.');
+  for (const exposure of report.mobileExposures) {
+    console.log(`KNOWN MOBILE BUILD-TOOL EXPOSURE (${exposure.packageName}): ${exposure.path.join(' > ')}@${exposure.version}`);
   }
+  if (report.mobileExposures.length === 0) {
+    console.log('No tracked unpatched packages in mobile production dependency closure.');
+  }
+  console.log('This check does not waive the independent full-workspace vulnerability audit.');
   if (report.violations.length) {
-    console.error('Blocking release: braces entered a server production dependency graph.');
+    console.error('Blocking release: unpatched package entered a server production dependency graph.');
     process.exitCode = 1;
   }
 }
