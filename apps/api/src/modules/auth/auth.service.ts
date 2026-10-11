@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -230,6 +231,7 @@ export class AuthService {
     tenantId: string,
     companyId: string,
     branchId: string | null,
+    actorMembershipId: string,
   ) {
     const email = input.email.trim().toLowerCase();
 
@@ -264,6 +266,51 @@ export class AuthService {
       throw new ConflictException(
         'Role does not belong to this company',
       );
+    }
+
+    const actor = await this.prisma.membership.findFirst({
+      where: {
+        id: actorMembershipId,
+        tenantId,
+        companyId,
+        status: 'ACTIVE',
+      },
+      select: {
+        role: {
+          select: {
+            scope: true,
+            rolePermissions: {
+              select: {
+                permissionId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!actor) {
+      throw new ForbiddenException('Active membership is required to assign roles');
+    }
+
+    const scopeRank = { BRANCH: 1, COMPANY: 2, CENTRAL: 3 } as const;
+    if (scopeRank[role.scope] > scopeRank[actor.role.scope]) {
+      throw new ForbiddenException('Cannot assign a role with a higher scope');
+    }
+
+    const targetRolePermissions = await this.prisma.rolePermission.findMany({
+      where: { roleId: role.id },
+      select: { permissionId: true },
+    });
+    const actorPermissionIds = new Set(
+      actor.role.rolePermissions.map((entry) => entry.permissionId),
+    );
+    if (
+      targetRolePermissions.some(
+        (entry) => !actorPermissionIds.has(entry.permissionId),
+      )
+    ) {
+      throw new ForbiddenException('Cannot assign permissions you do not have');
     }
 
     if (role.scope === 'BRANCH' && !branchId) {
@@ -331,22 +378,6 @@ export class AuthService {
           status: membership.status,
         },
       };
-    });
-  }
-
-  async resetDemoPassword(password: string) {
-    const passwordHash = await argon2.hash(password);
-
-    return this.prisma.user.update({
-      where: {
-        email: 'kaan.demo.2026@beautystudio.local',
-      },
-      data: {
-        passwordHash,
-      },
-      select: {
-        email: true,
-      },
     });
   }
 
