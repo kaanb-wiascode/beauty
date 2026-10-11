@@ -172,9 +172,9 @@ export class AuthController {
       return this.mfaService.beginLoginChallenge(result);
     }
 
-    await this.registerSession(result);
+    const session = await this.registerSession(result);
     this.setRefreshCookie(response, result.refreshToken);
-    return this.publicAuthResult(result);
+    return { ...this.publicAuthResult(result), sessionId: session.id };
   }
 
   @Post('mfa/verify')
@@ -185,9 +185,9 @@ export class AuthController {
   ) {
     const input = mfaChallengeSchema.parse(body);
     const result = await this.mfaService.verifyLoginChallenge(input.challengeId, input.code);
-    await this.registerSession(result);
+    const session = await this.registerSession(result);
     this.setRefreshCookie(response, result.refreshToken);
-    return this.publicAuthResult(result);
+    return { ...this.publicAuthResult(result), sessionId: session.id };
   }
 
   @Post('mfa/challenge/:id/setup')
@@ -205,9 +205,9 @@ export class AuthController {
   ) {
     const { code } = mfaCodeSchema.parse(body);
     const result = await this.mfaService.completeEnrollmentChallenge(id, code);
-    await this.registerSession(result);
+    const session = await this.registerSession(result);
     this.setRefreshCookie(response, result.refreshToken);
-    return this.publicAuthResult(result);
+    return { ...this.publicAuthResult(result), sessionId: session.id };
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -387,7 +387,7 @@ export class AuthController {
       input.branchId,
       user.sub,
     );
-    await this.sessionRegistry.register({
+    const session = await this.sessionRegistry.register({
       refreshId: result.refreshToken,
       userId: user.sub,
       tenantId: user.tenantId,
@@ -397,7 +397,7 @@ export class AuthController {
       roleScope: result.membership.roleScope,
     });
     this.setRefreshCookie(response, result.refreshToken);
-    return this.publicAuthResult(result);
+    return { ...this.publicAuthResult(result), sessionId: session.id };
   }
 
   @Post('refresh')
@@ -409,9 +409,9 @@ export class AuthController {
   ) {
     const refreshToken = this.requireRefreshToken(request, body);
     const result = await this.authService.refresh(refreshToken);
-    await this.sessionRegistry.rotate(refreshToken, result.refreshToken);
+    const session = await this.sessionRegistry.rotate(refreshToken, result.refreshToken);
     this.setRefreshCookie(response, result.refreshToken);
-    return this.publicAuthResult(result);
+    return { ...this.publicAuthResult(result), sessionId: session.id };
   }
 
   @Post('logout')
@@ -516,7 +516,7 @@ export class AuthController {
     branch: { id: string } | null;
     membership: { id: string; roleScope: string };
   }) {
-    await this.sessionRegistry.register({
+    return this.sessionRegistry.register({
       refreshId: result.refreshToken,
       userId: result.user.id,
       tenantId: result.tenant.id,
