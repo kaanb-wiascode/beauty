@@ -41,6 +41,7 @@ describe('PaymentsService concurrency guards', () => {
         aggregate: jest.fn(),
         groupBy: jest.fn(),
       },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'appointment-a' }]),
       $queryRawUnsafe: jest.fn().mockResolvedValue([{ userId: 'user-a' }]),
       $transaction: jest.fn(async (callback: any) => callback(prisma)),
       ...overrides,
@@ -134,6 +135,7 @@ describe('PaymentsService concurrency guards', () => {
     });
 
     expect(prisma.appointment.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(accountingService.recordAppointmentPayment).toHaveBeenCalledTimes(1);
   });
 
