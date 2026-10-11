@@ -51,31 +51,27 @@ const TEMPLATES: TemplateDefinition[] = [
 
 // Keep new role templates aligned with the granular permissions enforced by controllers.
 // Retain legacy permissions for existing clients and migration compatibility.
-const payrollRoleKeys = new Set([
-  'hr-director',
-  'hr-manager',
-  'payroll-officer',
-]);
+const payrollRoleKeys = new Set(['hr-director', 'hr-manager', 'payroll-officer']);
 for (const template of TEMPLATES) {
-  const original = new Set(template.permissions);
-  if (original.has('inventory.write')) {
-    ['inventory.create', 'inventory.update', 'inventory.delete'].forEach((permission) =>
-      original.add(permission),
-    );
+  const permissions = new Set(template.permissions);
+  if (permissions.has('inventory.write')) {
+    for (const action of ['create', 'update', 'delete']) {
+      permissions.add(`inventory.${action}`);
+    }
   }
-  if (original.has('hr.manage')) {
-    ['hr.create', 'hr.update', 'hr.delete'].forEach((permission) =>
-      original.add(permission),
-    );
+  if (permissions.has('hr.manage')) {
+    for (const action of ['create', 'update', 'delete']) {
+      permissions.add(`hr.${action}`);
+    }
   }
   if (payrollRoleKeys.has(template.key)) {
-    ['hr_payroll.read', 'hr_payroll.create', 'hr_payroll.update'].forEach((permission) =>
-      original.add(permission),
-    );
+    for (const action of ['read', 'create', 'update']) {
+      permissions.add(`hr_payroll.${action}`);
+    }
   } else if (template.key === 'general-manager') {
-    original.add('hr_payroll.read');
+    permissions.add('hr_payroll.read');
   }
-  template.permissions = [...original];
+  template.permissions = [...permissions];
 }
 
 @Injectable()
