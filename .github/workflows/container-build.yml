@@ -49,18 +49,18 @@ jobs:
           severity: HIGH,CRITICAL
 
       # Trivy ignore-unfixed is not sufficient to exclude an unpatched package.
-      # Assert the vulnerable glob parser is not shipped to the runtime image.
-      - name: Reject braces in API production filesystem
+      # Assert vulnerable tooling is not shipped to the runtime image.
+      - name: Reject braces and node-forge in API production filesystem
         shell: bash
         run: |
           docker run --rm --entrypoint /bin/sh valoo-api:${{ github.sha }} -eu -c '
-            matches=$(find /app -type f -path "*/braces/package.json" -print)
+            matches=$(find /app -type f \( -path "*/braces/package.json" -o -path "*/node-forge/package.json" \) -print)
             if [ -n "$matches" ]; then
-              echo "Unpatched braces package detected in production filesystem:"
+              echo "Unpatched security-sensitive package detected in production filesystem:"
               printf "%s\\n" "$matches"
               exit 1
             fi
-            echo "No braces package installed in API production filesystem."
+            echo "No braces or node-forge package installed in API production filesystem."
           '
 
   web-image:
@@ -99,18 +99,18 @@ jobs:
           severity: HIGH,CRITICAL
 
       # Trivy ignore-unfixed is not sufficient to exclude an unpatched package.
-      # Assert the vulnerable glob parser is not shipped to the runtime image.
-      - name: Reject braces in Web production filesystem
+      # Assert vulnerable tooling is not shipped to the runtime image.
+      - name: Reject braces and node-forge in Web production filesystem
         shell: bash
         run: |
           docker run --rm --entrypoint /bin/sh valoo-web:${{ github.sha }} -eu -c '
-            matches=$(find /app -type f -path "*/braces/package.json" -print)
+            matches=$(find /app -type f \( -path "*/braces/package.json" -o -path "*/node-forge/package.json" \) -print)
             if [ -n "$matches" ]; then
-              echo "Unpatched braces package detected in production filesystem:"
+              echo "Unpatched security-sensitive package detected in production filesystem:"
               printf "%s\\n" "$matches"
               exit 1
             fi
-            echo "No braces package installed in Web production filesystem."
+            echo "No braces or node-forge package installed in Web production filesystem."
           '
 
   marketing-image:
@@ -150,16 +150,16 @@ jobs:
           severity: HIGH,CRITICAL
 
       # Trivy ignore-unfixed is not sufficient to exclude an unpatched package.
-      # Assert the vulnerable glob parser is not shipped to the runtime image.
-      - name: Reject braces in Marketing production filesystem
+      # Assert vulnerable tooling is not shipped to the runtime image.
+      - name: Reject braces and node-forge in Marketing production filesystem
         shell: bash
         run: |
           docker run --rm --entrypoint /bin/sh valoo-marketing:${{ github.sha }} -eu -c '
-            matches=$(find /app -type f -path "*/braces/package.json" -print)
+            matches=$(find /app -type f \( -path "*/braces/package.json" -o -path "*/node-forge/package.json" \) -print)
             if [ -n "$matches" ]; then
-              echo "Unpatched braces package detected in production filesystem:"
+              echo "Unpatched security-sensitive package detected in production filesystem:"
               printf "%s\\n" "$matches"
               exit 1
             fi
-            echo "No braces package installed in Marketing production filesystem."
+            echo "No braces or node-forge package installed in Marketing production filesystem."
           '
