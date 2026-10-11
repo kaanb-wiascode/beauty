@@ -113,6 +113,7 @@ export class AuthController {
       tenantId,
       companyId,
       this.tenantContext.getBranchId(),
+      this.tenantContext.getMembershipId(),
     );
   }
 
