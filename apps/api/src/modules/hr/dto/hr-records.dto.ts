@@ -156,7 +156,7 @@ const nullableText = z.string().trim().max(2000).nullable().optional();
 
 export const compensationRequestSchema = z.object({
   staffId: uuid,
-  type: z.enum(['BONUS', 'COMMISSION']),
+  type: z.preprocess((value) => typeof value === 'string' ? value.trim().toUpperCase() : value, z.enum(['BONUS', 'COMMISSION'])),
   amount: positivePayment,
   year: z.coerce.number().int().min(2000).max(2100),
   month: z.coerce.number().int().min(1).max(12),
@@ -209,7 +209,12 @@ const onboardingTask = z.union([
   z.string().trim().min(1).max(200),
   z.object({ title: z.string().trim().min(1).max(200) }).passthrough(),
 ]);
-const taskStatus = z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED', 'BLOCKED']);
+const normalizeUppercase = (value: unknown) =>
+  typeof value === 'string' ? value.trim().toUpperCase() : value;
+const taskStatus = z.preprocess(
+  normalizeUppercase,
+  z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED', 'BLOCKED']),
+);
 
 export const onboardingSchema = z.object({
   name: shortText.optional(),
@@ -232,7 +237,7 @@ export const probationStartSchema = z.object({
 }).passthrough();
 
 export const probationReviewSchema = z.object({
-  status: z.enum(['COMPLETED', 'SKIPPED']).default('COMPLETED'),
+  status: z.preprocess(normalizeUppercase, z.enum(['COMPLETED', 'SKIPPED'])).default('COMPLETED'),
   rating: z.coerce.number().finite().min(0).max(5).nullable().optional(),
   managerNote: nullableText,
   strengths: nullableText,
@@ -240,7 +245,7 @@ export const probationReviewSchema = z.object({
 }).passthrough();
 
 export const probationDecisionSchema = z.object({
-  decision: z.enum(['CONFIRMED', 'EXTENDED', 'TERMINATED']),
+  decision: z.preprocess(normalizeUppercase, z.enum(['CONFIRMED', 'EXTENDED', 'TERMINATED'])),
   endAt: optionalDate,
   note: nullableText,
   forceDecision: z.boolean().optional(),
@@ -310,7 +315,7 @@ const legalParamsSchema = z.object({
   unemploymentEmployerRate: rate,
   stampTaxRate: rate,
   incomeTaxBrackets: z.array(z.object({
-    upTo: money.nullable(),
+    upTo: money.nullable().optional(),
     rate,
   })).min(1).max(100),
   minimumWageIncomeTaxExemption: money.optional(),
