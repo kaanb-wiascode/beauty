@@ -42,7 +42,7 @@ function ActionButton({
 }
 
 export default function HomeScreen() {
-  const { session, me, challenge, enrollment, busy, error, login, beginEnrollment, verifyCode, signOut, clearError } =
+  const { session, me, challenge, enrollment, busy, error, login, beginEnrollment, verifyCode, signOut, clearError, cancelChallenge } =
     useValooSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -133,10 +133,9 @@ export default function HomeScreen() {
                   </>
                 )}
                 <ActionButton label="Giriş ekranına dön" secondary disabled={busy} onPress={() => {
-                  // Discarding the challenge is handled by re-entering credentials.
                   setPassword('');
                   setCode('');
-                  void login('', '');
+                  cancelChallenge();
                 }} />
               </>
             ) : (
