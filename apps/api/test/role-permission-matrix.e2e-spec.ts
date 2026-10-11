@@ -63,7 +63,7 @@ describe('Role / permission matrix (e2e)', () => {
     { permission: 'services.read', method: 'get', path: '/services?limit=1' },
 
     { permission: 'inventory.read', method: 'get', path: '/inventory/overview' },
-    { permission: 'inventory.write', method: 'post', path: '/inventory/categories', body: { name: '' } },
+    { permission: 'inventory.create', method: 'post', path: '/inventory/categories', body: { name: '' } },
 
     { permission: 'crm.read', method: 'get', path: '/crm/leads?limit=1' },
     { permission: 'crm.manage', method: 'post', path: '/crm/leads', body: { firstName: 'Matrix', lastName: 'Lead' } },
@@ -80,7 +80,7 @@ describe('Role / permission matrix (e2e)', () => {
     { permission: 'finance_period.reopen', method: 'post', path: `/finance/periods/${randomUUID()}/reopen` },
 
     { permission: 'hr.read', method: 'get', path: '/hr/employees' },
-    { permission: 'hr.manage', method: 'post', path: '/hr/employees', body: { firstName: 'Matrix' } },
+    { permission: 'hr.create', method: 'post', path: '/hr/employees', body: { firstName: 'Matrix' } },
 
     { permission: 'roles.read', method: 'get', path: '/roles' },
     { permission: 'roles.update', method: 'post', path: '/roles', body: { name: 'M' } },
