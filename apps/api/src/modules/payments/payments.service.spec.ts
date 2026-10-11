@@ -238,7 +238,7 @@ describe('PaymentsService concurrency guards', () => {
         where: {
           tenantId: 'tenant-a',
           appointment: { branchId: 'branch-a' },
-          status: 'COMPLETED',
+          status: { in: ['COMPLETED', 'REFUNDED'] },
           paidAt: { gte: range.from, lte: range.to },
         },
       }),
@@ -356,6 +356,45 @@ describe('PaymentsService concurrency guards', () => {
       },
     });
     expect(prisma.payment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('includes payments subsequently refunded in original gross collection totals', async () => {
+    const { service, prisma } = createService();
+    prisma.payment.aggregate
+      .mockResolvedValueOnce({ _sum: { amount: 125 }, _count: { _all: 1 } })
+      .mockResolvedValueOnce({ _sum: { amount: 125 }, _count: { _all: 1 } });
+    prisma.payment.groupBy.mockResolvedValue([
+      { method: 'CARD', _sum: { amount: 125 } },
+    ]);
+
+    const result = await service.summary({
+      from: new Date('2026-09-01T00:00:00.000Z'),
+      to: new Date('2026-09-30T23:59:59.999Z'),
+    });
+
+    expect(prisma.payment.aggregate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['COMPLETED', 'REFUNDED'] },
+        }),
+      }),
+    );
+    expect(prisma.payment.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['COMPLETED', 'REFUNDED'] },
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      gross: 125,
+      refunds: 125,
+      net: 0,
+      paymentCount: 1,
+      refundCount: 1,
+      methods: { CARD: 125 },
+    });
   });
 
   it('keeps refunds separate from gross collections and derives net correctly', async () => {
