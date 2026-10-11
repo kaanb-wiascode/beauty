@@ -148,3 +148,186 @@ export const taxBaseOpeningSchema = z.object({
   sourceReference: z.string().trim().max(200).nullable().optional(),
   note: optionalNote,
 });
+
+const optionalUuid = uuid.nullable().optional();
+const optionalDate = date.nullable().optional();
+const shortText = z.string().trim().min(1).max(160);
+const nullableText = z.string().trim().max(2000).nullable().optional();
+
+export const compensationRequestSchema = z.object({
+  staffId: uuid,
+  type: z.enum(['BONUS', 'COMMISSION']),
+  amount: positivePayment,
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+  reason: z.string().trim().min(3).max(2000),
+});
+
+export const updateCompensationRequestSchema = z.object({
+  amount: positivePayment.optional(),
+  reason: z.string().trim().min(3).max(2000).optional(),
+});
+
+export const employeeCreateSchema = z.object({
+  firstName: shortText,
+  lastName: shortText,
+  email: z.string().trim().email().max(254),
+  roleId: uuid,
+  branchId: uuid.optional(),
+  departmentId: optionalUuid,
+  teamId: optionalUuid,
+  positionId: optionalUuid,
+  managerStaffId: optionalUuid,
+  department: nullableText,
+  position: nullableText,
+  phone: nullableText,
+  status: status.optional(),
+  personnelNumber: nullableText,
+  identityNumber: nullableText,
+  dateOfBirth: z.union([date, z.literal(''), z.null()]).optional(),
+  personalEmail: nullableText,
+  address: nullableText,
+  employmentType: nullableText,
+  hireDate: z.union([date, z.literal(''), z.null()]).optional(),
+  terminationDate: z.union([date, z.literal(''), z.null()]).optional(),
+  bankName: nullableText,
+  iban: nullableText,
+}).passthrough();
+
+export const employeeUpdateSchema = employeeCreateSchema.partial();
+
+export const employmentHistorySchema = z.object({
+  eventType: status.optional(),
+  effectiveFrom: optionalDate,
+  branchId: uuid.optional(),
+  grossSalary: money.nullable().optional(),
+  employmentType: nullableText,
+  costCenterId: optionalUuid,
+}).passthrough();
+
+const onboardingTask = z.union([
+  z.string().trim().min(1).max(200),
+  z.object({ title: z.string().trim().min(1).max(200) }).passthrough(),
+]);
+const taskStatus = z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED', 'BLOCKED']);
+
+export const onboardingSchema = z.object({
+  name: shortText.optional(),
+  startedAt: optionalDate,
+  targetCompletionDate: optionalDate,
+  tasks: z.array(onboardingTask).min(1).max(200).optional(),
+}).passthrough();
+
+export const onboardingTaskSchema = z.object({
+  status: taskStatus,
+  completionNote: nullableText,
+  dueDate: optionalDate,
+  ownerStaffId: optionalUuid,
+}).passthrough();
+
+export const probationStartSchema = z.object({
+  startedAt: optionalDate,
+  endAt: optionalDate,
+  reviewerStaffId: optionalUuid,
+}).passthrough();
+
+export const probationReviewSchema = z.object({
+  status: z.enum(['COMPLETED', 'SKIPPED']).default('COMPLETED'),
+  rating: z.coerce.number().finite().min(0).max(5).nullable().optional(),
+  managerNote: nullableText,
+  strengths: nullableText,
+  developmentAreas: nullableText,
+}).passthrough();
+
+export const probationDecisionSchema = z.object({
+  decision: z.enum(['CONFIRMED', 'EXTENDED', 'TERMINATED']),
+  endAt: optionalDate,
+  note: nullableText,
+  forceDecision: z.boolean().optional(),
+  terminationDate: optionalDate,
+}).passthrough();
+
+export const offboardingSchema = z.object({
+  terminationDate: date,
+  reason: z.string().trim().min(1).max(2000),
+}).passthrough();
+
+export const offboardingTaskSchema = z.object({
+  status: taskStatus,
+  completionNote: nullableText,
+  ownerStaffId: optionalUuid,
+}).passthrough();
+
+const organizationStatus = status.optional();
+const organizationCode = z.string().trim().min(1).max(80);
+
+export const createDepartmentSchema = z.object({
+  companyId: uuid.optional(),
+  code: organizationCode,
+  name: shortText,
+  status: organizationStatus,
+}).passthrough();
+
+export const createTeamSchema = z.object({
+  departmentId: uuid,
+  code: organizationCode,
+  name: shortText,
+  status: organizationStatus,
+}).passthrough();
+
+export const createPositionSchema = z.object({
+  companyId: uuid.optional(),
+  departmentId: optionalUuid,
+  parentPositionId: optionalUuid,
+  code: organizationCode,
+  name: shortText,
+  status: organizationStatus,
+}).passthrough();
+
+export const employeeAssignmentSchema = z.object({
+  branchId: uuid.optional(),
+  departmentId: optionalUuid,
+  teamId: optionalUuid,
+  positionId: optionalUuid,
+  managerStaffId: optionalUuid,
+  effectiveFrom: optionalDate,
+}).passthrough();
+
+export const payrollPolicySchema = z.object({
+  enabled: z.boolean(),
+  applyOvertime: z.boolean(),
+  applyUnpaidLeaveDeduction: z.boolean(),
+  standardMonthlyMinutes: z.coerce.number().finite().positive().max(100_000).nullable().optional(),
+  overtimeMultiplier: z.coerce.number().finite().min(0).max(100).nullable().optional(),
+  monthlyDayDivisor: z.coerce.number().finite().positive().max(366).nullable().optional(),
+});
+
+const rate = z.coerce.number().finite().min(0).max(1);
+const legalParamsSchema = z.object({
+  employeeSocialSecurityRate: rate,
+  unemploymentEmployeeRate: rate,
+  employerSocialSecurityRate: rate,
+  unemploymentEmployerRate: rate,
+  stampTaxRate: rate,
+  incomeTaxBrackets: z.array(z.object({
+    upTo: money.nullable(),
+    rate,
+  })).min(1).max(100),
+  minimumWageIncomeTaxExemption: money.optional(),
+  minimumWageStampTaxExemption: money.optional(),
+  socialSecurityBaseFloor: money.nullable().optional(),
+  socialSecurityBaseCeiling: money.nullable().optional(),
+}).passthrough();
+
+export const payrollLegalVersionSchema = z.object({
+  versionLabel: shortText,
+  effectiveFrom: date,
+  effectiveTo: optionalDate,
+  jurisdiction: z.string().trim().max(80).optional(),
+  sourceReference: nullableText,
+  note: nullableText,
+  parameters: legalParamsSchema,
+}).refine((v) => !v.effectiveTo || v.effectiveTo >= v.effectiveFrom, {
+  message: 'Geçersiz yasal parametre tarih aralığı.',
+  path: ['effectiveTo'],
+});
