@@ -105,3 +105,46 @@ export const yearQuerySchema = z.object({
 export const dateQuerySchema = z.object({
   asOf: date,
 });
+
+export const salaryContractSchema = z
+  .object({
+    effectiveFrom: date,
+    effectiveTo: date.nullable().optional(),
+    netAmount: positivePayment,
+    salaryBasis: z.string().trim().max(40).optional(),
+    currency: z.string().trim().regex(/^[A-Za-z]{3}$/).optional(),
+    note: optionalNote,
+  })
+  .refine((value) => !value.effectiveTo || value.effectiveFrom <= value.effectiveTo, {
+    path: ['effectiveTo'],
+    message: 'Sözleşme bitişi başlangıçtan önce olamaz.',
+  });
+
+export const salaryContractEndSchema = z.object({ effectiveTo: date });
+
+export const assetAssignmentSchema = z.object({
+  assetId: uuid,
+  note: z.string().trim().max(1000).optional(),
+});
+
+export const assetReturnSchema = z.object({
+  note: z.string().trim().max(1000).optional(),
+});
+
+export const payrollReversalSchema = z.object({
+  reason: z.string().trim().min(5).max(1000),
+});
+
+export const netToGrossSchema = z.object({
+  targetNet: positivePayment,
+  asOf: date,
+  cumulativeTaxBaseBefore: money.default(0),
+  otherDeductions: money.default(0),
+});
+
+export const taxBaseOpeningSchema = z.object({
+  taxYear: z.coerce.number().int().min(2000).max(2100),
+  cumulativeTaxBase: money,
+  sourceReference: z.string().trim().max(200).nullable().optional(),
+  note: optionalNote,
+});
