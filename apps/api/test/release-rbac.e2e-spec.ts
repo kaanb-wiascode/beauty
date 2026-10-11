@@ -77,6 +77,8 @@ describe('Release RBAC denials (e2e)', () => {
       ['accounting', 'read'],
       ['hr', 'read'],
       ['hr_sensitive', 'read'],
+      // Payroll visibility is now an explicit sensitive read capability.
+      ['hr_payroll', 'read'],
     ] as const;
 
     for (const [resource, action] of readPermissions) {
