@@ -87,3 +87,21 @@ export const settleLiabilitySchema = z.object({
 export const paymentReversalSchema = z.object({
   reason: z.string().trim().min(1).max(1000),
 });
+
+export const periodQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+export const requiredPeriodQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+});
+
+export const yearQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+});
+
+export const dateQuerySchema = z.object({
+  asOf: date,
+});
