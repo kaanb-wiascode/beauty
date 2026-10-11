@@ -21,7 +21,7 @@ concurrency:
 jobs:
   # One-time branch-scoped lockfile refresh; gated by the push commit message.
   refresh-patched-lockfile:
-    if: github.repository == 'kaanb-wiascode/beauty' && github.ref == 'refs/heads/feature/core-commerce-foundation' && contains(github.event.head_commit.message, '[refresh-lockfile]')
+    if: github.repository == 'kaanb-wiascode/beauty' && ((github.event_name == 'push' && github.ref == 'refs/heads/feature/core-commerce-foundation' && contains(github.event.head_commit.message, '[refresh-lockfile]')) || (github.event_name == 'pull_request' && github.head_ref == 'feature/core-commerce-foundation' && github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
