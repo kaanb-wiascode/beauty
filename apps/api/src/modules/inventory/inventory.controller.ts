@@ -282,7 +282,7 @@ export class InventoryController {
   }
 
   @Post('products')
-  @RequirePermission('inventory', 'create')
+  @RequirePermission('inventory', 'write')
   createProduct(@Body() body: unknown) {
     return this.inventory.createProduct(productSchema.parse(body));
   }
