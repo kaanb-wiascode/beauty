@@ -1,180 +1,189 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import {
+  appointmentsPath,
+  canReadAppointments,
+  valooRequest,
+  ValooApiError,
+  type AppointmentSummary,
+  type AppointmentsPage,
+} from '@/lib/valoo-api';
+import { useValooSession } from '@/lib/valoo-session';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
-  const theme = useTheme();
+const STATUS_LABEL: Record<AppointmentSummary['status'], string> = {
+  SCHEDULED: 'Planlandı',
+  CONFIRMED: 'Onaylandı',
+  COMPLETED: 'Tamamlandı',
+  CANCELLED: 'İptal edildi',
+  NO_SHOW: 'Gelmedi',
+};
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
+function prettyDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Geçersiz tarih';
+  return date.toLocaleString('tr-TR', {
+    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
+}
+
+function AppointmentCard({ item }: { item: AppointmentSummary }) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardTop}>
+        <Text style={styles.cardName}>Randevu #{item.id.slice(0, 8)}</Text>
+        <Text style={styles.status}>{STATUS_LABEL[item.status] ?? item.status}</Text>
+      </View>
+      <Text style={styles.appointmentDate}>{prettyDate(item.startAt)}</Text>
+      <Text style={styles.subdued}>Bitiş: {prettyDate(item.endAt)}</Text>
+      <Text style={styles.subdued}>Şube: {item.branchId ? item.branchId.slice(0, 8) : 'Merkez'}</Text>
+    </View>
+  );
+}
+
+export default function AppointmentsScreen() {
+  const { session, signOut } = useValooSession();
+  const token = session?.accessToken ?? null;
+  const permitted = session ? canReadAppointments(session.membership) : false;
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<AppointmentsPage | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+
+  const load = useCallback(async () => {
+    if (!token || !permitted) return;
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await valooRequest<AppointmentsPage>(appointmentsPath(page), {
+        accessToken: token,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (!Array.isArray(result.data) || !result.meta) {
+        throw new Error('Randevu yanıtı beklenen biçimde değil.');
+      }
+      setData(result);
+    } catch (cause) {
+      if (controller.signal.aborted) return;
+      setData(null);
+      if (cause instanceof ValooApiError && cause.status === 401) {
+        setMessage('Oturumunuz sona erdi. Lütfen yeniden giriş yapın.');
+        void signOut();
+      } else {
+        setMessage(cause instanceof Error ? cause.message : 'Randevular yüklenemedi.');
+      }
+    } finally {
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setLoading(false);
+      }
+    }
+  }, [token, permitted, page, signOut]);
+
+  useEffect(() => {
+    if (token && permitted) {
+      void load();
+    } else {
+      requestRef.current?.abort();
+      setData(null);
+      setPage(1);
+      setLoading(false);
+    }
+    return () => requestRef.current?.abort();
+  }, [token, permitted, load]);
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    <SafeAreaView style={styles.root}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.eyebrow}>OPERASYON MERKEZİ</Text>
+        <Text style={styles.heading}>Randevular</Text>
+        <Text style={styles.intro}>Bugünden itibaren 7 günlük randevu görünümü. Veriler doğrudan VALOO sunucusundan alınır.</Text>
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
-
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
-
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+        {!session ? (
+          <View style={styles.note}>
+            <Text style={styles.noteTitle}>Oturum gerekli</Text>
+            <Text style={styles.noteText}>Randevulara erişmek için Ana Sayfa sekmesinden giriş yapın.</Text>
+          </View>
+        ) : !permitted ? (
+          <View style={styles.note}>
+            <Text style={styles.noteTitle}>Görüntüleme yetkisi bulunmuyor</Text>
+            <Text style={styles.noteText}>Hesabınıza randevu görüntüleme yetkisi tanımlı değil. Yetki değişiklikleri sunucuda uygulanır.</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.toolbar}>
+              <Text style={styles.total}>{data ? `${data.meta.total} kayıt` : 'Randevu listesi'}</Text>
+              <Pressable accessibilityRole="button" disabled={loading} onPress={() => void load()} style={styles.refresh}>
+                <Text style={styles.refreshText}>Yenile</Text>
+              </Pressable>
+            </View>
+            {loading && <ActivityIndicator style={styles.loading} color="#086ad8" />}
+            {!!message && <Text accessibilityRole="alert" style={styles.error}>{message}</Text>}
+            {!loading && data?.data.length === 0 && (
+              <View style={styles.note}>
+                <Text style={styles.noteTitle}>Randevu bulunamadı</Text>
+                <Text style={styles.noteText}>Bu tarih aralığında ve yetki kapsamınızda kayıt bulunmuyor.</Text>
+              </View>
+            )}
+            {data?.data.map((item) => <AppointmentCard key={item.id} item={item} />)}
+            {data && data.meta.totalPages > 1 && (
+              <View style={styles.pagination}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={loading || page <= 1}
+                  onPress={() => setPage((value) => Math.max(1, value - 1))}
+                  style={[styles.pageButton, (loading || page <= 1) && styles.disabled]}>
+                  <Text style={styles.pageText}>Önceki</Text>
+                </Pressable>
+                <Text style={styles.pageCount}>{page} / {data.meta.totalPages}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={loading || page >= data.meta.totalPages}
+                  onPress={() => setPage((value) => value + 1)}
+                  style={[styles.pageButton, (loading || page >= data.meta.totalPages) && styles.disabled]}>
+                  <Text style={styles.pageText}>Sonraki</Text>
+                </Pressable>
+              </View>
+            )}
+            <Text style={styles.disclaimer}>Bu sürüm salt okunurdur. Oluşturma, iptal ve tahsilat işlemleri etkin değildir.</Text>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
-  },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-  },
+  root: { flex: 1, backgroundColor: '#f2f6fc' },
+  container: { gap: 14, padding: 22, paddingBottom: 88 },
+  eyebrow: { color: '#086ad8', fontSize: 11, letterSpacing: 1.5, fontWeight: '700' },
+  heading: { fontSize: 27, fontWeight: '800', color: '#162d4e' },
+  intro: { color: '#5b6f89', fontSize: 14, lineHeight: 21, marginBottom: 7 },
+  toolbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  total: { color: '#243c5b', fontWeight: '700', fontSize: 14 },
+  refresh: { backgroundColor: '#e3efff', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 10 },
+  refreshText: { color: '#076bd6', fontWeight: '700', fontSize: 13 },
+  loading: { marginVertical: 22 },
+  card: { padding: 16, gap: 7, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e1e9f5', borderRadius: 16 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  cardName: { color: '#1c3553', fontWeight: '700', fontSize: 14, flex: 1 },
+  status: { color: '#076bd6', backgroundColor: '#ebf3fe', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, overflow: 'hidden', fontSize: 11 },
+  appointmentDate: { color: '#162d4e', fontWeight: '700', fontSize: 16 },
+  subdued: { color: '#697d96', fontSize: 12 },
+  note: { borderWidth: 1, borderColor: '#d8e7fa', borderRadius: 16, padding: 20, backgroundColor: '#ffffff', gap: 10 },
+  noteTitle: { color: '#244468', fontSize: 18, fontWeight: '700' },
+  noteText: { color: '#64748b', lineHeight: 21, fontSize: 14 },
+  error: { color: '#a52424', padding: 12, backgroundColor: '#fef0ef', borderRadius: 10, fontSize: 13 },
+  pagination: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 7 },
+  pageButton: { backgroundColor: '#e6effc', borderRadius: 10, padding: 12 },
+  disabled: { opacity: 0.45 },
+  pageText: { color: '#095cbd', fontWeight: '700' },
+  pageCount: { color: '#3a5575', fontSize: 13 },
+  disclaimer: { color: '#73859f', textAlign: 'center', lineHeight: 19, fontSize: 11, marginTop: 8 },
 });
