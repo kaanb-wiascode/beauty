@@ -8,6 +8,7 @@ import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage } from "@/lib/user-language";
 import type { Paginated, Staff } from "@/lib/types";
@@ -51,6 +52,17 @@ function initials(member: Staff) {
 }
 
 export default function HRDashboardPage() {
+  const [isReady, setIsReady] = useState(false);
+  useEffect(() => setIsReady(true), []);
+
+  if (!isReady) return <Spinner />;
+  if (!hasPermission('hr', 'read')) {
+    return <Alert>Bu modülü görüntüleme yetkiniz bulunmuyor.</Alert>;
+  }
+  return <HRDashboardPageContent />;
+}
+
+function HRDashboardPageContent() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [performance, setPerformance] = useState<Record<string, Performance>>({});
   const [loading, setLoading] = useState(true);
