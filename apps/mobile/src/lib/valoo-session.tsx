@@ -43,7 +43,7 @@ export function ValooSessionProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
 
   const completeLogin = useCallback(async (result: LoginSession) => {
-    if (!result.accessToken || !result.membership || !Array.isArray(result.membership.permissions)) {
+    if (!result.accessToken || !/^[a-f0-9]{64}$/.test(result.sessionId) || !result.membership || !Array.isArray(result.membership.permissions)) {
       throw new Error('Oturum bilgileri eksik. Lütfen tekrar deneyin.');
     }
     const identity = await valooRequest<AuthMe>('/auth/me', {
@@ -135,22 +135,28 @@ export function ValooSessionProvider({ children }: PropsWithChildren) {
   }, [busy, challenge, enrollment, completeLogin]);
 
   const signOut = useCallback(async () => {
-    const oldToken = session?.accessToken;
-    // Revoke server session via refresh cookie when the platform retains it.
-    // Regardless of connectivity, clear the in-memory access token immediately.
+    const oldSession = session;
+    // A refresh cookie may not be available in native fetch. The authenticated
+    // revoke endpoint validates the current user/tenant and deletes its refresh
+    // session server-side; local credentials are removed unconditionally.
     setSession(null);
     setMe(null);
     setChallenge(null);
     setEnrollment(null);
     setError(null);
-    if (!oldToken) return;
+    if (!oldSession) return;
     try {
-      await valooRequest<{ success: boolean }>('/auth/logout', {
-        method: 'POST',
-        accessToken: oldToken,
-      });
+      const revoked = await valooRequest<{ id: string; revoked: boolean }>(
+        `/auth/sessions/${encodeURIComponent(oldSession.sessionId)}/revoke`, {
+          method: 'POST',
+          accessToken: oldSession.accessToken,
+        },
+      );
+      if (!revoked.revoked || revoked.id !== oldSession.sessionId) {
+        throw new Error('Oturum iptal yanıtı doğrulanamadı.');
+      }
     } catch {
-      setError('Bu cihazdan çıkış yapıldı. Sunucudaki oturum iptali doğrulanamadı.');
+      setError('Bu cihazdan çıkış yapıldı; sunucu oturumu iptal edilemedi. Güvenlik için diğer oturumlarınızı kontrol edin.');
     }
   }, [session]);
 
