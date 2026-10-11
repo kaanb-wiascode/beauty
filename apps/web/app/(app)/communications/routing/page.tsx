@@ -742,7 +742,7 @@ function RuleEditor({
               setDraft({ ...draft, autoFollowUp: e.target.checked })
             }
           />
-          CRM'e aktarıldığında otomatik ilk temas görevi oluştur
+          CRM&apos;e aktarıldığında otomatik ilk temas görevi oluştur
         </label>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
