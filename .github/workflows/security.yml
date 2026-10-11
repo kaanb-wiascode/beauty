@@ -19,6 +19,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # One-time branch-scoped lockfile refresh; gated by the push commit message.
+  refresh-patched-lockfile:
+    if: github.repository == 'kaanb-wiascode/beauty' && github.ref == 'refs/heads/feature/core-commerce-foundation' && contains(github.event.head_commit.message, '[refresh-lockfile]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout development branch
+        uses: actions/checkout@v6
+        with:
+          ref: feature/core-commerce-foundation
+          persist-credentials: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Regenerate patched lockfile
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+
+      - name: Verify no high or critical production vulnerabilities
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Commit reproducible dependency lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git add pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "No lockfile updates were needed."
+            exit 0
+          fi
+          git -c user.name='valoo-dependency-bot' -c user.email='valoo-dependency-bot@users.noreply.github.com' \
+            commit -m 'fix(security): regenerate patched pnpm lockfile'
+          git push origin HEAD:feature/core-commerce-foundation
+
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest
