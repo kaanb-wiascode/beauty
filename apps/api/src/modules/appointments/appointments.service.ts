@@ -546,6 +546,9 @@ export class AppointmentsService {
           },
           include: {
             session: true,
+            payment: {
+              select: { id: true, status: true },
+            },
           },
         });
 
@@ -577,6 +580,26 @@ export class AppointmentsService {
         const serviceId = input.serviceId ?? appointment.serviceId;
         const startAt = input.startAt ?? appointment.startAt;
         const endAt = input.endAt ?? appointment.endAt;
+
+        // Payments and accounting entries retain the original customer/service identity.
+        if (
+          appointment.payment &&
+          (customerId !== appointment.customerId ||
+            serviceId !== appointment.serviceId)
+        ) {
+          throw new ConflictException(
+            'Ödemesi kaydedilmiş randevunun müşteri veya hizmeti değiştirilemez.',
+          );
+        }
+
+        if (
+          appointment.payment?.status === 'COMPLETED' &&
+          input.status === 'CANCELLED'
+        ) {
+          throw new ConflictException(
+            'Ödemesi alınmış randevu önce iade edilmeden iptal edilemez.',
+          );
+        }
 
         this.validateDateRange(startAt, endAt);
 
@@ -893,6 +916,9 @@ export class AppointmentsService {
           },
           include: {
             session: true,
+            payment: {
+              select: { id: true, status: true },
+            },
           },
         });
 
@@ -906,6 +932,12 @@ export class AppointmentsService {
 
         if (appointment.status === 'COMPLETED') {
           throw new ConflictException('Tamamlanmış randevu iptal edilemez.');
+        }
+
+        if (appointment.payment?.status === 'COMPLETED') {
+          throw new ConflictException(
+            'Ödemesi alınmış randevu önce iade edilmeden iptal edilemez.',
+          );
         }
 
         const updated = await tx.appointment.update({
