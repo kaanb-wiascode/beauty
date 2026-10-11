@@ -21,6 +21,7 @@ export type ValooMembership = {
 
 export type LoginSession = {
   accessToken: string;
+  sessionId: string;
   user: ValooUser;
   tenant: ValooTenant;
   membership: ValooMembership;
