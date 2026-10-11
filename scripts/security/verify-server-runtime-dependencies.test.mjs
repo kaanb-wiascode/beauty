@@ -121,3 +121,41 @@ test('ignores dev-only dependencies in the production graph', () => {
   const report = verifyServerDependencyBoundary(lockfile);
   assert.deepEqual(report.violations, []);
 });
+
+test('handles cyclic workspace links without losing reachable dependencies', () => {
+  const cyclicLockfile = safeLockfile.replace(
+    '  packages/database:\n    dependencies:\n      pg:',
+    `  packages/database:
+    dependencies:
+      '@beauty-erp/api':
+        specifier: workspace:*
+        version: link:../../apps/api
+      pg:`,
+  );
+  const baseGraph = parsePnpmDependencyGraph(cyclicLockfile);
+  assert.equal(traceProductionDependency(baseGraph, 'apps/api', 'braces'), null);
+
+  const vulnerableLockfile = cyclicLockfile.replace(
+    '  pg@8.0.0: {}',
+    `  pg@8.0.0:
+    dependencies:
+      micromatch: 4.0.8`,
+  );
+  const trace = traceProductionDependency(
+    parsePnpmDependencyGraph(vulnerableLockfile), 'apps/api', 'braces',
+  );
+  assert.deepEqual(trace?.path, [
+    'apps/api', '@beauty-erp/database', 'pg', 'micromatch', 'braces',
+  ]);
+});
+
+test('fails closed on unresolved linked workspace importer', () => {
+  const broken = safeLockfile.replace(
+    'version: link:../../packages/database',
+    'version: link:../../packages/nonexistent',
+  );
+  assert.throws(
+    () => verifyServerDependencyBoundary(broken),
+    /Unresolved workspace link/,
+  );
+});
