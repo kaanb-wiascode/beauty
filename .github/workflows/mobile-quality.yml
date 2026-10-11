@@ -91,3 +91,17 @@ jobs:
             exit 1
           fi
           echo "Unsigned Android JavaScript export exists. This is not an APK/AAB signing or device test."
+
+      - name: Bundle iOS JavaScript without credentials
+        run: pnpm --filter mobile exec expo export --platform ios --output-dir /tmp/valoo-mobile-ios
+
+      - name: Verify iOS JS export was produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d /tmp/valoo-mobile-ios
+          if ! find /tmp/valoo-mobile-ios -type f \( -name '*.js' -o -name '*.hbc' \) -print -quit | grep -q .; then
+            echo "iOS JavaScript export was empty."
+            exit 1
+          fi
+          echo "Unsigned iOS JavaScript export exists. This is not an IPA signing or simulator test."
