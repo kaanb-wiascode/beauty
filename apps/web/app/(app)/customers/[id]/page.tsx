@@ -83,6 +83,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const canDeleteCustomer = hasPermission("customers", "delete");
   const canManageCrm = hasPermission("crm", "manage");
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
+  const [now] = useState(() => Date.now());
   const [crm360, setCrm360] = useState<Customer360 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -176,7 +177,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const openCareEvents = customer.careEvents.filter((event) => event.status === "OPEN" || event.status === "IN_PROGRESS");
   const criticalCareEvents = openCareEvents.filter((event) => event.severity === "HIGH" || event.severity === "CRITICAL");
   const upcomingAppointment = customer.appointments
-    .filter((appointment) => new Date(appointment.startAt).getTime() >= Date.now() && appointment.status !== "CANCELLED" && appointment.status !== "NO_SHOW" && appointment.status !== "COMPLETED")
+    .filter((appointment) => new Date(appointment.startAt).getTime() >= now && appointment.status !== "CANCELLED" && appointment.status !== "NO_SHOW" && appointment.status !== "COMPLETED")
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())[0] ?? null;
   const relationshipStatus = criticalCareEvents.length || (crm360?.summary.overdueFollowUpCount ?? 0) > 0
     ? "Kontrol Gerekli"
