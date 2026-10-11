@@ -424,7 +424,7 @@ export default function MarketingLeadsPage() {
               Pazarlama Talepleri
             </h1>
             <p className="mt-2 max-w-4xl text-[12px] leading-5 text-[var(--muted)]">
-              Reklam ve iletişim kaynaklarından gelen talepleri CRM'e,
+              Reklam ve iletişim kaynaklarından gelen talepleri CRM&apos;e,
               müşteriye, randevuya ve satışa kadar tek dönüşüm akışında yönetin.
             </p>
           </div>
