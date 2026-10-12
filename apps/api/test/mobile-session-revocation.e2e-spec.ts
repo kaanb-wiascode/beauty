@@ -73,13 +73,15 @@ describe('Mobile session revocation contract (e2e)', () => {
       .expect(201);
     expect(revoke.body).toEqual({ id: current.sessionId, revoked: true });
 
-    const after = await request(app.getHttpServer())
-      .get('/auth/sessions')
+    // A revoked refresh session must invalidate its already-issued access JWT.
+    await request(app.getHttpServer())
+      .get('/auth/me')
       .set('Authorization', `Bearer ${current.accessToken}`)
-      .expect(200);
-    expect(after.body).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: current.sessionId }),
-    ]));
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/appointments')
+      .set('Authorization', `Bearer ${current.accessToken}`)
+      .expect(401);
 
     if (current.refreshToken) {
       await request(app.getHttpServer())
@@ -87,6 +89,33 @@ describe('Mobile session revocation contract (e2e)', () => {
         .send({ refreshToken: current.refreshToken })
         .expect(401);
     }
+  });
+
+  it('rotates access JWT session bindings and rejects the older bearer token', async () => {
+    const first = await issueSession('rotate');
+    expect(first.refreshToken).toBeDefined();
+
+    const refreshed = await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .send({ refreshToken: first.refreshToken })
+      .expect(201);
+    const renewed = refreshed.body as {
+      accessToken: string;
+      refreshToken: string;
+      sessionId: string;
+    };
+    expect(renewed.sessionId).toMatch(/^[a-f0-9]{64}$/);
+    expect(renewed.sessionId).not.toBe(first.sessionId);
+
+    await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${first.accessToken}`)
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${renewed.accessToken}`)
+      .expect(200);
   });
 
   it('refuses to revoke another tenant session using a different tenant JWT', async () => {
