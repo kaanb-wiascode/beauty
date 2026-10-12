@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@beauty-erp/database';
 import request from 'supertest';
+import { signRegisteredTestJwt } from './registered-jwt.helper';
 import { randomUUID } from 'node:crypto';
 
 import { AppModule } from './../src/app.module';
@@ -62,7 +63,7 @@ describe('Corporate brand governance (e2e)', () => {
       });
       const membership = await prisma.membership.create({ data: { userId: user.id, tenantId: tenant.id, companyId: company.id, roleId: role.id } });
       if (branchId) await prisma.membershipBranchAccess.create({ data: { membershipId: membership.id, branchId } });
-      const token = jwt.sign({ sub: user.id, tenantId: tenant.id, membershipId: membership.id, roleId: role.id, companyId: company.id, branchId, roleScope: scope });
+      const token = await signRegisteredTestJwt(app, jwt, { sub: user.id, tenantId: tenant.id, membershipId: membership.id, roleId: role.id, companyId: company.id, branchId, roleScope: scope });
       return { user, authorization: `Bearer ${token}` };
     }
 

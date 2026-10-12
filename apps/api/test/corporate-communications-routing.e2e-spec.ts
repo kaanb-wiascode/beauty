@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@beauty-erp/database';
 import request from 'supertest';
+import { signRegisteredTestJwt } from './registered-jwt.helper';
 import { randomUUID } from 'node:crypto';
 
 import { AppModule } from './../src/app.module';
@@ -103,7 +104,7 @@ describe('Corporate communications dynamic routing (e2e)', () => {
     const actor = await addUser('Actor');
     const candidateA = await addUser('CandidateA');
     const candidateB = await addUser('CandidateB');
-    const token = jwt.sign({
+    const token = await signRegisteredTestJwt(app, jwt, {
       sub: actor.user.id,
       tenantId: tenant.id,
       membershipId: actor.membership.id,
