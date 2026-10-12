@@ -25,7 +25,7 @@ EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile sta
 4. `appointments.read` izni varsa `GET /appointments` ile 7 günlük randevu listesi gösterilir; şube/şirket kısıtlaması sunucu tarafından uygulanır.
 5. Oturum belirteci **yalnızca uygulama belleğinde** tutulur; uygulama kapanınca yeni giriş gerekir. Kalıcı oturum ve güvenli cihaz-bağımlı yenileme yönetimi henüz uygulanmadı.
 6. Giriş/MFA/yenileme yanıtlarındaki `sessionId`, sunucu oturum kayıtlarının kullanıcıya açık, SHA-256 tabanlı kimliğidir; gizli yenileme belirteci değildir. Mobil çıkış, JWT ile yetkilendirilmiş `POST /auth/sessions/:id/revoke` isteğiyle **sadece o oturumun yenileme belirtecini** iptal eder. API, kullanıcı ve şirket kapsamını doğrular. Ağ isteği başarısız olursa uygulama yerel belirteci yine siler ve kullanıcıyı uyarır.
-7. **Önemli:** Mevcut erişim JWT'si stateless olduğundan, sunucuda oturumu iptal etmek daha önce üretilmiş JWT'leri süresi dolana kadar anında geçersiz kılmaz. Gerçek cihaz testlerinden ve sunucu taraflı JWT iptal kontrolünden önce bu adımı tam oturum geçersizleştirmesi saymayın.
+7. **JWT oturum iptali:** Erişim JWT'si sunucu oturumuna ait `sessionId` içerir. Her korumalı API isteğinde JWT imzası/süresi yanında Redis oturum kaydı ve kullanıcı, tenant, üyelik, şirket, şube kapsamı denetlenir. Oturum iptali veya yenileme dönüşümü sonrasında eski JWT sonraki istekte **401** alır. Giriş öncesi eski JWT'ler yeni kural nedeniyle artık kabul edilmez; geçişte yeniden giriş veya geçerli yenileme çereziyle oturum yenileme gerekir. Redis erişilemezse korumalı istekler başarılı sayılmaz. Bu adım gerçek cihaz testlerinin yerine geçmez.
 
 ## Bilinen kapsam sınırları
 
