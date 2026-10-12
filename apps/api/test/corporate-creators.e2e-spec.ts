@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@beauty-erp/database';
 import request from 'supertest';
+import { signRegisteredTestJwt } from './registered-jwt.helper';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from './../src/app.module';
 import { PrismaExceptionFilter } from './../src/common/database/prisma-exception.filter';
@@ -28,6 +29,6 @@ describe('Corporate creators (e2e)',()=>{
   const branchBList=await request(app.getHttpServer()).get('/corporate-communications/creators?limit=20').set('Authorization',managerB).expect(200);expect(branchBList.body.some((x:{id:string})=>x.id===creator.body.id)).toBe(false);
   await request(app.getHttpServer()).get(`/corporate-communications/creators/${creator.body.id}/collaborations`).set('Authorization',managerB).expect(404);
 
-  async function actor(label:string,actions:readonly string[],branchId:string){const role=await prisma.role.create({data:{tenantId:tenant.id,companyId:company.id,name:`Creator ${label}`,slug:`creator-${label}-${suffix}`,scope:'BRANCH'}});for(const action of actions){const p=await prisma.permission.upsert({where:{resource_action:{resource:'communications',action}},update:{},create:{resource:'communications',action,description:`communications ${action}`}});await prisma.rolePermission.create({data:{roleId:role.id,permissionId:p.id}});}const user=await prisma.user.create({data:{email:`creator-${label}-${suffix}@example.test`,passwordHash:'not-used',firstName:'Creator',lastName:label}});const membership=await prisma.membership.create({data:{userId:user.id,tenantId:tenant.id,companyId:company.id,roleId:role.id}});await prisma.membershipBranchAccess.create({data:{membershipId:membership.id,branchId}});return `Bearer ${jwt.sign({sub:user.id,tenantId:tenant.id,membershipId:membership.id,roleId:role.id,companyId:company.id,branchId,roleScope:'BRANCH'})}`;}
+  async function actor(label:string,actions:readonly string[],branchId:string){const role=await prisma.role.create({data:{tenantId:tenant.id,companyId:company.id,name:`Creator ${label}`,slug:`creator-${label}-${suffix}`,scope:'BRANCH'}});for(const action of actions){const p=await prisma.permission.upsert({where:{resource_action:{resource:'communications',action}},update:{},create:{resource:'communications',action,description:`communications ${action}`}});await prisma.rolePermission.create({data:{roleId:role.id,permissionId:p.id}});}const user=await prisma.user.create({data:{email:`creator-${label}-${suffix}@example.test`,passwordHash:'not-used',firstName:'Creator',lastName:label}});const membership=await prisma.membership.create({data:{userId:user.id,tenantId:tenant.id,companyId:company.id,roleId:role.id}});await prisma.membershipBranchAccess.create({data:{membershipId:membership.id,branchId}});return `Bearer ${await signRegisteredTestJwt(app, jwt, {sub:user.id,tenantId:tenant.id,membershipId:membership.id,roleId:role.id,companyId:company.id,branchId,roleScope:'BRANCH'})}`;}
  });
 });

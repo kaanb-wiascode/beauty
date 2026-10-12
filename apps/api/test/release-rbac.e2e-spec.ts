@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@beauty-erp/database';
 import request from 'supertest';
+import { signRegisteredTestJwt } from './registered-jwt.helper';
 import { randomUUID } from 'node:crypto';
 
 import { AppModule } from './../src/app.module';
@@ -125,7 +126,7 @@ describe('Release RBAC denials (e2e)', () => {
       },
     });
 
-    const token = jwt.sign({
+    const token = await signRegisteredTestJwt(app, jwt, {
       sub: user.id,
       tenantId: tenant.id,
       membershipId: membership.id,

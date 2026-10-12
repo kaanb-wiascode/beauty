@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '@beauty-erp/database';
 import request from 'supertest';
+import { signRegisteredTestJwt } from './registered-jwt.helper';
 import { randomUUID } from 'node:crypto';
 
 import { AppModule } from './../src/app.module';
@@ -106,7 +107,7 @@ describe('Role / permission matrix (e2e)', () => {
     await app.close();
   });
 
-  function tokenFor(input: {
+  async function tokenFor(input: {
     userId: string;
     tenantId: string;
     membershipId: string;
@@ -115,7 +116,7 @@ describe('Role / permission matrix (e2e)', () => {
     branchId?: string;
     roleScope: 'CENTRAL' | 'COMPANY' | 'BRANCH';
   }) {
-    return jwt.sign({
+    return signRegisteredTestJwt(app, jwt, {
       sub: input.userId,
       tenantId: input.tenantId,
       membershipId: input.membershipId,
@@ -187,7 +188,7 @@ describe('Role / permission matrix (e2e)', () => {
       },
     });
 
-    const adminToken = tokenFor({
+    const adminToken = await tokenFor({
       userId: adminUser.id,
       tenantId: tenant.id,
       membershipId: adminMembership.id,
@@ -289,7 +290,7 @@ describe('Role / permission matrix (e2e)', () => {
         });
       }
 
-      const token = tokenFor({
+      const token = await tokenFor({
         userId: user.id,
         tenantId: tenant.id,
         membershipId: membership.id,
@@ -332,7 +333,7 @@ describe('Role / permission matrix (e2e)', () => {
         expect(sensitive.status).toBe(403);
       }
 
-      const foreignBranchToken = tokenFor({
+      const foreignBranchToken = await tokenFor({
         userId: user.id,
         tenantId: tenant.id,
         membershipId: membership.id,
@@ -356,7 +357,7 @@ describe('Role / permission matrix (e2e)', () => {
       }
 
       if (template.scope === 'BRANCH') {
-        const noBranchToken = tokenFor({
+        const noBranchToken = await tokenFor({
           userId: user.id,
           tenantId: tenant.id,
           membershipId: membership.id,
