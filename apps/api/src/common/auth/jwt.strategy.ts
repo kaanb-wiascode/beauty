@@ -9,7 +9,9 @@ export type RoleScopeValue = 'CENTRAL' | 'COMPANY' | 'BRANCH';
 
 export interface JwtPayload {
   sub: string;
-  sessionId: string;
+  // Required for inbound JWTs by validate(); optional on legacy internal
+  // reporting contexts that are never accepted as HTTP bearer credentials.
+  sessionId?: string;
   tenantId: string;
   membershipId: string;
   roleId: string;
