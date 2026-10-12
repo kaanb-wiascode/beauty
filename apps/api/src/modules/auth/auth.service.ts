@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { RedisService } from '../../infrastructure/redis/redis.service';
 
@@ -475,7 +475,7 @@ export class AuthService {
       );
     }
 
-    const accessToken = await this.createAccessToken(
+    const refreshToken = await this.createRefreshSession(
       user.id,
       membership.tenantId,
       membership.company.id,
@@ -485,7 +485,7 @@ export class AuthService {
       membership.role.scope,
     );
 
-    const refreshToken = await this.createRefreshSession(
+    const accessToken = await this.createAccessToken(
       user.id,
       membership.tenantId,
       membership.company.id,
@@ -493,6 +493,7 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
+          refreshToken,
     );
 
     return {
@@ -599,7 +600,7 @@ export class AuthService {
 
     const companyId = membership.companyId ?? membership.company.id;
 
-    const accessToken = await this.createAccessToken(
+    const refreshToken = await this.createRefreshSession(
       membership.user.id,
       membership.tenantId,
       companyId,
@@ -609,7 +610,7 @@ export class AuthService {
       membership.role.scope,
     );
 
-    const refreshToken = await this.createRefreshSession(
+    const accessToken = await this.createAccessToken(
       membership.user.id,
       membership.tenantId,
       companyId,
@@ -617,6 +618,7 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
+          refreshToken,
     );
 
     return {
@@ -758,7 +760,7 @@ export class AuthService {
       );
     }
 
-    const newAccessToken = await this.createAccessToken(
+    const newRefreshToken = await this.createRefreshSession(
       membership.user.id,
       membership.tenantId,
       companyId,
@@ -768,7 +770,7 @@ export class AuthService {
       membership.role.scope,
     );
 
-    const newRefreshToken = await this.createRefreshSession(
+    const newAccessToken = await this.createAccessToken(
       membership.user.id,
       membership.tenantId,
       companyId,
@@ -776,6 +778,7 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
+          newRefreshToken,
     );
 
     await this.redis.delete(key);
@@ -808,8 +811,13 @@ export class AuthService {
     membershipId: string,
     roleId: string,
     roleScope: 'CENTRAL' | 'COMPANY' | 'BRANCH',
+    refreshId: string,
   ): Promise<string> {
+    // Bind this short-lived JWT to the actual revocable server session.
+    // The fingerprint is public; never put the secret refresh UUID in a JWT.
+    const sessionId = createHash('sha256').update(refreshId).digest('hex');
     return this.jwtService.signAsync({
+      sessionId,
       sub: userId,
       tenantId,
       companyId,
