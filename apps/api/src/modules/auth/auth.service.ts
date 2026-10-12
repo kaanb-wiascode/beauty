@@ -493,7 +493,7 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
-          refreshToken,
+      refreshToken,
     );
 
     return {
@@ -618,7 +618,7 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
-          refreshToken,
+      refreshToken,
     );
 
     return {
@@ -778,7 +778,7 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
-          newRefreshToken,
+      newRefreshToken,
     );
 
     await this.redis.delete(key);
