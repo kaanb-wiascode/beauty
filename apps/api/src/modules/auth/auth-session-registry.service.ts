@@ -124,6 +124,41 @@ export class AuthSessionRegistryService {
     return this.publicRecord(next, ttl);
   }
 
+  /**
+   * Fail closed for every bearer-authenticated request when its backing
+   * refresh session was revoked, rotated, expired or has a different scope.
+   * The Redis TTL controls expiry; never fail open during Redis outages.
+   */
+  async assertActiveAccessSession(input: {
+    sessionId: string;
+    userId: string;
+    tenantId: string;
+    membershipId: string;
+    companyId: string;
+    branchId: string | null;
+    roleScope: string;
+  }): Promise<void> {
+    if (!/^[a-f0-9]{64}$/.test(input.sessionId)) {
+      throw new UnauthorizedException('Session identifier is missing or invalid');
+    }
+
+    const raw = await this.redis.get(`auth:session:${input.sessionId}`);
+    const record = raw ? this.parse(raw) : null;
+    if (
+      !record ||
+      record.id !== input.sessionId ||
+      this.fingerprint(record.refreshId) !== input.sessionId ||
+      record.userId !== input.userId ||
+      record.tenantId !== input.tenantId ||
+      record.membershipId !== input.membershipId ||
+      record.companyId !== input.companyId ||
+      record.branchId !== input.branchId ||
+      record.roleScope !== input.roleScope
+    ) {
+      throw new UnauthorizedException('Session is expired, revoked or does not match access token');
+    }
+  }
+
   async list(userId: string, tenantId: string) {
     return this.listScoped(userId, tenantId, null);
   }
