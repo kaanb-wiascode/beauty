@@ -78,6 +78,68 @@ describe('AuthSessionRegistryService', () => {
     expect(values.get(`auth:session:${result.id}`)).toContain('00000000-0000-4000-8000-000000000001');
   });
 
+  it('accepts live JWT scopes and immediately rejects revoked or tampered sessions', async () => {
+    const session = await service.register({
+      refreshId: '00000000-0000-4000-8000-000000000078',
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleScope: 'BRANCH',
+    });
+    const input = {
+      sessionId: session.id,
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      roleScope: 'BRANCH',
+    };
+    await expect(service.assertActiveAccessSession(input)).resolves.toBeUndefined();
+    await expect(service.assertActiveAccessSession({ ...input, tenantId: 'tenant-2' }))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.assertActiveAccessSession({ ...input, branchId: null }))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.assertActiveAccessSession({ ...input, companyId: 'company-2' }))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.assertActiveAccessSession({ ...input, membershipId: 'membership-2' }))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.assertActiveAccessSession({ ...input, sessionId: '' }))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+    await service.revoke(session.id, 'user-1', 'tenant-1');
+    await expect(service.assertActiveAccessSession(input))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('invalidates old JWT session IDs after refresh rotation', async () => {
+    const refreshToken = '00000000-0000-4000-8000-000000000080';
+    const first = await service.register({
+      refreshId: refreshToken,
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-1',
+      companyId: 'company-1',
+      branchId: null,
+      roleScope: 'CENTRAL',
+    });
+    const input = {
+      sessionId: first.id,
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-1',
+      companyId: 'company-1',
+      branchId: null,
+      roleScope: 'CENTRAL',
+    };
+    const next = await service.rotate(refreshToken, '00000000-0000-4000-8000-000000000081');
+    await expect(service.assertActiveAccessSession(input))
+      .rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.assertActiveAccessSession({ ...input, sessionId: next.id }))
+      .resolves.toBeUndefined();
+  });
+
   it('rotates the public session fingerprint with the refresh session', async () => {
     const first = await service.register({
       refreshId: '00000000-0000-4000-8000-000000000001',
