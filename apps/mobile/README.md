@@ -27,6 +27,14 @@ EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile sta
 6. Giriş/MFA/yenileme yanıtlarındaki `sessionId`, sunucu oturum kayıtlarının kullanıcıya açık, SHA-256 tabanlı kimliğidir; gizli yenileme belirteci değildir. Mobil çıkış, JWT ile yetkilendirilmiş `POST /auth/sessions/:id/revoke` isteğiyle **sadece o oturumun yenileme belirtecini** iptal eder. API, kullanıcı ve şirket kapsamını doğrular. Ağ isteği başarısız olursa uygulama yerel belirteci yine siler ve kullanıcıyı uyarır.
 7. **JWT oturum iptali:** Erişim JWT'si sunucu oturumuna ait `sessionId` içerir. Her korumalı API isteğinde JWT imzası/süresi yanında Redis oturum kaydı ve kullanıcı, tenant, üyelik, şirket, şube kapsamı denetlenir. Oturum iptali veya yenileme dönüşümü sonrasında eski JWT sonraki istekte **401** alır. Giriş öncesi eski JWT'ler yeni kural nedeniyle artık kabul edilmez; geçişte yeniden giriş veya geçerli yenileme çereziyle oturum yenileme gerekir. Redis erişilemezse korumalı istekler başarılı sayılmaz. Bu adım gerçek cihaz testlerinin yerine geçmez.
 
+## Aktif Oturumlar
+
+- Giriş yaptıktan sonra **Aktif Oturumlar** bölümünde `GET /auth/sessions` ile sunucunun o kullanıcıya ve şirkete erişim hakkı verdiği oturumlar listelenir.
+- İlgili girişe ait SHA-256 `sessionId` eşleşiyorsa **Bu oturum**, diğerleri **Diğer oturum** olarak gösterilir. Bu etiketler fiziksel cihaz kimliğini doğrulamaz.
+- Diğer oturumu kapatma işlemi iki aşamalı kullanıcı onayı ardından `POST /auth/sessions/:id/revoke` ile yapılır. İptal edilen oturumun JWT'si sonraki istekte reddedilir, mevcut oturum aktif kalır.
+- Yetki veya oturum süresi bitmişse API'den dönen 401 üzerine yerel oturum temizlenir; zaten reddedilen JWT ile gereksiz çıkış isteği tekrarlanmaz.
+- **Sınır:** Erişim JWT'si 15 dakika içinde sona erer ve mobil uygulamada güvenli kalıcı yenileme henüz uygulanmadı. JWT süresi dolmuşsa sunucuda bir oturum kaydı mevcut olsa bile mobil iptal isteği gönderilemeyebilir. Bu durumda kullanıcı yeniden oturum açıp oturum listesinden eski oturumu iptal edebilir. Çıkışın sunucuda doğrulandığından emin olunamıyorsa uygulama kullanıcıyı uyarır.
+
 ## Bilinen kapsam sınırları
 
 - Randevu ekleme, güncelleme, iptal, tahsilat ve personel puantajı **aktif değildir**.
