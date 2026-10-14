@@ -32,6 +32,9 @@ EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile sta
 - **Randevular** ekranı müşteri adı, hizmet, personel, şube ve randevu durumunu API'nin `appointments.read` yetki kontrolüyle listeler.
 - API'nin `GET /appointments` cevabı yalnızca `customer.firstName/lastName`, `service.name`, `staff.firstName/lastName`, `branch.name` alanlarını ekler; iletişim ve sağlık bilgileri bu görünüm için aktarılmaz.
 - Tarih seçenekleri **Bugün / 7 gün / 30 gün** ve **Tümü / Planlandı / Onaylandı / Tamamlandı / İptal edildi / Gelmedi** durumu için sunucu filtreleri kullanılır; şube kapsamı API tarafından uygulanır.
+- Randevu kartlarındaki **Randevu detayını gör** kontrolü, yalnızca zaten erişimi onaylanmış listede bulunan hizmet, müşteri, personel, şube, tarih ve kayıt kimliği alanlarını genişletir; ek bir hassas ayrıntı isteği yapmaz.
+- **Personel seç** kontrolü, yalnızca `appointments.read` izniyle erişilen `GET /appointments/staff-options?search=...` üzerinden en fazla 30 aktif personel seçeneğini döndürür. API, görevlinin şirket/şube kapsamını uygular ve yalnızca `id`, `firstName`, `lastName` ve `branchId` seçer. Tam personel rehberine ve iletişim bilgilerine erişim verilmez.
+- Seçilen personelin UUID'si randevu listesine `staffId` filtresi olarak eklenir; API ayrıca yetki kapsamına göre filtreler. Hesap değiştiğinde personel seçimi silinir.
 - Randevular salt okunurdur; ekleme, iptal, tahsilat ve personel puantaj işlemleri bu mobil sürümde bulunmaz.
 - Tarihler cihazın yerel gün başlangıcına göre hesaplanır. Gerçek cihazda saat dilimi ve yaz saati sınırları doğrulanmalıdır.
 
