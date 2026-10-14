@@ -196,3 +196,8 @@ export function appointmentsPath(
     : '';
   return `/appointments/mobile-list?page=${page}&limit=20&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${status}${staffId}`;
 }
+
+/** Dedicated, branch-scoped, minimal detail endpoint. */
+export function appointmentMobileDetailPath(id: string): string {
+  return `/appointments/mobile-detail/${encodeURIComponent(id)}`;
+}
