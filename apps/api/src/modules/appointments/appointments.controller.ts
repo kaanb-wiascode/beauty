@@ -47,6 +47,14 @@ export class AppointmentsController {
     return this.appointmentsService.findAll(input);
   }
 
+  @Get('mobile-list')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
+  async findMobileList(@Query() query: unknown) {
+    const input = listAppointmentsSchema.parse(query);
+    return this.appointmentsService.findMobileList(input);
+  }
+
   @Get('staff-options')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'read')
