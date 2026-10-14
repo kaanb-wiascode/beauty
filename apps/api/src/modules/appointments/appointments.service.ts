@@ -423,6 +423,33 @@ export class AppointmentsService {
    * requiring access to the full HR staff directory or exposing contact data.
    * The same branch scope used by the appointments list applies here.
    */
+  /**
+   * Whitelist the mobile reception response. The general-purpose appointments
+   * endpoint also includes finance and package internals for the web portal;
+   * those records must never be serialized into the mobile listing.
+   */
+  async findMobileList(input: ListAppointmentsInput) {
+    const { data, meta } = await this.findAll(input);
+
+    return {
+      data: data.map((appointment) => ({
+        id: appointment.id,
+        startAt: appointment.startAt,
+        endAt: appointment.endAt,
+        status: appointment.status,
+        branchId: appointment.branchId,
+        customerId: appointment.customerId,
+        serviceId: appointment.serviceId,
+        staffId: appointment.staffId,
+        customer: appointment.customer,
+        service: appointment.service,
+        staff: appointment.staff,
+        branch: appointment.branch,
+      })),
+      meta,
+    };
+  }
+
   async findStaffOptions(search?: string) {
     const scope = await this.organizationScope.getBranchScopedWhere();
     const searchWhere = search
