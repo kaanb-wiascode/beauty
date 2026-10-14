@@ -78,9 +78,6 @@ function AppointmentCard({ item, token, onUnauthorized }: { item: AppointmentSum
   const customerName = item.customer
     ? [item.customer.firstName, item.customer.lastName].filter(Boolean).join(' ')
     : 'Müşteri bilgisi bulunamadı';
-  const staffName = item.staff
-    ? [item.staff.firstName, item.staff.lastName].filter(Boolean).join(' ')
-    : 'Personel bilgisi bulunamadı';
   const displayed = detail ?? item;
   const durationMinutes = Math.round(
     (new Date(displayed.endAt).getTime() - new Date(displayed.startAt).getTime()) / 60_000,
