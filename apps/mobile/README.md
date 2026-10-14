@@ -27,6 +27,14 @@ EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile sta
 6. Giriş/MFA/yenileme yanıtlarındaki `sessionId`, sunucu oturum kayıtlarının kullanıcıya açık, SHA-256 tabanlı kimliğidir; gizli yenileme belirteci değildir. Mobil çıkış, JWT ile yetkilendirilmiş `POST /auth/sessions/:id/revoke` isteğiyle **sadece o oturumun yenileme belirtecini** iptal eder. API, kullanıcı ve şirket kapsamını doğrular. Ağ isteği başarısız olursa uygulama yerel belirteci yine siler ve kullanıcıyı uyarır.
 7. **JWT oturum iptali:** Erişim JWT'si sunucu oturumuna ait `sessionId` içerir. Her korumalı API isteğinde JWT imzası/süresi yanında Redis oturum kaydı ve kullanıcı, tenant, üyelik, şirket, şube kapsamı denetlenir. Oturum iptali veya yenileme dönüşümü sonrasında eski JWT sonraki istekte **401** alır. Giriş öncesi eski JWT'ler yeni kural nedeniyle artık kabul edilmez; geçişte yeniden giriş veya geçerli yenileme çereziyle oturum yenileme gerekir. Redis erişilemezse korumalı istekler başarılı sayılmaz. Bu adım gerçek cihaz testlerinin yerine geçmez.
 
+## Randevu görünümü
+
+- **Randevular** ekranı müşteri adı, hizmet, personel, şube ve randevu durumunu API'nin `appointments.read` yetki kontrolüyle listeler.
+- API'nin `GET /appointments` cevabı yalnızca `customer.firstName/lastName`, `service.name`, `staff.firstName/lastName`, `branch.name` alanlarını ekler; iletişim ve sağlık bilgileri bu görünüm için aktarılmaz.
+- Tarih seçenekleri **Bugün / 7 gün / 30 gün** ve **Tümü / Planlandı / Onaylandı / Tamamlandı / İptal edildi / Gelmedi** durumu için sunucu filtreleri kullanılır; şube kapsamı API tarafından uygulanır.
+- Randevular salt okunurdur; ekleme, iptal, tahsilat ve personel puantaj işlemleri bu mobil sürümde bulunmaz.
+- Tarihler cihazın yerel gün başlangıcına göre hesaplanır. Gerçek cihazda saat dilimi ve yaz saati sınırları doğrulanmalıdır.
+
 ## Aktif Oturumlar
 
 - Giriş yaptıktan sonra **Aktif Oturumlar** bölümünde `GET /auth/sessions` ile sunucunun o kullanıcıya ve şirkete erişim hakkı verdiği oturumlar listelenir.
