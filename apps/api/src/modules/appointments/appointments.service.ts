@@ -418,6 +418,36 @@ export class AppointmentsService {
     }
   }
 
+  /**
+   * Staff choices are intentionally restricted to names and IDs, without
+   * requiring access to the full HR staff directory or exposing contact data.
+   * The same branch scope used by the appointments list applies here.
+   */
+  async findStaffOptions(search?: string) {
+    const scope = await this.organizationScope.getBranchScopedWhere();
+    const searchWhere = search
+      ? {
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' as const } },
+            { lastName: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+    const data = await this.prisma.staff.findMany({
+      where: { ...scope, status: 'ACTIVE', ...searchWhere },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        branchId: true,
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }, { id: 'asc' }],
+      take: 30,
+    });
+
+    return { data };
+  }
+
   async findAll(input: ListAppointmentsInput) {
     const { page, limit, status, staffId, customerId, serviceId, from, to } =
       input;
