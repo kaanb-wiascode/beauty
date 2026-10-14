@@ -55,6 +55,13 @@ export class AppointmentsController {
     return this.appointmentsService.findMobileList(input);
   }
 
+  @Get('mobile-detail/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
+  async findMobileDetail(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.appointmentsService.findMobileDetail(id);
+  }
+
   @Get('staff-options')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'read')
