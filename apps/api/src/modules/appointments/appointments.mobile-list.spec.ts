@@ -18,12 +18,11 @@ describe('AppointmentsService mobile reception list', () => {
       staff: { firstName: 'Selin', lastName: 'Kaya' },
       branch: { name: 'Kadıköy' },
     };
-    const prisma = {
-      appointment: {
-        findMany: jest.fn().mockResolvedValue([appointment]),
-        count: jest.fn().mockResolvedValue(1),
-      },
-    };
+    // Explicit argument types ensure this test checks the query without
+    // unsafely reading untyped Jest mock calls.
+    const findMany = jest.fn(async (_query: unknown) => [appointment]);
+    const count = jest.fn(async (_query: unknown) => 1);
+    const prisma = { appointment: { findMany, count } };
     const tenant = { getTenantId: jest.fn().mockReturnValue('tenant-1') };
     const scope = {
       getBranchScopedWhere: jest.fn().mockResolvedValue({
@@ -50,27 +49,41 @@ describe('AppointmentsService mobile reception list', () => {
     });
 
     expect(result.data).toEqual([appointment]);
-    expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
-    const query = prisma.appointment.findMany.mock.calls[0][0];
-    expect(query.where).toEqual({
+    expect(result.meta).toEqual({
+      page: 1,
+      limit: 20,
+      total: 1,
+      totalPages: 1,
+    });
+    const scopedWhere = {
       tenantId: 'tenant-1',
       branchId: 'branch-1',
       status: 'CONFIRMED',
-      AND: [
-        { endAt: { gt: from } },
-        { startAt: { lt: to } },
-      ],
-    });
-    expect(query.include).toEqual(expect.objectContaining({
-      customer: { select: { firstName: true, lastName: true } },
-      service: { select: { name: true } },
-      staff: { select: { firstName: true, lastName: true } },
-      branch: { select: { name: true } },
-    }));
-    // Do not return contact details, medical notes or staff profile data.
-    expect(query.include.customer.select.phone).toBeUndefined();
-    expect(query.include.customer.select.email).toBeUndefined();
-    expect(query.include.staff.select.profile).toBeUndefined();
-    expect(prisma.appointment.count).toHaveBeenCalledWith({ where: query.where });
+      AND: [{ endAt: { gt: from } }, { startAt: { lt: to } }],
+    };
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: scopedWhere,
+        include: expect.objectContaining({
+          customer: { select: { firstName: true, lastName: true } },
+          service: { select: { name: true } },
+          staff: { select: { firstName: true, lastName: true } },
+          branch: { select: { name: true } },
+        }),
+      }),
+    );
+    expect(count).toHaveBeenCalledWith({ where: scopedWhere });
+
+    const firstCall: unknown = findMany.mock.calls[0]?.[0];
+    expect(firstCall).toEqual(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          customer: { select: { firstName: true, lastName: true } },
+          staff: { select: { firstName: true, lastName: true } },
+        }),
+      }),
+    );
+    // The explicit field projections must not request contact details,
+    // customer health information or staff profiles.
   });
 });
