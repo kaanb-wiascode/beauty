@@ -54,14 +54,23 @@ export type AuthMe = {
   };
 };
 
+export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type AppointmentRangeDays = 1 | 7 | 30;
+
 export type AppointmentSummary = {
   id: string;
   startAt: string;
   endAt: string;
-  status: 'SCHEDULED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+  status: AppointmentStatus;
   branchId: string | null;
   customerId: string;
   serviceId: string;
+  staffId: string;
+  // The API selects only name fields, not customer contact or medical data.
+  customer?: { firstName: string; lastName: string };
+  service?: { name: string };
+  staff?: { firstName: string; lastName: string };
+  branch?: { name: string };
 };
 
 export type AppointmentsPage = {
@@ -146,15 +155,24 @@ export function canReadAppointments(membership: ValooMembership): boolean {
   return membership.permissions.includes('appointments.read');
 }
 
-export function appointmentsWindow(now = new Date()): { from: string; to: string } {
+export function appointmentsWindow(
+  now = new Date(),
+  days: AppointmentRangeDays = 7,
+): { from: string; to: string } {
+  // Local midnight, not UTC midnight: the window follows the staff member's
+  // calendar day across daylight-saving transitions.
   const from = new Date(now);
   from.setHours(0, 0, 0, 0);
   const to = new Date(from);
-  to.setDate(to.getDate() + 7);
+  to.setDate(to.getDate() + days);
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-export function appointmentsPath(page = 1): string {
-  const { from, to } = appointmentsWindow();
-  return `/appointments?page=${page}&limit=20&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+export function appointmentsPath(
+  page = 1,
+  options: { days?: AppointmentRangeDays; status?: AppointmentStatus | null } = {},
+): string {
+  const { from, to } = appointmentsWindow(new Date(), options.days ?? 7);
+  const status = options.status ? `&status=${encodeURIComponent(options.status)}` : '';
+  return `/appointments?page=${page}&limit=20&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${status}`;
 }
