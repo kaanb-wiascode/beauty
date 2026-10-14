@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,12 +21,17 @@ export default function PersonnelScreen() {
   const token = session?.accessToken ?? null;
   const permitted = session?.membership.permissions.includes('hr_self_service.read') ?? false;
   const [profile, setProfile] = useState<MobileProfile | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const load = useCallback(async (signal: AbortSignal) => {
+  const load = useCallback(async () => {
     if (!token || !permitted) return;
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const signal = controller.signal;
     setLoading(true);
     setMessage(null);
     setProfile(null);
@@ -64,20 +69,22 @@ export default function PersonnelScreen() {
       if (error instanceof ValooApiError && error.status === 401) expireSession();
       else setMessage(error instanceof Error ? error.message : 'Personel bilgileri yüklenemedi.');
     } finally {
-      if (!signal.aborted) setLoading(false);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setLoading(false);
+      }
     }
   }, [token, permitted, expireSession]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    if (token && permitted) void load(controller.signal);
+    if (token && permitted) void load();
     else {
       setProfile(null);
       setTeam(null);
       setTeamMessage(null);
       setMessage(null);
     }
-    return () => controller.abort();
+    return () => requestRef.current?.abort();
   }, [token, permitted, load]);
 
   return (
@@ -92,7 +99,7 @@ export default function PersonnelScreen() {
           <View style={styles.card}><Text style={styles.title}>Erişim yetkisi bulunmuyor</Text><Text style={styles.body}>Personel öz hizmet bilgilerini görüntüleme yetkiniz bulunmuyor.</Text></View>
         ) : (
           <>
-            <Pressable accessibilityRole="button" accessibilityLabel="Personel bilgilerimi yenile" disabled={loading} onPress={() => void load(new AbortController().signal)} style={styles.button}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Personel bilgilerimi yenile" disabled={loading} onPress={() => void load()} style={styles.button}>
               <Text style={styles.buttonText}>Bilgilerimi yenile</Text>
             </Pressable>
             {loading && <ActivityIndicator color="#086ad8" accessibilityLabel="Personel bilgileri yükleniyor" />}
