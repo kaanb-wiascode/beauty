@@ -118,6 +118,66 @@ describe('Mobile session revocation contract (e2e)', () => {
       .expect(200);
   });
 
+  it('lists multiple own sessions and revokes another without affecting the current session', async () => {
+    const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
+    const email = `session-list-${suffix}@example.test`;
+    const password = 'MobileTestStrong2026!';
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        email,
+        password,
+        firstName: 'Mobile',
+        lastName: 'Sessions',
+        tenantName: `Mobile Sessions ${suffix}`,
+        tenantSlug: `mobile-sessions-${suffix}`,
+      })
+      .expect(201);
+
+    const firstResponse = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(201);
+    const secondResponse = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(201);
+    const first = firstResponse.body as { accessToken: string; sessionId: string };
+    const second = secondResponse.body as { accessToken: string; sessionId: string };
+    expect(first.sessionId).not.toBe(second.sessionId);
+
+    const before = await request(app.getHttpServer())
+      .get('/auth/sessions')
+      .set('Authorization', `Bearer ${first.accessToken}`)
+      .expect(200);
+    expect(before.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: first.sessionId }),
+      expect.objectContaining({ id: second.sessionId }),
+    ]));
+
+    await request(app.getHttpServer())
+      .post(`/auth/sessions/${second.sessionId}/revoke`)
+      .set('Authorization', `Bearer ${first.accessToken}`)
+      .expect(201)
+      .expect({ id: second.sessionId, revoked: true });
+
+    await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${second.accessToken}`)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${first.accessToken}`)
+      .expect(200);
+
+    const remaining = await request(app.getHttpServer())
+      .get('/auth/sessions')
+      .set('Authorization', `Bearer ${first.accessToken}`)
+      .expect(200);
+    expect(remaining.body.map((session: { id: string }) => session.id)).toContain(first.sessionId);
+    expect(remaining.body.map((session: { id: string }) => session.id)).not.toContain(second.sessionId);
+  });
+
   it('refuses to revoke another tenant session using a different tenant JWT', async () => {
     const owner = await issueSession('owner');
     const stranger = await issueSession('stranger');
