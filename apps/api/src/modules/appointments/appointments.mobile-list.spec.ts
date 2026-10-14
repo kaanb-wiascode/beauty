@@ -17,6 +17,14 @@ describe('AppointmentsService mobile reception list', () => {
       service: { name: 'Cilt Bakımı' },
       staff: { firstName: 'Selin', lastName: 'Kaya' },
       branch: { name: 'Kadıköy' },
+      customerId: 'customer-1',
+      serviceId: 'service-1',
+      staffId: 'staff-1',
+      startAt: new Date('2026-10-15T10:00:00.000Z'),
+      endAt: new Date('2026-10-15T11:00:00.000Z'),
+      notes: 'Internal details must remain on server',
+      payment: { amount: 500, method: 'CASH' },
+      session: { customerPackage: { package: { name: 'Private bundle' } } },
     };
     // Explicit argument types ensure this test checks the query without
     // unsafely reading untyped Jest mock calls.
@@ -93,5 +101,32 @@ describe('AppointmentsService mobile reception list', () => {
       lastName: true,
     });
     expect(query?.include.branch.select).toEqual({ name: true });
+
+    const mobile = await service.findMobileList({
+      page: 1,
+      limit: 20,
+      status: 'CONFIRMED',
+      from,
+      to,
+    });
+    expect(mobile.data).toEqual([
+      {
+        id: appointment.id,
+        startAt: appointment.startAt,
+        endAt: appointment.endAt,
+        status: appointment.status,
+        branchId: appointment.branchId,
+        customerId: appointment.customerId,
+        serviceId: appointment.serviceId,
+        staffId: appointment.staffId,
+        customer: appointment.customer,
+        service: appointment.service,
+        staff: appointment.staff,
+        branch: appointment.branch,
+      },
+    ]);
+    expect(mobile.data[0]).not.toHaveProperty('notes');
+    expect(mobile.data[0]).not.toHaveProperty('payment');
+    expect(mobile.data[0]).not.toHaveProperty('session');
   });
 });
