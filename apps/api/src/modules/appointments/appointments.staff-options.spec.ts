@@ -8,12 +8,14 @@ import { AppointmentsService } from './appointments.service';
 
 describe('AppointmentsService permission-scoped staff choices', () => {
   it('uses the caller branch scope and only returns name-only active staff', async () => {
-    const staff = [{
-      id: 'staff-1',
-      firstName: 'Selin',
-      lastName: 'Kaya',
-      branchId: 'branch-1',
-    }];
+    const staff = [
+      {
+        id: 'staff-1',
+        firstName: 'Selin',
+        lastName: 'Kaya',
+        branchId: 'branch-1',
+      },
+    ];
     const findMany = jest.fn((query: unknown) => {
       void query;
       return Promise.resolve(staff);
@@ -92,11 +94,7 @@ describe('AppointmentsService permission-scoped staff choices', () => {
         lastName: true,
         branchId: true,
       },
-      orderBy: [
-        { firstName: 'asc' },
-        { lastName: 'asc' },
-        { id: 'asc' },
-      ],
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }, { id: 'asc' }],
       take: 30,
     });
   });
