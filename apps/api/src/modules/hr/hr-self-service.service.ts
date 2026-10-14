@@ -17,7 +17,7 @@ export class HrSelfServiceService {
   const employee = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
   const branch = await this.prisma.branch.findFirst({
-    where: { id: employee.branchId, tenantId, companyId },
+    where: { id: employee.branchId, companyId },
     select: { id: true, name: true },
   });
   return {
