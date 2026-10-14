@@ -455,6 +455,11 @@ export class AppointmentsService {
         take: limit,
         orderBy: { startAt: 'asc' },
         include: {
+          // Appointment-facing names only, never contact or health details.
+          customer: { select: { firstName: true, lastName: true } },
+          service: { select: { name: true } },
+          staff: { select: { firstName: true, lastName: true } },
+          branch: { select: { name: true } },
           payment: {
             select: {
               id: true,
