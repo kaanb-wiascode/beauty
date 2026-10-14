@@ -450,6 +450,35 @@ export class AppointmentsService {
     };
   }
 
+  /**
+   * Mobile appointment detail is branch-scoped and deliberately excludes
+   * notes, payments, health information and package internals.
+   */
+  async findMobileDetail(id: string) {
+    const scope = await this.organizationScope.getBranchScopedWhere();
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id, ...scope },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        status: true,
+        branchId: true,
+        customerId: true,
+        serviceId: true,
+        staffId: true,
+        customer: { select: { firstName: true, lastName: true } },
+        service: { select: { name: true } },
+        staff: { select: { firstName: true, lastName: true } },
+        branch: { select: { name: true } },
+      },
+    });
+    if (!appointment) {
+      throw new NotFoundException('Randevu bulunamadı.');
+    }
+    return appointment;
+  }
+
   async findStaffOptions(search?: string) {
     const scope = await this.organizationScope.getBranchScopedWhere();
     const searchWhere = search
