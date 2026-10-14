@@ -13,6 +13,21 @@ export class HrSelfServiceService {
  private istanbulWorkDate(date:Date){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);const year=parts.find(part=>part.type==='year')?.value,month=parts.find(part=>part.type==='month')?.value,day=parts.find(part=>part.type==='day')?.value;if(!year||!month||!day)throw new BadRequestException('Puantaj iş günü hesaplanamadı.');return `${year}-${month}-${day}`;}
  private async employee(userId:string){const{tenantId,companyId}=this.scope();const rows=await this.prisma.$queryRawUnsafe<any[]>(`SELECT s.id,s."branchId" AS "branchId",s."firstName" AS "firstName",s."lastName" AS "lastName",s.email,s.status FROM hr_employee_user_links l JOIN staff s ON s.id=l.staff_id JOIN branches b ON b.id=s."branchId" WHERE l.tenant_id=$1 AND l.company_id=$2 AND l.user_id=$3 AND l.active=TRUE AND s."tenantId"=$1 AND b."companyId"=$2 LIMIT 1`,tenantId,companyId,userId);if(!rows.length)throw new NotFoundException('Employee identity is not linked to this user.');return rows[0];}
  async link(staffId:string,userId:string,actorId:string){const{tenantId,companyId}=this.scope();const staff=await this.prisma.staff.findFirst({where:{id:staffId,tenantId,branch:{companyId}},select:{id:true}});const user=await this.prisma.user.findFirst({where:{id:userId,memberships:{some:{tenantId,companyId,status:'ACTIVE'}}},select:{id:true}});if(!staff||!user)throw new NotFoundException('Staff or user not found in organization scope.');await this.prisma.$executeRawUnsafe(`INSERT INTO hr_employee_user_links(tenant_id,company_id,staff_id,user_id,linked_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,staff_id) DO UPDATE SET user_id=EXCLUDED.user_id,company_id=EXCLUDED.company_id,active=TRUE,linked_at=CURRENT_TIMESTAMP,linked_by=EXCLUDED.linked_by`,tenantId,companyId,staffId,userId,actorId);return{staffId,userId,active:true};}
+ async mobileProfile(userId: string) {
+  const employee = await this.employee(userId);
+  const { tenantId, companyId } = this.scope();
+  const branch = await this.prisma.branch.findFirst({
+    where: { id: employee.branchId, tenantId, companyId },
+    select: { id: true, name: true },
+  });
+  return {
+    id: employee.id,
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    status: employee.status,
+    branch: branch ? { id: branch.id, name: branch.name } : null,
+  };
+ }
  async employeeHome(userId:string){
   const employee=await this.employee(userId),year=new Date().getFullYear(),types=await this.leave.leaveTypes(),leaveBalances:any[]=[];
   for(const type of types.filter((x:any)=>x.active)){try{leaveBalances.push({...await this.leave.balance(employee.id,type.id,year),code:type.code,name:type.name});}catch{}}
