@@ -21,6 +21,7 @@ type SessionContextValue = {
   beginEnrollment: () => Promise<void>;
   verifyCode: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
+  expireSession: () => void;
   clearError: () => void;
   cancelChallenge: () => void;
 };
@@ -160,7 +161,17 @@ export function ValooSessionProvider({ children }: PropsWithChildren) {
     }
   }, [session]);
 
-  const value = useMemo<SessionContextValue>(() => ({
+  // A 401 already means the server rejected the bearer token. Clearing local
+  // identity without another revoke request avoids a misleading logout error.
+  const expireSession = useCallback(() => {
+    setSession(null);
+    setMe(null);
+    setChallenge(null);
+    setEnrollment(null);
+    setError('Oturumunuz sona erdi. Lütfen yeniden giriş yapın.');
+  }, []);
+
+  const value = useMemo<SessionContextValue>(() => ({ 
     session,
     me,
     challenge,
@@ -171,6 +182,7 @@ export function ValooSessionProvider({ children }: PropsWithChildren) {
     beginEnrollment,
     verifyCode,
     signOut,
+    expireSession,
     clearError: () => setError(null),
     cancelChallenge: () => {
       if (busy) return;
@@ -178,7 +190,7 @@ export function ValooSessionProvider({ children }: PropsWithChildren) {
       setEnrollment(null);
       setError(null);
     },
-  }), [session, me, challenge, enrollment, busy, error, login, beginEnrollment, verifyCode, signOut]);
+  }), [session, me, challenge, enrollment, busy, error, login, beginEnrollment, verifyCode, signOut, expireSession]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
