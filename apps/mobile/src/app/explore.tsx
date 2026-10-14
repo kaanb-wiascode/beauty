@@ -8,6 +8,8 @@ import {
   valooRequest,
   ValooApiError,
   type AppointmentSummary,
+  type AppointmentRangeDays,
+  type AppointmentStatus,
   type AppointmentsPage,
 } from '@/lib/valoo-api';
 import { useValooSession } from '@/lib/valoo-session';
@@ -29,15 +31,23 @@ function prettyDate(value: string) {
 }
 
 function AppointmentCard({ item }: { item: AppointmentSummary }) {
+  const customerName = item.customer
+    ? [item.customer.firstName, item.customer.lastName].filter(Boolean).join(' ')
+    : 'Müşteri bilgisi bulunamadı';
+  const staffName = item.staff
+    ? [item.staff.firstName, item.staff.lastName].filter(Boolean).join(' ')
+    : 'Personel bilgisi bulunamadı';
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
-        <Text style={styles.cardName}>Randevu #{item.id.slice(0, 8)}</Text>
+        <Text style={styles.cardName}>{customerName}</Text>
         <Text style={styles.status}>{STATUS_LABEL[item.status] ?? item.status}</Text>
       </View>
+      <Text style={styles.serviceName}>{item.service?.name ?? 'Hizmet bilgisi bulunamadı'}</Text>
       <Text style={styles.appointmentDate}>{prettyDate(item.startAt)}</Text>
       <Text style={styles.subdued}>Bitiş: {prettyDate(item.endAt)}</Text>
-      <Text style={styles.subdued}>Şube: {item.branchId ? item.branchId.slice(0, 8) : 'Merkez'}</Text>
+      <Text style={styles.subdued}>Personel: {staffName}</Text>
+      <Text style={styles.subdued}>Şube: {item.branch?.name ?? 'Şube bilgisi bulunamadı'}</Text>
     </View>
   );
 }
@@ -47,6 +57,8 @@ export default function AppointmentsScreen() {
   const token = session?.accessToken ?? null;
   const permitted = session ? canReadAppointments(session.membership) : false;
   const [page, setPage] = useState(1);
+  const [rangeDays, setRangeDays] = useState<AppointmentRangeDays>(7);
+  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | null>(null);
   const [data, setData] = useState<AppointmentsPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -59,8 +71,10 @@ export default function AppointmentsScreen() {
     requestRef.current = controller;
     setLoading(true);
     setMessage(null);
+    setData(null);
     try {
-      const result = await valooRequest<AppointmentsPage>(appointmentsPath(page), {
+      const result = await valooRequest<AppointmentsPage>(
+        appointmentsPath(page, { days: rangeDays, status: statusFilter }), {
         accessToken: token,
         signal: controller.signal,
       });
@@ -83,7 +97,7 @@ export default function AppointmentsScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, page, expireSession]);
+  }, [token, permitted, page, rangeDays, statusFilter, expireSession]);
 
   useEffect(() => {
     if (token && permitted) {
@@ -102,7 +116,7 @@ export default function AppointmentsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.eyebrow}>OPERASYON MERKEZİ</Text>
         <Text style={styles.heading}>Randevular</Text>
-        <Text style={styles.intro}>Bugünden itibaren 7 günlük randevu görünümü. Veriler doğrudan VALOO sunucusundan alınır.</Text>
+        <Text style={styles.intro}>Randevular doğrudan VALOO sunucusundan, yalnızca yetki kapsamınızda görüntülenir.</Text>
 
         {!session ? (
           <View style={styles.note}>
@@ -116,6 +130,35 @@ export default function AppointmentsScreen() {
           </View>
         ) : (
           <>
+            <Text style={styles.fieldHeading}>Tarih aralığı</Text>
+            <View style={styles.filters}>
+              {([{ days: 1, label: 'Bugün' }, { days: 7, label: '7 gün' }, { days: 30, label: '30 gün' }] as const).map(({ days, label }) => (
+                <Pressable
+                  key={days}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: rangeDays === days }}
+                  onPress={() => { setRangeDays(days); setPage(1); }}
+                  style={[styles.filterButton, rangeDays === days && styles.selectedFilter]}>
+                  <Text style={[styles.filterText, rangeDays === days && styles.selectedFilterText]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.fieldHeading}>Durum</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              {([
+                { value: null, label: 'Tümü' },
+                ...Object.entries(STATUS_LABEL).map(([value, label]) => ({ value: value as AppointmentStatus, label })),
+              ] as { value: AppointmentStatus | null; label: string }[]).map(({ value, label }) => (
+                <Pressable
+                  key={value ?? 'ALL'}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: statusFilter === value }}
+                  onPress={() => { setStatusFilter(value); setPage(1); }}
+                  style={[styles.filterButton, statusFilter === value && styles.selectedFilter]}>
+                  <Text style={[styles.filterText, statusFilter === value && styles.selectedFilterText]}>{label}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
             <View style={styles.toolbar}>
               <Text style={styles.total}>{data ? `${data.meta.total} kayıt` : 'Randevu listesi'}</Text>
               <Pressable accessibilityRole="button" disabled={loading} onPress={() => void load()} style={styles.refresh}>
@@ -173,6 +216,14 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   cardName: { color: '#1c3553', fontWeight: '700', fontSize: 14, flex: 1 },
   status: { color: '#076bd6', backgroundColor: '#ebf3fe', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, overflow: 'hidden', fontSize: 11 },
+  serviceName: { color: '#086ad8', fontWeight: '600', fontSize: 13 },
+  fieldHeading: { color: '#3d5778', fontSize: 12, fontWeight: '700', marginTop: 6 },
+  filters: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 },
+  filterButton: { paddingHorizontal: 13, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#d7e2f2', backgroundColor: '#ffffff' },
+  selectedFilter: { backgroundColor: '#086ad8', borderColor: '#086ad8' },
+  filterText: { fontSize: 12, color: '#49627f', fontWeight: '600' },
+  selectedFilterText: { color: '#ffffff' },
   appointmentDate: { color: '#162d4e', fontWeight: '700', fontSize: 16 },
   subdued: { color: '#697d96', fontSize: 12 },
   note: { borderWidth: 1, borderColor: '#d8e7fa', borderRadius: 16, padding: 20, backgroundColor: '#ffffff', gap: 10 },
