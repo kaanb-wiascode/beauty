@@ -201,7 +201,7 @@ export default function AppointmentsScreen() {
               ))}
             </ScrollView>
             <AppointmentStaffPicker
-              accessToken={token}
+              accessToken={session.accessToken}
               selected={staffFilter}
               onSelect={(option) => {
                 setStaffFilter(option);
