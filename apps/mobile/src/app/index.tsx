@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useValooSession } from '@/lib/valoo-session';
+import { AccountSessions } from '@/components/account-sessions';
 
 function ActionButton({
   label,
@@ -91,6 +92,7 @@ export default function HomeScreen() {
                   Randevular sekmesi yalnızca sunucunun izin verdiği kayıtları gösterir.
                 </Text>
                 <ActionButton label="Bu cihazdan çıkış yap" secondary onPress={() => void signOut()} />
+                <AccountSessions session={session} />
               </>
             ) : challenge ? (
               <>
