@@ -194,5 +194,5 @@ export function appointmentsPath(
   const staffId = options.staffId
     ? `&staffId=${encodeURIComponent(options.staffId)}`
     : '';
-  return `/appointments?page=${page}&limit=20&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${status}${staffId}`;
+  return `/appointments/mobile-list?page=${page}&limit=20&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${status}${staffId}`;
 }
