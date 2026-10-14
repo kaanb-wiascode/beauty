@@ -21,6 +21,7 @@ export class HrSelfServiceController {
  @Post('me/attendance/break-start') breakStart(@Req()r:any){return this.selfService.recordAttendanceEvent(this.userId(r),'BREAK_START');}
  @Post('me/attendance/break-end') breakEnd(@Req()r:any){return this.selfService.recordAttendanceEvent(this.userId(r),'BREAK_END');}
  @Post('me/attendance/clock-out') clockOut(@Req()r:any){return this.selfService.recordAttendanceEvent(this.userId(r),'CLOCK_OUT');}
+ @Get('manager/mobile-team') mobileManagerTeam(@Req()r:any){return this.selfService.mobileManagerTeam(this.userId(r));}
  @Get('manager') manager(@Req()r:any){return this.selfService.managerHome(this.userId(r));}
  @Post('employees/:staffId/link-user') @RequirePermission('hr','manage') link(@Param('staffId')staffId:string,@Body()b:any,@Req()r:any){return this.selfService.link(staffId,b.userId,this.userId(r));}
 }
