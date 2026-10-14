@@ -22,7 +22,7 @@ EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile sta
 1. `POST /auth/login`: kayıtlı VALOO kullanıcı adı/şifresi.
 2. Güvenlik politikası MFA gerektiriyorsa `POST /auth/mfa/verify`; ilk kurulumda `POST /auth/mfa/challenge/:id/setup` ve `POST /auth/mfa/challenge/:id/enroll`.
 3. Giriş başarılı olunca `GET /auth/me` ile kullanıcı, tenant ve üyelik kimlikleri doğrulanır.
-4. `appointments.read` izni varsa `GET /appointments` ile 7 günlük randevu listesi gösterilir; şube/şirket kısıtlaması sunucu tarafından uygulanır.
+4. `appointments.read` izni varsa `GET /appointments/mobile-list` ile seçilen tarih ve personel filtresinde randevular gösterilir; şube/şirket kısıtlaması sunucu tarafından uygulanır.
 5. Oturum belirteci **yalnızca uygulama belleğinde** tutulur; uygulama kapanınca yeni giriş gerekir. Kalıcı oturum ve güvenli cihaz-bağımlı yenileme yönetimi henüz uygulanmadı.
 6. Giriş/MFA/yenileme yanıtlarındaki `sessionId`, sunucu oturum kayıtlarının kullanıcıya açık, SHA-256 tabanlı kimliğidir; gizli yenileme belirteci değildir. Mobil çıkış, JWT ile yetkilendirilmiş `POST /auth/sessions/:id/revoke` isteğiyle **sadece o oturumun yenileme belirtecini** iptal eder. API, kullanıcı ve şirket kapsamını doğrular. Ağ isteği başarısız olursa uygulama yerel belirteci yine siler ve kullanıcıyı uyarır.
 7. **JWT oturum iptali:** Erişim JWT'si sunucu oturumuna ait `sessionId` içerir. Her korumalı API isteğinde JWT imzası/süresi yanında Redis oturum kaydı ve kullanıcı, tenant, üyelik, şirket, şube kapsamı denetlenir. Oturum iptali veya yenileme dönüşümü sonrasında eski JWT sonraki istekte **401** alır. Giriş öncesi eski JWT'ler yeni kural nedeniyle artık kabul edilmez; geçişte yeniden giriş veya geçerli yenileme çereziyle oturum yenileme gerekir. Redis erişilemezse korumalı istekler başarılı sayılmaz. Bu adım gerçek cihaz testlerinin yerine geçmez.
@@ -30,7 +30,7 @@ EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile sta
 ## Randevu görünümü
 
 - **Randevular** ekranı müşteri adı, hizmet, personel, şube ve randevu durumunu API'nin `appointments.read` yetki kontrolüyle listeler.
-- API'nin `GET /appointments` cevabı yalnızca `customer.firstName/lastName`, `service.name`, `staff.firstName/lastName`, `branch.name` alanlarını ekler; iletişim ve sağlık bilgileri bu görünüm için aktarılmaz.
+- Mobil uygulama `GET /appointments/mobile-list` üzerinden açık alan listesiyle sınırlandırılmış veri alır: kayıt kimliği, tarih, durum, ilgili nesne kimlikleri, müşteri/personel adları, hizmet ve şube adı. Finans, paket, seans ve serbest metin notlar yanıta dahil edilmez. Genel web `GET /appointments` endpoint'inin kapsamı değişmemiştir.
 - Tarih seçenekleri **Bugün / 7 gün / 30 gün** ve **Tümü / Planlandı / Onaylandı / Tamamlandı / İptal edildi / Gelmedi** durumu için sunucu filtreleri kullanılır; şube kapsamı API tarafından uygulanır.
 - Randevu kartlarındaki **Randevu detayını gör** kontrolü, yalnızca zaten erişimi onaylanmış listede bulunan hizmet, müşteri, personel, şube, tarih ve kayıt kimliği alanlarını genişletir; ek bir hassas ayrıntı isteği yapmaz.
 - **Personel seç** kontrolü, yalnızca `appointments.read` izniyle erişilen `GET /appointments/staff-options?search=...` üzerinden en fazla 30 aktif personel seçeneğini döndürür. API, görevlinin şirket/şube kapsamını uygular ve yalnızca `id`, `firstName`, `lastName` ve `branchId` seçer. Tam personel rehberine ve iletişim bilgilerine erişim verilmez.
