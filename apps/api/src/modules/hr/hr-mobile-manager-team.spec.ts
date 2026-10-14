@@ -38,6 +38,7 @@ describe('HR mobile manager team scope', () => {
         status: 'ACTIVE', branch: { id: 'branch-1', name: 'Merkez' },
       }],
     });
+    expect(query.mock.calls[1]?.[0]).toContain('s.id <> $3');
     expect(query).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('a.manager_staff_id=$3'),
