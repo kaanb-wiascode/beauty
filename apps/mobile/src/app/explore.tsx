@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppointmentStaffPicker } from '@/components/appointment-staff-picker';
+
 import {
   appointmentsPath,
   canReadAppointments,
   valooRequest,
   ValooApiError,
   type AppointmentSummary,
+  type AppointmentStaffOption,
   type AppointmentRangeDays,
   type AppointmentStatus,
   type AppointmentsPage,
@@ -31,12 +34,17 @@ function prettyDate(value: string) {
 }
 
 function AppointmentCard({ item }: { item: AppointmentSummary }) {
+  const [expanded, setExpanded] = useState(false);
   const customerName = item.customer
     ? [item.customer.firstName, item.customer.lastName].filter(Boolean).join(' ')
     : 'Müşteri bilgisi bulunamadı';
   const staffName = item.staff
     ? [item.staff.firstName, item.staff.lastName].filter(Boolean).join(' ')
     : 'Personel bilgisi bulunamadı';
+  const durationMinutes = Math.round(
+    (new Date(item.endAt).getTime() - new Date(item.startAt).getTime()) / 60_000,
+  );
+
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
@@ -45,9 +53,30 @@ function AppointmentCard({ item }: { item: AppointmentSummary }) {
       </View>
       <Text style={styles.serviceName}>{item.service?.name ?? 'Hizmet bilgisi bulunamadı'}</Text>
       <Text style={styles.appointmentDate}>{prettyDate(item.startAt)}</Text>
-      <Text style={styles.subdued}>Bitiş: {prettyDate(item.endAt)}</Text>
-      <Text style={styles.subdued}>Personel: {staffName}</Text>
-      <Text style={styles.subdued}>Şube: {item.branch?.name ?? 'Şube bilgisi bulunamadı'}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={expanded ? 'Randevu detayını kapat' : 'Randevu detayını göster'}
+        onPress={() => setExpanded((value) => !value)}
+        style={styles.detailsButton}>
+        <Text style={styles.detailsButtonText}>
+          {expanded ? 'Detayı gizle' : 'Randevu detayını gör'}
+        </Text>
+      </Pressable>
+      {expanded && (
+        <View style={styles.detailsPanel}>
+          <Text style={styles.subdued}>Bitiş: {prettyDate(item.endAt)}</Text>
+          {Number.isFinite(durationMinutes) && durationMinutes > 0 && (
+            <Text style={styles.subdued}>Süre: {durationMinutes} dakika</Text>
+          )}
+          <Text style={styles.subdued}>Personel: {staffName}</Text>
+          <Text style={styles.subdued}>Şube: {item.branch?.name ?? 'Şube bilgisi bulunamadı'}</Text>
+          <Text style={styles.subdued}>Kayıt numarası: {item.id}</Text>
+          <Text style={styles.detailDisclaimer}>
+            Bu ekran yalnızca görüntüleme amaçlıdır; değişiklik yapılamaz.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -59,6 +88,7 @@ export default function AppointmentsScreen() {
   const [page, setPage] = useState(1);
   const [rangeDays, setRangeDays] = useState<AppointmentRangeDays>(7);
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | null>(null);
+  const [staffFilter, setStaffFilter] = useState<AppointmentStaffOption | null>(null);
   const [data, setData] = useState<AppointmentsPage | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -74,7 +104,11 @@ export default function AppointmentsScreen() {
     setData(null);
     try {
       const result = await valooRequest<AppointmentsPage>(
-        appointmentsPath(page, { days: rangeDays, status: statusFilter }), {
+        appointmentsPath(page, {
+          days: rangeDays,
+          status: statusFilter,
+          staffId: staffFilter?.id,
+        }), {
         accessToken: token,
         signal: controller.signal,
       });
@@ -97,7 +131,14 @@ export default function AppointmentsScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, page, rangeDays, statusFilter, expireSession]);
+  }, [token, permitted, page, rangeDays, statusFilter, staffFilter?.id, expireSession]);
+
+  // Never carry another tenant's selected staff into the next login.
+  useEffect(() => {
+    setStaffFilter(null);
+    setPage(1);
+    setData(null);
+  }, [token]);
 
   useEffect(() => {
     if (token && permitted) {
@@ -159,6 +200,15 @@ export default function AppointmentsScreen() {
                 </Pressable>
               ))}
             </ScrollView>
+            <AppointmentStaffPicker
+              accessToken={token}
+              selected={staffFilter}
+              onSelect={(option) => {
+                setStaffFilter(option);
+                setPage(1);
+              }}
+              onUnauthorized={expireSession}
+            />
             <View style={styles.toolbar}>
               <Text style={styles.total}>{data ? `${data.meta.total} kayıt` : 'Randevu listesi'}</Text>
               <Pressable accessibilityRole="button" disabled={loading} onPress={() => void load()} style={styles.refresh}>
@@ -217,6 +267,11 @@ const styles = StyleSheet.create({
   cardName: { color: '#1c3553', fontWeight: '700', fontSize: 14, flex: 1 },
   status: { color: '#076bd6', backgroundColor: '#ebf3fe', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, overflow: 'hidden', fontSize: 11 },
   serviceName: { color: '#086ad8', fontWeight: '600', fontSize: 13 },
+  detailsButton: { alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 11, borderRadius: 8, backgroundColor: '#e8f1fd', marginTop: 3 },
+  detailsButtonText: { color: '#086ad8', fontSize: 12, fontWeight: '700' },
+  detailsPanel: { borderTopWidth: 1, borderTopColor: '#e3eaf5', paddingTop: 11, gap: 8 },
+  detailDisclaimer: { color: '#71839c', fontSize: 11, lineHeight: 17, paddingTop: 3 },
+
   fieldHeading: { color: '#3d5778', fontSize: 12, fontWeight: '700', marginTop: 6 },
   filters: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 },
