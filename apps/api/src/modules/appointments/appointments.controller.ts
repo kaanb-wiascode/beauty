@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
@@ -44,6 +45,17 @@ export class AppointmentsController {
     const input = listAppointmentsSchema.parse(query);
 
     return this.appointmentsService.findAll(input);
+  }
+
+  @Get('staff-options')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
+  async findStaffOptions(@Query() query: unknown) {
+    const input = z
+      .object({ search: z.string().trim().max(80).optional() })
+      .parse(query);
+
+    return this.appointmentsService.findStaffOptions(input.search);
   }
 
   @Get('eligible-sessions')
