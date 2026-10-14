@@ -62,6 +62,12 @@ export default function PersonnelScreen() {
           expireSession();
           return;
         }
+        if (teamError instanceof ValooApiError && teamError.status === 403) {
+          // A self-service user may be allowed to view their own profile
+          // without being authorized to view the manager team.
+          setTeam(null);
+          return;
+        }
         setTeamMessage(teamError instanceof Error ? teamError.message : 'Ekip bilgileri yüklenemedi.');
       }
     } catch (error) {
@@ -118,7 +124,7 @@ export default function PersonnelScreen() {
               <View style={styles.card}>
                 <Text style={styles.title}>Ekibim</Text>
                 <Text style={styles.body}>Doğrudan size bağlı personel: {team.length}</Text>
-                {team.length === 0 && <Text style={styles.body}>Size bağlı aktif bir personel ataması bulunamadı.</Text>}
+                {team.length === 0 && <Text style={styles.body}>Size bağlı personel ataması bulunamadı.</Text>}
                 {team.map((member) => (
                   <View key={member.id} style={styles.teamRow}>
                     <Text style={styles.value}>{member.firstName} {member.lastName}</Text>
