@@ -10,6 +10,7 @@ import { HrSelfServiceService } from './hr-self-service.service';
 export class HrSelfServiceController {
  constructor(private readonly selfService:HrSelfServiceService){}
  private userId(r:any){const id=r.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
+ @Get('me/mobile-profile') mobileProfile(@Req()r:any){return this.selfService.mobileProfile(this.userId(r));}
  @Get('me') me(@Req()r:any){return this.selfService.employeeHome(this.userId(r));}
  @Get('me/notifications') notifications(@Req()r:any){return this.selfService.notifications(this.userId(r));}
  @Post('me/notifications/:id/read') markNotificationRead(@Param('id')id:string,@Req()r:any){return this.selfService.markNotificationRead(this.userId(r),id);}
