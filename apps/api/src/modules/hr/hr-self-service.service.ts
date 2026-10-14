@@ -340,6 +340,7 @@ export class HrSelfServiceService {
       WHERE a.tenant_id=$1 AND a.company_id=$2
         AND a.manager_staff_id=$3
         AND s."tenantId"=$1 AND b."companyId"=$2
+        AND s.id <> $3
         AND a.effective_from<=CURRENT_DATE
         AND (a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE)
       ORDER BY s."firstName", s."lastName", s.id
