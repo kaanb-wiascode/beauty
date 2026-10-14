@@ -78,6 +78,17 @@ export type AppointmentsPage = {
   meta: { page: number; limit: number; total: number; totalPages: number };
 };
 
+export type AppointmentStaffOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  branchId: string;
+};
+
+export type AppointmentStaffOptionsResponse = {
+  data: AppointmentStaffOption[];
+};
+
 export class ValooApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -170,9 +181,18 @@ export function appointmentsWindow(
 
 export function appointmentsPath(
   page = 1,
-  options: { days?: AppointmentRangeDays; status?: AppointmentStatus | null } = {},
+  options: {
+    days?: AppointmentRangeDays;
+    status?: AppointmentStatus | null;
+    staffId?: string | null;
+  } = {},
 ): string {
   const { from, to } = appointmentsWindow(new Date(), options.days ?? 7);
-  const status = options.status ? `&status=${encodeURIComponent(options.status)}` : '';
-  return `/appointments?page=${page}&limit=20&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${status}`;
+  const status = options.status
+    ? `&status=${encodeURIComponent(options.status)}`
+    : '';
+  const staffId = options.staffId
+    ? `&staffId=${encodeURIComponent(options.staffId)}`
+    : '';
+  return `/appointments?page=${page}&limit=20&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${status}${staffId}`;
 }
