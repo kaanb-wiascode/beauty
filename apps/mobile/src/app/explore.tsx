@@ -6,6 +6,7 @@ import { AppointmentStaffPicker } from '@/components/appointment-staff-picker';
 
 import {
   appointmentsPath,
+  appointmentMobileDetailPath,
   canReadAppointments,
   valooRequest,
   ValooApiError,
@@ -33,16 +34,56 @@ function prettyDate(value: string) {
   });
 }
 
-function AppointmentCard({ item }: { item: AppointmentSummary }) {
+function AppointmentCard({ item, token, onUnauthorized }: { item: AppointmentSummary; token: string; onUnauthorized: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [detail, setDetail] = useState<AppointmentSummary | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const detailRequest = useRef<AbortController | null>(null);
+
+  useEffect(() => () => detailRequest.current?.abort(), []);
+
+  const toggleDetail = async () => {
+    if (expanded) {
+      detailRequest.current?.abort();
+      setExpanded(false);
+      setDetail(null);
+      return;
+    }
+    setExpanded(true);
+    setDetailLoading(true);
+    setDetailError(null);
+    const controller = new AbortController();
+    detailRequest.current = controller;
+    try {
+      const response = await valooRequest<AppointmentSummary>(appointmentMobileDetailPath(item.id), {
+        accessToken: token,
+        signal: controller.signal,
+      });
+      if (!controller.signal.aborted) {
+        if (response.id !== item.id || !response.startAt || !response.endAt) {
+          throw new Error('Randevu detayı beklenen biçimde değil.');
+        }
+        setDetail(response);
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        if (error instanceof ValooApiError && error.status === 401) onUnauthorized();
+        else setDetailError(error instanceof Error ? error.message : 'Detay bilgileri yüklenemedi.');
+      }
+    } finally {
+      if (!controller.signal.aborted) setDetailLoading(false);
+    }
+  };
   const customerName = item.customer
     ? [item.customer.firstName, item.customer.lastName].filter(Boolean).join(' ')
     : 'Müşteri bilgisi bulunamadı';
   const staffName = item.staff
     ? [item.staff.firstName, item.staff.lastName].filter(Boolean).join(' ')
     : 'Personel bilgisi bulunamadı';
+  const displayed = detail ?? item;
   const durationMinutes = Math.round(
-    (new Date(item.endAt).getTime() - new Date(item.startAt).getTime()) / 60_000,
+    (new Date(displayed.endAt).getTime() - new Date(displayed.startAt).getTime()) / 60_000,
   );
 
   return (
@@ -57,7 +98,7 @@ function AppointmentCard({ item }: { item: AppointmentSummary }) {
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         accessibilityLabel={expanded ? 'Randevu detayını kapat' : 'Randevu detayını göster'}
-        onPress={() => setExpanded((value) => !value)}
+        onPress={() => void toggleDetail()}
         style={styles.detailsButton}>
         <Text style={styles.detailsButtonText}>
           {expanded ? 'Detayı gizle' : 'Randevu detayını gör'}
@@ -65,13 +106,21 @@ function AppointmentCard({ item }: { item: AppointmentSummary }) {
       </Pressable>
       {expanded && (
         <View style={styles.detailsPanel}>
-          <Text style={styles.subdued}>Bitiş: {prettyDate(item.endAt)}</Text>
+          {detailLoading && <ActivityIndicator color="#086ad8" accessibilityLabel="Randevu detayları yükleniyor" />}
+          {!!detailError && <Text accessibilityRole="alert" style={styles.error}>{detailError}</Text>}
+          {detail && <>
+          <Text style={styles.subdued}>Başlangıç: {prettyDate(detail.startAt)}</Text>
+          <Text style={styles.subdued}>Bitiş: {prettyDate(detail.endAt)}</Text>
           {Number.isFinite(durationMinutes) && durationMinutes > 0 && (
             <Text style={styles.subdued}>Süre: {durationMinutes} dakika</Text>
           )}
-          <Text style={styles.subdued}>Personel: {staffName}</Text>
-          <Text style={styles.subdued}>Şube: {item.branch?.name ?? 'Şube bilgisi bulunamadı'}</Text>
-          <Text style={styles.subdued}>Kayıt numarası: {item.id}</Text>
+          <Text style={styles.subdued}>Durum: {STATUS_LABEL[detail.status] ?? detail.status}</Text>
+          <Text style={styles.subdued}>Müşteri: {[detail.customer?.firstName, detail.customer?.lastName].filter(Boolean).join(' ') || 'Bilgi bulunamadı'}</Text>
+          <Text style={styles.subdued}>Hizmet: {detail.service?.name ?? 'Bilgi bulunamadı'}</Text>
+          <Text style={styles.subdued}>Personel: {[detail.staff?.firstName, detail.staff?.lastName].filter(Boolean).join(' ') || 'Bilgi bulunamadı'}</Text>
+          <Text style={styles.subdued}>Şube: {detail.branch?.name ?? 'Şube bilgisi bulunamadı'}</Text>
+          <Text style={styles.subdued}>Kayıt numarası: {detail.id}</Text>
+          </>}
           <Text style={styles.detailDisclaimer}>
             Bu ekran yalnızca görüntüleme amaçlıdır; değişiklik yapılamaz.
           </Text>
@@ -223,7 +272,7 @@ export default function AppointmentsScreen() {
                 <Text style={styles.noteText}>Bu tarih aralığında ve yetki kapsamınızda kayıt bulunmuyor.</Text>
               </View>
             )}
-            {data?.data.map((item) => <AppointmentCard key={item.id} item={item} />)}
+            {data?.data.map((item) => <AppointmentCard key={item.id} item={item} token={session.accessToken} onUnauthorized={expireSession} />)}
             {data && data.meta.totalPages > 1 && (
               <View style={styles.pagination}>
                 <Pressable
