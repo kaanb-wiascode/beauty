@@ -43,7 +43,7 @@ function AppointmentCard({ item }: { item: AppointmentSummary }) {
 }
 
 export default function AppointmentsScreen() {
-  const { session, signOut } = useValooSession();
+  const { session, expireSession } = useValooSession();
   const token = session?.accessToken ?? null;
   const permitted = session ? canReadAppointments(session.membership) : false;
   const [page, setPage] = useState(1);
@@ -73,8 +73,7 @@ export default function AppointmentsScreen() {
       if (controller.signal.aborted) return;
       setData(null);
       if (cause instanceof ValooApiError && cause.status === 401) {
-        setMessage('Oturumunuz sona erdi. Lütfen yeniden giriş yapın.');
-        void signOut();
+        expireSession();
       } else {
         setMessage(cause instanceof Error ? cause.message : 'Randevular yüklenemedi.');
       }
@@ -84,7 +83,7 @@ export default function AppointmentsScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, page, signOut]);
+  }, [token, permitted, page, expireSession]);
 
   useEffect(() => {
     if (token && permitted) {
