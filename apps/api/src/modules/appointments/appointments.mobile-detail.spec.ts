@@ -11,7 +11,9 @@ describe('AppointmentsService mobile detail', () => {
   const appointmentId = 'appointment-1';
   const scopeWhere = { tenantId: 'tenant-1', branchId: 'branch-1' };
   const findFirst = jest.fn();
-  const scope = { getBranchScopedWhere: jest.fn().mockResolvedValue(scopeWhere) };
+  const scope = {
+    getBranchScopedWhere: jest.fn().mockResolvedValue(scopeWhere),
+  };
   const service = new AppointmentsService(
     { appointment: { findFirst } } as unknown as PrismaService,
     {} as TenantContext,
@@ -28,7 +30,9 @@ describe('AppointmentsService mobile detail', () => {
   it('reads only permitted fields within the current organization scope', async () => {
     const detail = { id: appointmentId, status: 'CONFIRMED' };
     findFirst.mockResolvedValue(detail);
-    await expect(service.findMobileDetail(appointmentId)).resolves.toEqual(detail);
+    await expect(service.findMobileDetail(appointmentId)).resolves.toEqual(
+      detail,
+    );
     expect(findFirst).toHaveBeenCalledWith({
       where: { id: appointmentId, ...scopeWhere },
       select: {
@@ -50,7 +54,9 @@ describe('AppointmentsService mobile detail', () => {
 
   it('does not disclose the existence of an out-of-scope appointment', async () => {
     findFirst.mockResolvedValue(null);
-    await expect(service.findMobileDetail(appointmentId)).rejects.toThrow(NotFoundException);
+    await expect(service.findMobileDetail(appointmentId)).rejects.toThrow(
+      NotFoundException,
+    );
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: appointmentId, ...scopeWhere } }),
     );
