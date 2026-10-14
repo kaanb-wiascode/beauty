@@ -13,11 +13,16 @@ type MobileProfile = {
   branch: { id: string; name: string } | null;
 };
 
+type TeamMember = MobileProfile;
+type MobileTeam = { data: TeamMember[] };
+
 export default function PersonnelScreen() {
   const { session, expireSession } = useValooSession();
   const token = session?.accessToken ?? null;
   const permitted = session?.membership.permissions.includes('hr_self_service.read') ?? false;
   const [profile, setProfile] = useState<MobileProfile | null>(null);
+  const [team, setTeam] = useState<TeamMember[] | null>(null);
+  const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const load = useCallback(async (signal: AbortSignal) => {
@@ -25,6 +30,8 @@ export default function PersonnelScreen() {
     setLoading(true);
     setMessage(null);
     setProfile(null);
+    setTeam(null);
+    setTeamMessage(null);
     try {
       const result = await valooRequest<MobileProfile>('/hr/self-service/me/mobile-profile', {
         accessToken: token,
@@ -35,6 +42,23 @@ export default function PersonnelScreen() {
         throw new Error('Personel bilgileri beklenen biçimde değil.');
       }
       setProfile(result);
+      try {
+        const teamResult = await valooRequest<MobileTeam>('/hr/self-service/manager/mobile-team', {
+          accessToken: token,
+          signal,
+        });
+        if (!signal.aborted) {
+          if (!Array.isArray(teamResult.data)) throw new Error('Ekip bilgileri beklenen biçimde değil.');
+          setTeam(teamResult.data);
+        }
+      } catch (teamError) {
+        if (signal.aborted) return;
+        if (teamError instanceof ValooApiError && teamError.status === 401) {
+          expireSession();
+          return;
+        }
+        setTeamMessage(teamError instanceof Error ? teamError.message : 'Ekip bilgileri yüklenemedi.');
+      }
     } catch (error) {
       if (signal.aborted) return;
       if (error instanceof ValooApiError && error.status === 401) expireSession();
@@ -49,6 +73,8 @@ export default function PersonnelScreen() {
     if (token && permitted) void load(controller.signal);
     else {
       setProfile(null);
+      setTeam(null);
+      setTeamMessage(null);
       setMessage(null);
     }
     return () => controller.abort();
@@ -81,6 +107,21 @@ export default function PersonnelScreen() {
                 <Text style={styles.note}>Bu ekran salt okunurdur. Bilgi değişikliği için yetkili yöneticinizle görüşün.</Text>
               </View>
             )}
+            {team && (
+              <View style={styles.card}>
+                <Text style={styles.title}>Ekibim</Text>
+                <Text style={styles.body}>Doğrudan size bağlı personel: {team.length}</Text>
+                {team.length === 0 && <Text style={styles.body}>Size bağlı aktif bir personel ataması bulunamadı.</Text>}
+                {team.map((member) => (
+                  <View key={member.id} style={styles.teamRow}>
+                    <Text style={styles.value}>{member.firstName} {member.lastName}</Text>
+                    <Text style={styles.body}>Şube: {member.branch?.name ?? 'Bilgi bulunamadı'}</Text>
+                    <Text style={styles.label}>Durum: {member.status === 'ACTIVE' ? 'Aktif' : member.status === 'INACTIVE' ? 'Pasif' : 'Diğer'}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {!!teamMessage && <Text accessibilityRole="alert" style={styles.error}>{teamMessage}</Text>}
           </>
         )}
       </ScrollView>
@@ -95,6 +136,7 @@ const styles = StyleSheet.create({
   heading: { fontSize: 27, fontWeight: '800', color: '#162d4e' },
   intro: { fontSize: 14, lineHeight: 21, color: '#5b6f89' },
   card: { padding: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e1e9f5', borderRadius: 18, gap: 10 },
+  teamRow: { borderTopWidth: 1, borderTopColor: '#e1e9f5', paddingTop: 12, gap: 4 },
   title: { color: '#1c3553', fontWeight: '700', fontSize: 18 },
   body: { color: '#64748b', fontSize: 14, lineHeight: 21 },
   label: { color: '#617995', fontSize: 12, fontWeight: '600', marginTop: 8 },
