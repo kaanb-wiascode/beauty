@@ -20,8 +20,14 @@ describe('AppointmentsService mobile reception list', () => {
     };
     // Explicit argument types ensure this test checks the query without
     // unsafely reading untyped Jest mock calls.
-    const findMany = jest.fn(async (_query: unknown) => [appointment]);
-    const count = jest.fn(async (_query: unknown) => 1);
+    const findMany = jest.fn((query: unknown) => {
+      void query;
+      return Promise.resolve([appointment]);
+    });
+    const count = jest.fn((query: unknown) => {
+      void query;
+      return Promise.resolve(1);
+    });
     const prisma = { appointment: { findMany, count } };
     const tenant = { getTenantId: jest.fn().mockReturnValue('tenant-1') };
     const scope = {
@@ -61,29 +67,31 @@ describe('AppointmentsService mobile reception list', () => {
       status: 'CONFIRMED',
       AND: [{ endAt: { gt: from } }, { startAt: { lt: to } }],
     };
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: scopedWhere,
-        include: expect.objectContaining({
-          customer: { select: { firstName: true, lastName: true } },
-          service: { select: { name: true } },
-          staff: { select: { firstName: true, lastName: true } },
-          branch: { select: { name: true } },
-        }),
-      }),
-    );
-    expect(count).toHaveBeenCalledWith({ where: scopedWhere });
+    const query = findMany.mock.calls[0]?.[0] as
+      | {
+          where: unknown;
+          include: {
+            customer: { select: Record<string, boolean> };
+            service: { select: Record<string, boolean> };
+            staff: { select: Record<string, boolean> };
+            branch: { select: Record<string, boolean> };
+          };
+        }
+      | undefined;
 
-    const firstCall: unknown = findMany.mock.calls[0]?.[0];
-    expect(firstCall).toEqual(
-      expect.objectContaining({
-        include: expect.objectContaining({
-          customer: { select: { firstName: true, lastName: true } },
-          staff: { select: { firstName: true, lastName: true } },
-        }),
-      }),
-    );
-    // The explicit field projections must not request contact details,
-    // customer health information or staff profiles.
+    expect(query?.where).toEqual(scopedWhere);
+    expect(count).toHaveBeenCalledWith({ where: scopedWhere });
+    // Exact select projections prevent accidental contact, profile or health
+    // fields being added to the reception appointment list.
+    expect(query?.include.customer.select).toEqual({
+      firstName: true,
+      lastName: true,
+    });
+    expect(query?.include.service.select).toEqual({ name: true });
+    expect(query?.include.staff.select).toEqual({
+      firstName: true,
+      lastName: true,
+    });
+    expect(query?.include.branch.select).toEqual({ name: true });
   });
 });
