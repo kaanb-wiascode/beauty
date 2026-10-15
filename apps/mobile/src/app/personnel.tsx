@@ -17,6 +17,8 @@ type TeamMember = MobileProfile;
 type MobileTeam = { data: TeamMember[] };
 type AttendanceEvent = { id: string; eventType: string; occurredAt: string; approvalStatus: string | null };
 type MobileAttendance = { data: AttendanceEvent[] };
+type LeaveRequest = { id: string; leaveType: string | null; startDate: string; endDate: string; days: string; status: string };
+type MobileLeaveHistory = { data: LeaveRequest[] };
 
 export default function PersonnelScreen() {
   const { session, expireSession } = useValooSession();
@@ -29,6 +31,8 @@ export default function PersonnelScreen() {
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<AttendanceEvent[] | null>(null);
   const [attendanceMessage, setAttendanceMessage] = useState<string | null>(null);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[] | null>(null);
+  const [leaveMessage, setLeaveMessage] = useState<string | null>(null);
   const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
   const attendanceSubmittingRef = useRef(false);
   const [attendanceActionMessage, setAttendanceActionMessage] = useState<string | null>(null);
@@ -47,6 +51,8 @@ export default function PersonnelScreen() {
     setTeamMessage(null);
     setAttendance(null);
     setAttendanceMessage(null);
+    setLeaveRequests(null);
+    setLeaveMessage(null);
     try {
       const result = await valooRequest<MobileProfile>('/hr/self-service/me/mobile-profile', {
         accessToken: token,
@@ -73,6 +79,23 @@ export default function PersonnelScreen() {
           return;
         }
         setAttendanceMessage(attendanceError instanceof Error ? attendanceError.message : 'Günlük giriş çıkış kayıtları yüklenemedi.');
+      }
+      try {
+        const leaveResult = await valooRequest<MobileLeaveHistory>('/hr/self-service/me/mobile-leave-history', {
+          accessToken: token,
+          signal,
+        });
+        if (!signal.aborted) {
+          if (!Array.isArray(leaveResult.data)) throw new Error('İzin geçmişi yanıtı geçersiz.');
+          setLeaveRequests(leaveResult.data);
+        }
+      } catch (leaveError) {
+        if (signal.aborted) return;
+        if (leaveError instanceof ValooApiError && leaveError.status === 401) {
+          expireSession();
+          return;
+        }
+        setLeaveMessage(leaveError instanceof Error ? leaveError.message : 'İzin geçmişi yüklenemedi.');
       }
       if (canReadTeam) try {
         const teamResult = await valooRequest<MobileTeam>('/hr/self-service/manager/mobile-team', {
@@ -147,6 +170,8 @@ export default function PersonnelScreen() {
       setTeamMessage(null);
       setAttendance(null);
       setAttendanceMessage(null);
+      setLeaveRequests(null);
+      setLeaveMessage(null);
       setMessage(null);
     }
     return () => requestRef.current?.abort();
@@ -208,6 +233,21 @@ export default function PersonnelScreen() {
               </View>
             )}
             {!!attendanceMessage && <Text accessibilityRole="alert" style={styles.error}>{attendanceMessage}</Text>}
+            {leaveRequests && (
+              <View style={styles.card}>
+                <Text style={styles.title}>İzin geçmişim</Text>
+                {leaveRequests.length === 0 && <Text style={styles.body}>İzin başvurusu bulunamadı.</Text>}
+                {leaveRequests.map((leave) => (
+                  <View key={leave.id} style={styles.teamRow}>
+                    <Text style={styles.value}>{leave.leaveType ?? 'İzin'}</Text>
+                    <Text style={styles.body}>{leave.startDate} – {leave.endDate} · {leave.days} gün</Text>
+                    <Text style={styles.label}>Durum: {leave.status === 'PENDING' ? 'Onay bekliyor' : leave.status === 'APPROVED' ? 'Onaylandı' : leave.status === 'REJECTED' ? 'Reddedildi' : leave.status}</Text>
+                  </View>
+                ))}
+                <Text style={styles.note}>Son 20 izin başvurusu görüntülenir.</Text>
+              </View>
+            )}
+            {!!leaveMessage && <Text accessibilityRole="alert" style={styles.error}>{leaveMessage}</Text>}
             {team && (
               <View style={styles.card}>
                 <Text style={styles.title}>Ekibim</Text>
