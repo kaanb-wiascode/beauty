@@ -21,6 +21,8 @@ type ActionableLeave = PendingLeave & { approvalId: string };
 type ActionableLeaves = { data: ActionableLeave[] };
 type AttendanceEvent = { id: string; eventType: string; occurredAt: string; approvalStatus: string | null };
 type MobileAttendance = { data: AttendanceEvent[] };
+type PendingAttendance = { id: string; firstName: string; lastName: string; eventType: string; occurredAt: string; approvalRequestId: string; approvalStatus: string };
+type PendingAttendancePage = { data: PendingAttendance[] };
 type LeaveRequest = { id: string; leaveType: string | null; startDate: string; endDate: string; days: string; status: string };
 type MobileLeaveHistory = { data: LeaveRequest[] };
 type LeaveBalance = { leaveTypeId: string; name: string; available: number };
@@ -35,6 +37,7 @@ export default function PersonnelScreen() {
   const requestRef = useRef<AbortController | null>(null);
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[] | null>(null);
+  const [pendingAttendance, setPendingAttendance] = useState<PendingAttendance[] | null>(null);
   const [actionableLeaves, setActionableLeaves] = useState<ActionableLeave[]>([]);
   const [decisionBusy, setDecisionBusy] = useState(false);
   const decisionBusyRef = useRef(false);
@@ -70,6 +73,7 @@ export default function PersonnelScreen() {
     setProfile(null);
     setTeam(null);
     setPendingLeaves(null);
+    setPendingAttendance(null);
     setActionableLeaves([]);
     setTeamMessage(null);
     setAttendance(null);
@@ -150,6 +154,8 @@ export default function PersonnelScreen() {
           if (!signal.aborted && Array.isArray(pendingResult.data)) setPendingLeaves(pendingResult.data);
           const actionableResult = await valooRequest<ActionableLeaves>('/hr/self-service/manager/mobile-actionable-leaves', { accessToken: token, signal });
           if (!signal.aborted && Array.isArray(actionableResult.data)) setActionableLeaves(actionableResult.data);
+          const attendanceQueue = await valooRequest<PendingAttendancePage>('/hr/self-service/manager/mobile-pending-attendance', { accessToken: token, signal });
+          if (!signal.aborted && Array.isArray(attendanceQueue.data)) setPendingAttendance(attendanceQueue.data);
         }
       } catch (teamError) {
         if (signal.aborted) return;
@@ -392,6 +398,20 @@ export default function PersonnelScreen() {
             )}
             {!!leaveMessage && <Text accessibilityRole="alert" style={styles.error}>{leaveMessage}</Text>}
             {!!decisionMessage && <Text accessibilityRole="alert" style={styles.body}>{decisionMessage}</Text>}
+            {pendingAttendance && (
+              <View style={styles.card}>
+                <Text style={styles.title}>Ekibimin bekleyen puantajları</Text>
+                {pendingAttendance.length === 0 && <Text style={styles.body}>Bekleyen puantaj onayı bulunmuyor.</Text>}
+                {pendingAttendance.map((entry) => (
+                  <View key={entry.id} style={styles.teamRow}>
+                    <Text style={styles.value}>{entry.firstName} {entry.lastName}</Text>
+                    <Text style={styles.body}>{entry.eventType === 'DAY_START' ? 'İşe giriş' : entry.eventType === 'DAY_END' ? 'İşten çıkış' : entry.eventType === 'BREAK_START' ? 'Mola başlangıcı' : entry.eventType === 'BREAK_END' ? 'Mola bitişi' : 'Puantaj kaydı'}</Text>
+                    <Text style={styles.label}>{new Date(entry.occurredAt).toLocaleString('tr-TR')} · Onay bekliyor</Text>
+                  </View>
+                ))}
+                <Text style={styles.note}>Bu alan yalnızca görüntüleme amaçlıdır. Puantaj kararları ayrı onay motorunda işlenir.</Text>
+              </View>
+            )}
             {pendingLeaves && (
               <View style={styles.card}>
                 <Text style={styles.title}>Ekibimin bekleyen izinleri</Text>
