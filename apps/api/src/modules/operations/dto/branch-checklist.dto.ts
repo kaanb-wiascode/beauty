@@ -40,6 +40,8 @@ export const listBranchChecklistRunsSchema = z.object({
   category: branchChecklistCategorySchema.optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+  page: z.coerce.number().int().min(1).max(10000).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
 });
 
 export const updateBranchChecklistRunItemSchema = z.object({
