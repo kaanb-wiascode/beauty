@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
-import { RequirePermission } from '../../common/auth/permissions.decorator';
+import { RequirePermission, RequirePermissions } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { HrSelfServiceService } from './hr-self-service.service';
 @Controller('hr/self-service')
@@ -21,7 +21,7 @@ export class HrSelfServiceController {
  @Post('me/attendance/break-start') breakStart(@Req()r:any){return this.selfService.recordAttendanceEvent(this.userId(r),'BREAK_START');}
  @Post('me/attendance/break-end') breakEnd(@Req()r:any){return this.selfService.recordAttendanceEvent(this.userId(r),'BREAK_END');}
  @Post('me/attendance/clock-out') clockOut(@Req()r:any){return this.selfService.recordAttendanceEvent(this.userId(r),'CLOCK_OUT');}
- @Get('manager/mobile-team') mobileManagerTeam(@Req()r:any){return this.selfService.mobileManagerTeam(this.userId(r));}
+ @Get('manager/mobile-team') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerTeam(@Req()r:any){return this.selfService.mobileManagerTeam(this.userId(r));}
  @Get('manager') manager(@Req()r:any){return this.selfService.managerHome(this.userId(r));}
  @Post('employees/:staffId/link-user') @RequirePermission('hr','manage') link(@Param('staffId')staffId:string,@Body()b:any,@Req()r:any){return this.selfService.link(staffId,b.userId,this.userId(r));}
 }
