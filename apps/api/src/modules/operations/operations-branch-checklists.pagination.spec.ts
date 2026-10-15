@@ -40,6 +40,23 @@ describe('Branch checklist history pagination', () => {
     expect(query.mock.calls[0]).toHaveLength(7);
   });
 
+  it('returns the final page without a next-page flag', async () => {
+    query.mockResolvedValueOnce([{ id: 'last-run' }]);
+    await expect(service.listRuns(listBranchChecklistRunsSchema.parse({
+      page: '3',
+      limit: '25',
+      from: '2026-10-01',
+      to: '2026-10-15',
+    }))).resolves.toEqual({
+      data: [{ id: 'last-run' }],
+      meta: { page: 3, limit: 25, hasMore: false },
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('LIMIT $7 OFFSET $8'),
+      'tenant-1', 'company-1', 'branch-1', null, '2026-10-01', '2026-10-15', 26, 50,
+    );
+  });
+
   it('rejects unbounded pagination values', () => {
     expect(() => listBranchChecklistRunsSchema.parse({ page: '0' })).toThrow();
     expect(() => listBranchChecklistRunsSchema.parse({ page: '10001' })).toThrow();
