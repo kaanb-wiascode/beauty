@@ -131,6 +131,47 @@ describe('SessionsService concurrency guards', () => {
     );
   });
 
+  it('consumes only a completed appointment session in the active tenant and branch', async () => {
+    const { service, tx } = await createService({
+      sessionStatus: 'RESERVED',
+      appointmentId: 'appointment-a',
+    });
+
+    await service.consume('session-a');
+
+    expect(tx.appointment.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'appointment-a',
+        tenantId: 'tenant-a',
+        branchId: 'branch-a',
+        status: 'COMPLETED',
+      },
+      select: { id: true },
+    });
+    expect(tx.session.count).toHaveBeenCalledWith({
+      where: {
+        customerPackageId: 'package-a',
+        tenantId: 'tenant-a',
+        branchId: 'branch-a',
+        status: { in: ['AVAILABLE', 'RESERVED'] },
+      },
+    });
+  });
+
+  it('does not consume a session when another request already claimed it', async () => {
+    const { service, tx } = await createService({
+      sessionStatus: 'RESERVED',
+      appointmentId: 'appointment-a',
+      updateCount: 0,
+    });
+
+    await expect(service.consume('session-a')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(tx.session.count).not.toHaveBeenCalled();
+    expect(tx.customerPackage.updateMany).not.toHaveBeenCalled();
+  });
+
   it('claims RESERVED session atomically when releasing it', async () => {
     const { service, tx } = await createService({
       sessionStatus: 'RESERVED',
