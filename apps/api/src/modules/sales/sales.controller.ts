@@ -40,6 +40,7 @@ const addSalePaymentSchema = z.object({
   amount: z.coerce.number().positive(),
   method: z.enum(['CASH', 'CARD', 'TRANSFER']),
   reference: z.string().trim().max(150).optional(),
+  idempotencyKey: z.string().uuid().optional(),
   note: z.string().trim().max(500).optional(),
 });
 
