@@ -435,6 +435,7 @@ export class HrSelfServiceService {
   return { data: result };
  }
  async mobileManagerLeaveDecision(userId: string, roleId: string, approvalId: string, action: 'APPROVE' | 'REJECT', comment?: string) {
+  if (action !== 'APPROVE' && action !== 'REJECT') throw new BadRequestException('Geçersiz izin onay işlemi.');
   if (!roleId) throw new BadRequestException('Onay işlemi için rol bilgisi gerekli.');
   if (action === 'REJECT' && !String(comment ?? '').trim()) {
     throw new BadRequestException('Ret nedeni zorunludur.');
