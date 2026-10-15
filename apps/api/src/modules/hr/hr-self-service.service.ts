@@ -434,6 +434,18 @@ export class HrSelfServiceService {
   }
   return { data: result };
  }
+ async mobileManagerLeaveDecision(userId: string, roleId: string, approvalId: string, action: 'APPROVE' | 'REJECT', comment?: string) {
+  if (!roleId) throw new BadRequestException('Onay işlemi için rol bilgisi gerekli.');
+  if (action === 'REJECT' && !String(comment ?? '').trim()) {
+    throw new BadRequestException('Ret nedeni zorunludur.');
+  }
+  const actionable = await this.mobileManagerActionableLeaves(userId, roleId);
+  if (!actionable.data.some((item) => item.approvalId === approvalId)) {
+    throw new NotFoundException('Yetkili olduğunuz bekleyen izin onayı bulunamadı.');
+  }
+  // The workflow engine revalidates policy and tenant scope inside its transaction.
+  return this.approvals.act(approvalId, action, { userId, roleId }, comment);
+ }
  async mobileManagerTeam(userId: string) {
   const manager = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
