@@ -27,6 +27,7 @@ export class HrSelfServiceController {
  @Get('manager/mobile-team') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerTeam(@Req()r:any){return this.selfService.mobileManagerTeam(this.userId(r));}
  @Get('manager/mobile-pending-leaves') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerPendingLeaves(@Req()r:any){return this.selfService.mobileManagerPendingLeaves(this.userId(r));}
  @Get('manager/mobile-actionable-leaves') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerActionableLeaves(@Req()r:any){return this.selfService.mobileManagerActionableLeaves(this.userId(r),String(r.user?.roleId??''));}
+ @Post('manager/mobile-leave-decisions/:approvalId') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerLeaveDecision(@Param('approvalId')approvalId:string,@Body()b:{action:'APPROVE'|'REJECT';comment?:string},@Req()r:any){return this.selfService.mobileManagerLeaveDecision(this.userId(r),String(r.user?.roleId??''),approvalId,b.action,b.comment);}
  @Get('manager') manager(@Req()r:any){return this.selfService.managerHome(this.userId(r));}
  @Post('employees/:staffId/link-user') @RequirePermission('hr','manage') link(@Param('staffId')staffId:string,@Body()b:any,@Req()r:any){return this.selfService.link(staffId,b.userId,this.userId(r));}
 }
