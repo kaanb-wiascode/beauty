@@ -574,6 +574,11 @@ export class SalesService {
         const remaining =
           Math.round((total - paid + Number.EPSILON) * 100) / 100;
         const amount = Math.round((input.amount + Number.EPSILON) * 100) / 100;
+        if (amount <= 0) {
+          throw new BadRequestException(
+            'Ödeme tutarı en az 0,01 TL olmalıdır.',
+          );
+        }
 
         if (remaining <= 0) {
           throw new BadRequestException('Satışın tamamı zaten tahsil edilmiş.');
