@@ -113,9 +113,20 @@ export default function SalesPage(){
    const idempotencyKey=paymentRetryRef.current.key;
    setWorking(true);setError("");try{
    await api(`/sales/${selected.id}/payments`,{method:"POST",body:{amount:roundedAmount,method:paymentMethod,idempotencyKey,...(paymentReference.trim()?{reference:paymentReference.trim()}:{}),...(paymentNote.trim()?{note:paymentNote.trim()}:{})}});
+   // The payment API has committed at this point. Never retry the charge
+   // merely because refreshing the list or detail fails afterward.
    paymentRetryRef.current=null;
-   setPaymentReference("");setPaymentNote("");setNotice("Satış ödemesi kaydedildi.");await load();await openDetail(selected.id);
- }catch(e){setError(e instanceof ApiError?e.message:"Ödeme kaydedilemedi.")}finally{setWorking(false)}}
+   setPaymentAmount("");
+   setPaymentReference("");
+   setPaymentNote("");
+   setNotice("Satış ödemesi kaydedildi.");
+   try {
+     await load();
+     await openDetail(selected.id);
+   } catch {
+     setError("Ödeme kaydedildi ancak ekran güncellenemedi. Yenileyerek kontrol edin; ödemeyi tekrar göndermeyin.");
+   }
+ }catch(e){setError(e instanceof ApiError?e.message:"Ödeme doğrulanamadı. Tekrar denemeden önce satış detayını kontrol edin.")}finally{setWorking(false)}}
  async function refund(payment:SalePayment){if(!selected)return;const reason=window.prompt("İade nedeni");if(!reason?.trim())return;setWorking(true);setError("");try{
    await api(`/sales/${selected.id}/payments/${payment.id}/refund`,{method:"POST",body:{reason:reason.trim()}});
    setNotice("Ödeme iadesi işlendi.");await load();await openDetail(selected.id);
