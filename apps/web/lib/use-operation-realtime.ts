@@ -37,7 +37,11 @@ export function useOperationRealtime(
     const pendingEvents = new Map<string, OperationDomainEvent>();
     const dispatch = (event: OperationDomainEvent) => {
       if (event.eventName === "operations.heartbeat") return;
-      const key = `${event.aggregateType ?? event.eventName}:${event.aggregateId ?? ""}`;
+      // Distinct transitions of the same aggregate must not overwrite one another.
+      // An event ID also avoids merging separate changes with the same event name.
+      const key = event.id
+        ? event.id
+        : `${event.eventName}:${event.aggregateType ?? ""}:${event.aggregateId ?? ""}`;
       pendingEvents.set(key, event);
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
