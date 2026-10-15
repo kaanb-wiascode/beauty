@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CardInfo } from "@/components/card-info";
 import { ValooSelect } from "@/components/valoo-controls";
 import { Alert, Button, Spinner } from "@/components/ui";
+import { useOperationRealtime } from "@/lib/use-operation-realtime";
 import { api, ApiError } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
@@ -156,6 +157,15 @@ export default function OperationsRebookingPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  useOperationRealtime((event) => {
+    if (event.eventName.startsWith("appointment.") ||
+        event.eventName.startsWith("session.") ||
+        event.eventName.startsWith("service_execution.") ||
+        event.eventName.startsWith("rebooking.")) {
+      void load();
+    }
+  }, hasActiveBranch());
 
   const selected = useMemo(
     () => opportunities.find((item) => item.id === selectedId) ?? null,
