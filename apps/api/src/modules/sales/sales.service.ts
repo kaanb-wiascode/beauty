@@ -559,10 +559,17 @@ export class SalesService {
               Math.round((input.amount + Number.EPSILON) * 100) / 100;
             if (
               Number(existing.amount) !== requestedAmount ||
-              existing.method !== input.method
+              existing.method !== input.method ||
+              (existing.reference ?? null) !== (input.reference?.trim() || null) ||
+              (existing.note ?? null) !== (input.note?.trim() || null)
             ) {
               throw new ConflictException(
                 'Bu işlem anahtarı farklı bir ödeme için zaten kullanılmış.',
+              );
+            }
+            if (existing.status !== 'COMPLETED') {
+              throw new ConflictException(
+                'Bu işlem anahtarına ait ödeme artık tamamlanmış durumda değil.',
               );
             }
             return existing;
