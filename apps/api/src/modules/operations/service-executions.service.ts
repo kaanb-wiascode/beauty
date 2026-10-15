@@ -569,6 +569,8 @@ export class ServiceExecutionsService {
             const remaining = await tx.session.count({
               where: {
                 customerPackageId: consumedSession.customerPackageId,
+                tenantId,
+                branchId,
                 status: { in: ['AVAILABLE', 'RESERVED'] },
               },
             });
