@@ -43,14 +43,16 @@ export function useOperationRealtime(
         ? event.id
         : `${event.eventName}:${event.aggregateType ?? ""}:${event.aggregateId ?? ""}`;
       pendingEvents.set(key, event);
-      if (refreshTimer) clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        if (!active) return;
-        const events = [...pendingEvents.values()];
-        pendingEvents.clear();
-        for (const pending of events) callbackRef.current(pending);
-      }, 180);
+      // Start one bounded flush window; constant traffic must not postpone updates.
+      if (!refreshTimer) {
+        refreshTimer = setTimeout(() => {
+          refreshTimer = null;
+          if (!active) return;
+          const events = [...pendingEvents.values()];
+          pendingEvents.clear();
+          for (const pending of events) callbackRef.current(pending);
+        }, 180);
+      }
     };
 
     const parseBlock = (block: string) => {
