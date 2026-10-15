@@ -76,6 +76,10 @@ describe('Approved attendance event projection', () => {
     const sql = (query.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sql).toContain("e.occurred_at>=");
     expect(sql).toContain("INTERVAL '24 hours'");
+    expect(sql).toContain('NOT EXISTS');
+    expect(sql).toContain("later_start.event_type='DAY_START'");
+    expect(sql).toContain("later_approval.status='APPROVED'");
+    expect(sql).toContain('later_start.occurred_at<=');
     expect((execute.mock.calls[0][0] as { values: unknown[] }).values).toContain(480);
   });
 
