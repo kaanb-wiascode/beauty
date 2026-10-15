@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useValooSession } from '@/lib/valoo-session';
@@ -19,6 +19,8 @@ type AttendanceEvent = { id: string; eventType: string; occurredAt: string; appr
 type MobileAttendance = { data: AttendanceEvent[] };
 type LeaveRequest = { id: string; leaveType: string | null; startDate: string; endDate: string; days: string; status: string };
 type MobileLeaveHistory = { data: LeaveRequest[] };
+type LeaveBalance = { leaveTypeId: string; name: string; available: number };
+type MobileLeaveBalances = { data: LeaveBalance[] };
 
 export default function PersonnelScreen() {
   const { session, expireSession } = useValooSession();
@@ -33,6 +35,14 @@ export default function PersonnelScreen() {
   const [attendanceMessage, setAttendanceMessage] = useState<string | null>(null);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[] | null>(null);
   const [leaveMessage, setLeaveMessage] = useState<string | null>(null);
+  const [balances, setBalances] = useState<LeaveBalance[] | null>(null);
+  const [leaveTypeId, setLeaveTypeId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [requestedDays, setRequestedDays] = useState('');
+  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
+  const leaveSubmittingRef = useRef(false);
+  const [leaveActionMessage, setLeaveActionMessage] = useState<string | null>(null);
   const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
   const attendanceSubmittingRef = useRef(false);
   const [attendanceActionMessage, setAttendanceActionMessage] = useState<string | null>(null);
@@ -53,6 +63,7 @@ export default function PersonnelScreen() {
     setAttendanceMessage(null);
     setLeaveRequests(null);
     setLeaveMessage(null);
+    setBalances(null);
     try {
       const result = await valooRequest<MobileProfile>('/hr/self-service/me/mobile-profile', {
         accessToken: token,
@@ -96,6 +107,23 @@ export default function PersonnelScreen() {
           return;
         }
         setLeaveMessage(leaveError instanceof Error ? leaveError.message : 'İzin geçmişi yüklenemedi.');
+      }
+      try {
+        const balanceResult = await valooRequest<MobileLeaveBalances>('/hr/self-service/me/mobile-leave-balances', {
+          accessToken: token,
+          signal,
+        });
+        if (!signal.aborted) {
+          if (!Array.isArray(balanceResult.data)) throw new Error('İzin bakiyesi yanıtı geçersiz.');
+          setBalances(balanceResult.data);
+        }
+      } catch (balanceError) {
+        if (signal.aborted) return;
+        if (balanceError instanceof ValooApiError && balanceError.status === 401) {
+          expireSession();
+          return;
+        }
+        setLeaveMessage(balanceError instanceof Error ? balanceError.message : 'İzin bakiyesi yüklenemedi.');
       }
       if (canReadTeam) try {
         const teamResult = await valooRequest<MobileTeam>('/hr/self-service/manager/mobile-team', {
@@ -162,6 +190,44 @@ export default function PersonnelScreen() {
     ]);
   }, [token, permitted, loading, load, expireSession]);
 
+  const submitLeave = useCallback(() => {
+    if (!token || !permitted || leaveSubmittingRef.current || !leaveTypeId) return;
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate)
+      || !Number.isFinite(Number(requestedDays)) || Number(requestedDays) <= 0 || startDate > endDate) {
+      setLeaveActionMessage('Geçerli tarihleri (YYYY-AA-GG) ve pozitif izin gün sayısını girin.');
+      return;
+    }
+    Alert.alert('İzin talebini onayla', 'Başvurunuz yönetici onayına gönderilecek. Devam edilsin mi?', [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'Başvur', onPress: () => {
+        if (leaveSubmittingRef.current) return;
+        leaveSubmittingRef.current = true;
+        setLeaveSubmitting(true);
+        setLeaveActionMessage(null);
+        void (async () => {
+          try {
+            await valooRequest('/hr/self-service/me/leave-requests', {
+              accessToken: token,
+              method: 'POST',
+              body: { leaveTypeId, startDate, endDate, days: Number(requestedDays) },
+            });
+            await load();
+            setLeaveActionMessage('İzin başvurunuz alındı; onay süreci bekleniyor.');
+            setStartDate('');
+            setEndDate('');
+            setRequestedDays('');
+          } catch (error) {
+            if (error instanceof ValooApiError && error.status === 401) expireSession();
+            else setLeaveActionMessage(error instanceof Error ? error.message : 'İzin başvurusu oluşturulamadı.');
+          } finally {
+            leaveSubmittingRef.current = false;
+            setLeaveSubmitting(false);
+          }
+        })();
+      } },
+    ]);
+  }, [token, permitted, leaveTypeId, startDate, endDate, requestedDays, load, expireSession]);
+
   useEffect(() => {
     if (token && permitted) void load();
     else {
@@ -172,6 +238,7 @@ export default function PersonnelScreen() {
       setAttendanceMessage(null);
       setLeaveRequests(null);
       setLeaveMessage(null);
+      setBalances(null);
       setMessage(null);
     }
     return () => requestRef.current?.abort();
@@ -233,6 +300,31 @@ export default function PersonnelScreen() {
               </View>
             )}
             {!!attendanceMessage && <Text accessibilityRole="alert" style={styles.error}>{attendanceMessage}</Text>}
+            {balances && (
+              <View style={styles.card}>
+                <Text style={styles.title}>İzin bakiyem ve yeni talep</Text>
+                {balances.length === 0 && <Text style={styles.body}>Başvuruya uygun izin hakkı bulunamadı.</Text>}
+                {balances.map((balance) => (
+                  <Pressable key={balance.leaveTypeId} accessibilityRole="radio" accessibilityState={{ checked: leaveTypeId === balance.leaveTypeId }} onPress={() => setLeaveTypeId(balance.leaveTypeId)} style={styles.button}>
+                    <Text style={styles.buttonText}>{leaveTypeId === balance.leaveTypeId ? '● ' : '○ '}{balance.name} · {balance.available} gün</Text>
+                  </Pressable>
+                ))}
+                {balances.length > 0 && (
+                  <>
+                    <Text style={styles.label}>Başlangıç tarihi (YYYY-AA-GG)</Text>
+                    <TextInput accessibilityLabel="İzin başlangıç tarihi" placeholder="2026-11-01" value={startDate} onChangeText={setStartDate} style={styles.input} autoCapitalize="none" />
+                    <Text style={styles.label}>Bitiş tarihi (YYYY-AA-GG)</Text>
+                    <TextInput accessibilityLabel="İzin bitiş tarihi" placeholder="2026-11-03" value={endDate} onChangeText={setEndDate} style={styles.input} autoCapitalize="none" />
+                    <Text style={styles.label}>Talep edilen gün sayısı</Text>
+                    <TextInput accessibilityLabel="Talep edilen gün sayısı" keyboardType="decimal-pad" placeholder="3" value={requestedDays} onChangeText={setRequestedDays} style={styles.input} />
+                    <Pressable accessibilityRole="button" disabled={leaveSubmitting || loading || !leaveTypeId} onPress={submitLeave} style={styles.button}>
+                      <Text style={styles.buttonText}>{leaveSubmitting ? 'Başvuru gönderiliyor…' : 'İzin talebini gönder'}</Text>
+                    </Pressable>
+                  </>
+                )}
+                {!!leaveActionMessage && <Text accessibilityRole="alert" style={styles.body}>{leaveActionMessage}</Text>}
+              </View>
+            )}
             {leaveRequests && (
               <View style={styles.card}>
                 <Text style={styles.title}>İzin geçmişim</Text>
@@ -278,6 +370,7 @@ const styles = StyleSheet.create({
   intro: { fontSize: 14, lineHeight: 21, color: '#5b6f89' },
   card: { padding: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e1e9f5', borderRadius: 18, gap: 10 },
   actionRow: { gap: 8 },
+  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 12, color: '#193b61', fontSize: 15 },
   teamRow: { borderTopWidth: 1, borderTopColor: '#e1e9f5', paddingTop: 12, gap: 4 },
   title: { color: '#1c3553', fontWeight: '700', fontSize: 18 },
   body: { color: '#64748b', fontSize: 14, lineHeight: 21 },
