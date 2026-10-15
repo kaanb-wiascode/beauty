@@ -1,0 +1,37 @@
+name: Prepare mobile advisory lockfile
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+    paths:
+      - ".github/workflows/mobile-advisory-lockfile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+      - name: Resolve audited versions against npm registry
+        run: bash scripts/security/verify-mobile-advisory-refresh.sh
+      - name: Upload inspected lockfile and overrides
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-advisory-lockfile
+          path: |
+            pnpm-lock.yaml
+            pnpm-workspace.yaml
+          if-no-files-found: error
+          retention-days: 3
