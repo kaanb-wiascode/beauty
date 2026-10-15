@@ -25,9 +25,9 @@ describe('SalesService payment idempotency', () => {
       ...existingOverrides,
     };
     const tx = {
-      $queryRawUnsafe: jest.fn().mockResolvedValue([
-        { id: 'sale-1', total: 100, status: 'CONFIRMED' },
-      ]),
+      $queryRawUnsafe: jest
+        .fn()
+        .mockResolvedValue([{ id: 'sale-1', total: 100, status: 'CONFIRMED' }]),
       salePayment: {
         findFirst: jest.fn().mockResolvedValue(existing),
         create: jest.fn(),
@@ -59,9 +59,18 @@ describe('SalesService payment idempotency', () => {
         SalesService,
         { provide: PrismaService, useValue: prisma },
         { provide: TenantContext, useValue: tenant },
-        { provide: InstallmentsService, useValue: { allocatePayment: jest.fn() } },
-        { provide: AccountingService, useValue: { recordSalePayment: jest.fn() } },
-        { provide: CommerceFinanceSyncService, useValue: { syncSalePayment: jest.fn() } },
+        {
+          provide: InstallmentsService,
+          useValue: { allocatePayment: jest.fn() },
+        },
+        {
+          provide: AccountingService,
+          useValue: { recordSalePayment: jest.fn() },
+        },
+        {
+          provide: CommerceFinanceSyncService,
+          useValue: { syncSalePayment: jest.fn() },
+        },
       ],
     }).compile();
     return { service: moduleRef.get(SalesService), tx, prisma };
