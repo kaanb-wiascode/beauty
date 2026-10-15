@@ -38,6 +38,12 @@ export default function PersonnelScreen() {
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[] | null>(null);
   const [pendingAttendance, setPendingAttendance] = useState<PendingAttendance[] | null>(null);
+  const [actionableAttendanceIds, setActionableAttendanceIds] = useState<string[]>([]);
+  const [attendanceDecisionBusy, setAttendanceDecisionBusy] = useState(false);
+  const attendanceDecisionBusyRef = useRef(false);
+  const [attendanceRejectionId, setAttendanceRejectionId] = useState<string | null>(null);
+  const [attendanceRejectionReason, setAttendanceRejectionReason] = useState('');
+  const [attendanceDecisionMessage, setAttendanceDecisionMessage] = useState<string | null>(null);
   const [actionableLeaves, setActionableLeaves] = useState<ActionableLeave[]>([]);
   const [decisionBusy, setDecisionBusy] = useState(false);
   const decisionBusyRef = useRef(false);
@@ -74,6 +80,7 @@ export default function PersonnelScreen() {
     setTeam(null);
     setPendingLeaves(null);
     setPendingAttendance(null);
+    setActionableAttendanceIds([]);
     setActionableLeaves([]);
     setTeamMessage(null);
     setAttendance(null);
@@ -156,6 +163,8 @@ export default function PersonnelScreen() {
           if (!signal.aborted && Array.isArray(actionableResult.data)) setActionableLeaves(actionableResult.data);
           const attendanceQueue = await valooRequest<PendingAttendancePage>('/hr/self-service/manager/mobile-pending-attendance', { accessToken: token, signal });
           if (!signal.aborted && Array.isArray(attendanceQueue.data)) setPendingAttendance(attendanceQueue.data);
+          const actionableAttendance = await valooRequest<PendingAttendancePage>('/hr/self-service/manager/mobile-actionable-attendance', { accessToken: token, signal });
+          if (!signal.aborted && Array.isArray(actionableAttendance.data)) setActionableAttendanceIds(actionableAttendance.data.map((item) => item.approvalRequestId));
         }
       } catch (teamError) {
         if (signal.aborted) return;
@@ -284,6 +293,39 @@ export default function PersonnelScreen() {
     ]);
   }, [token, load, expireSession]);
 
+  const decideAttendance = useCallback((approvalId: string, decision: 'APPROVE' | 'REJECT', comment?: string) => {
+    if (!token || attendanceDecisionBusyRef.current || (decision === 'REJECT' && !comment?.trim())) {
+      if (decision === 'REJECT') setAttendanceDecisionMessage('Ret gerekçesi zorunludur.');
+      return;
+    }
+    Alert.alert('Puantaj kararını onayla', decision === 'APPROVE' ? 'Puantaj kaydını onaylamak istiyor musunuz?' : 'Puantaj kaydını reddetmek istiyor musunuz?', [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'Devam et', onPress: () => {
+        if (attendanceDecisionBusyRef.current) return;
+        attendanceDecisionBusyRef.current = true;
+        setAttendanceDecisionBusy(true);
+        setAttendanceDecisionMessage(null);
+        void (async () => {
+          try {
+            await valooRequest(`/hr/self-service/manager/mobile-attendance-decisions/${encodeURIComponent(approvalId)}`, {
+              method: 'POST', accessToken: token, body: { decision, comment: comment?.trim() },
+            });
+            await load();
+            setAttendanceRejectionId(null);
+            setAttendanceRejectionReason('');
+            setAttendanceDecisionMessage('Puantaj kararı işlendi. Bekleyen kayıtlar yenilendi.');
+          } catch (error) {
+            if (error instanceof ValooApiError && error.status === 401) expireSession();
+            else setAttendanceDecisionMessage(error instanceof Error ? error.message : 'Puantaj kararı işlenemedi.');
+          } finally {
+            attendanceDecisionBusyRef.current = false;
+            setAttendanceDecisionBusy(false);
+          }
+        })();
+      } },
+    ]);
+  }, [token, load, expireSession]);
+
   useEffect(() => {
     if (token && permitted) void load();
     else {
@@ -398,6 +440,7 @@ export default function PersonnelScreen() {
             )}
             {!!leaveMessage && <Text accessibilityRole="alert" style={styles.error}>{leaveMessage}</Text>}
             {!!decisionMessage && <Text accessibilityRole="alert" style={styles.body}>{decisionMessage}</Text>}
+            {!!attendanceDecisionMessage && <Text accessibilityRole="alert" style={styles.body}>{attendanceDecisionMessage}</Text>}
             {pendingAttendance && (
               <View style={styles.card}>
                 <Text style={styles.title}>Ekibimin bekleyen puantajları</Text>
@@ -407,9 +450,27 @@ export default function PersonnelScreen() {
                     <Text style={styles.value}>{entry.firstName} {entry.lastName}</Text>
                     <Text style={styles.body}>{entry.eventType === 'DAY_START' ? 'İşe giriş' : entry.eventType === 'DAY_END' ? 'İşten çıkış' : entry.eventType === 'BREAK_START' ? 'Mola başlangıcı' : entry.eventType === 'BREAK_END' ? 'Mola bitişi' : 'Puantaj kaydı'}</Text>
                     <Text style={styles.label}>{new Date(entry.occurredAt).toLocaleString('tr-TR')} · Onay bekliyor</Text>
+                    {actionableAttendanceIds.includes(entry.approvalRequestId) && (
+                      <View style={styles.actionRow}>
+                        <Pressable accessibilityRole="button" disabled={attendanceDecisionBusy || loading} style={styles.button} onPress={() => decideAttendance(entry.approvalRequestId, 'APPROVE')}>
+                          <Text style={styles.buttonText}>Onayla</Text>
+                        </Pressable>
+                        <Pressable accessibilityRole="button" disabled={attendanceDecisionBusy || loading} style={styles.button} onPress={() => { setAttendanceRejectionId(entry.id); setAttendanceRejectionReason(''); }}>
+                          <Text style={styles.buttonText}>Reddet</Text>
+                        </Pressable>
+                        {attendanceRejectionId === entry.id && (
+                          <>
+                            <TextInput accessibilityLabel="Puantaj ret gerekçesi" multiline placeholder="Ret gerekçesini yazın" value={attendanceRejectionReason} onChangeText={setAttendanceRejectionReason} style={styles.input} />
+                            <Pressable accessibilityRole="button" disabled={attendanceDecisionBusy || !attendanceRejectionReason.trim()} style={styles.button} onPress={() => decideAttendance(entry.approvalRequestId, 'REJECT', attendanceRejectionReason)}>
+                              <Text style={styles.buttonText}>Gerekçeyle reddet</Text>
+                            </Pressable>
+                          </>
+                        )}
+                      </View>
+                    )}
                   </View>
                 ))}
-                <Text style={styles.note}>Bu alan yalnızca görüntüleme amaçlıdır. Puantaj kararları ayrı onay motorunda işlenir.</Text>
+                <Text style={styles.note}>Karar butonları yalnızca mevcut onay adımında yetkili olduğunuz kayıtlarda görünür.</Text>
               </View>
             )}
             {pendingLeaves && (
