@@ -144,4 +144,35 @@ describe('OperationsRebookingService', () => {
     ).rejects.toThrow('Önceki yeniden randevunun hedef kaydı bulunamadı');
     expect(appointmentCreate).not.toHaveBeenCalled();
   });
+  it('rejects an appointment time that expires while the source lock is pending', async () => {
+    jest.useFakeTimers({ now: new Date('2199-09-30T10:00:00.000Z') });
+    try {
+      queryRawUnsafe
+        .mockResolvedValueOnce([source])
+        .mockImplementationOnce(async () => {
+          jest.setSystemTime(new Date('2199-10-02T10:00:00.000Z'));
+          return [{ locked: 1 }];
+        })
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([source]);
+
+      const service = new OperationsRebookingService(
+        prisma,
+        tenantContext,
+        workingHours,
+        staffEligibility,
+      );
+
+      await expect(
+        service.create(source.id, {
+          startAt: new Date('2199-10-01T10:00:00.000Z'),
+        }),
+      ).rejects.toThrow('Yeni randevu zamanı gelecekte olmalıdır.');
+      expect(appointmentCreate).not.toHaveBeenCalled();
+      expect(staffFindFirst).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
 });
