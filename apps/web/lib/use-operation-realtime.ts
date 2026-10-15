@@ -31,11 +31,21 @@ export function useOperationRealtime(
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const controller = new AbortController();
 
+    // Preserve events from distinct aggregates while coalescing bursts.
+    // A single last-event debounce can silently skip session/sale refreshes
+    // when unrelated visit or appointment events arrive within 180 ms.
+    const pendingEvents = new Map<string, OperationDomainEvent>();
     const dispatch = (event: OperationDomainEvent) => {
       if (event.eventName === "operations.heartbeat") return;
+      const key = `${event.aggregateType ?? event.eventName}:${event.aggregateId ?? ""}`;
+      pendingEvents.set(key, event);
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
-        callbackRef.current(event);
+        refreshTimer = null;
+        if (!active) return;
+        const events = [...pendingEvents.values()];
+        pendingEvents.clear();
+        for (const pending of events) callbackRef.current(pending);
       }, 180);
     };
 
