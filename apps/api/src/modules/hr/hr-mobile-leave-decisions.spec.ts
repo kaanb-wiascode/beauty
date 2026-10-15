@@ -32,4 +32,23 @@ describe('Manager mobile leave decisions', () => {
     await expect(service.mobileManagerLeaveDecision('u1','r1','a1','APPROVE')).rejects.toThrow(NotFoundException);
     expect(act).not.toHaveBeenCalled();
   });
+  it('delegates a permitted approval to the workflow engine', async () => {
+    query.mockResolvedValueOnce([{ id: 'manager-1' }])
+      .mockResolvedValueOnce([{ id: 'leave-1', firstName: 'Ece', lastName: 'Demir', startDate: '2026-11-01', endDate: '2026-11-02', days: '2', leaveType: 'Yıllık' }])
+      .mockResolvedValueOnce([{ id: 'approval-1', entityId: 'leave-1' }]);
+    canAct.mockResolvedValueOnce(true);
+    act.mockResolvedValueOnce({ status: 'APPROVED' });
+    await expect(service.mobileManagerLeaveDecision('u1', 'r1', 'approval-1', 'APPROVE')).resolves.toEqual({ status: 'APPROVED' });
+    expect(act).toHaveBeenCalledWith('approval-1', 'APPROVE', { userId: 'u1', roleId: 'r1' }, undefined);
+  });
+
+  it('blocks a workflow decision when its approval step is not authorized', async () => {
+    query.mockResolvedValueOnce([{ id: 'manager-1' }])
+      .mockResolvedValueOnce([{ id: 'leave-1' }])
+      .mockResolvedValueOnce([{ id: 'approval-1', entityId: 'leave-1' }]);
+    canAct.mockResolvedValueOnce(false);
+    await expect(service.mobileManagerLeaveDecision('u1', 'r1', 'approval-1', 'REJECT', 'Gerekçe')).rejects.toThrow(NotFoundException);
+    expect(act).not.toHaveBeenCalled();
+  });
+
 });
