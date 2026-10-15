@@ -4,7 +4,7 @@ import { CardInfo } from "@/components/card-info";
 import { MasterDataQuickCreate, type QuickCreateKind } from "@/components/master-data-quick-create";
 import { ValooSelect } from "@/components/valoo-controls";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
 import { TeamShareAction } from "@/components/team-share-action";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
@@ -51,6 +51,7 @@ export default function SalesPage(){
  const[paymentAmount,setPaymentAmount]=useState(""),[paymentMethod,setPaymentMethod]=useState<"CASH"|"CARD"|"TRANSFER">("CARD"),[paymentReference,setPaymentReference]=useState(""),[paymentNote,setPaymentNote]=useState("");
  const[installmentCount,setInstallmentCount]=useState("2"),[firstDueAt,setFirstDueAt]=useState(new Date().toISOString().slice(0,10)),[intervalMonths,setIntervalMonths]=useState("1");
  const[quickCreate,setQuickCreate]=useState<{kind:QuickCreateKind;name:string;lineIndex:number|null}|null>(null);
+ const paymentRetryRef=useRef<{fingerprint:string;key:string}|null>(null);
 
  const load=useCallback(async()=>{
    if(!hasActiveBranch()){
@@ -99,8 +100,15 @@ export default function SalesPage(){
  }catch(e){setError(e instanceof ApiError?e.message:"Satış oluşturulamadı.")}finally{setWorking(false)}}
 
  async function saleAction(action:"confirm"|"cancel"){if(!selected)return;setWorking(true);setError("");try{await api(`/sales/${selected.id}/${action}`,{method:"POST"});setNotice(action==="confirm"?"Satış onaylandı.":"Satış iptal edildi.");await load();await openDetail(selected.id)}catch(e){setError(e instanceof ApiError?e.message:"Satış işlemi tamamlanamadı.")}finally{setWorking(false)}}
- async function addPayment(event:FormEvent){event.preventDefault();if(!selected||Number(paymentAmount)<=0)return;setWorking(true);setError("");try{
-   await api(`/sales/${selected.id}/payments`,{method:"POST",body:{amount:Number(paymentAmount),method:paymentMethod,...(paymentReference.trim()?{reference:paymentReference.trim()}:{}),...(paymentNote.trim()?{note:paymentNote.trim()}:{})}});
+ async function addPayment(event:FormEvent){event.preventDefault();if(!selected||Number(paymentAmount)<=0||working)return;
+   const fingerprint=JSON.stringify([selected.id,Number(paymentAmount),paymentMethod,paymentReference.trim(),paymentNote.trim()]);
+   if(paymentRetryRef.current?.fingerprint!==fingerprint){
+     paymentRetryRef.current={fingerprint,key:crypto.randomUUID()};
+   }
+   const idempotencyKey=paymentRetryRef.current.key;
+   setWorking(true);setError("");try{
+   await api(`/sales/${selected.id}/payments`,{method:"POST",body:{amount:Number(paymentAmount),method:paymentMethod,idempotencyKey,...(paymentReference.trim()?{reference:paymentReference.trim()}:{}),...(paymentNote.trim()?{note:paymentNote.trim()}:{})}});
+   paymentRetryRef.current=null;
    setPaymentReference("");setPaymentNote("");setNotice("Satış ödemesi kaydedildi.");await load();await openDetail(selected.id);
  }catch(e){setError(e instanceof ApiError?e.message:"Ödeme kaydedilemedi.")}finally{setWorking(false)}}
  async function refund(payment:SalePayment){if(!selected)return;const reason=window.prompt("İade nedeni");if(!reason?.trim())return;setWorking(true);setError("");try{
