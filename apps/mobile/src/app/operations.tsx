@@ -17,6 +17,13 @@ type ChecklistDetail = ChecklistRun & {
   items: Array<{ id: string; title: string; status: 'PENDING' | 'COMPLETED' | 'NA'; isRequired: boolean }>;
 };
 
+function localDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function OperationsScreen() {
   const { session, me, expireSession } = useValooSession();
   const token = session?.accessToken ?? null;
@@ -50,7 +57,7 @@ export default function OperationsScreen() {
       const end = new Date();
       const start = new Date(end);
       start.setDate(start.getDate() - (periodDays - 1));
-      const params = new URLSearchParams({ from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) });
+      const params = new URLSearchParams({ from: localDateString(start), to: localDateString(end) });
       if (category !== 'ALL') params.set('category', category);
       const path = `/operations/branch-checklists/runs?${params.toString()}`;
       const result = await valooRequest<ChecklistRun[]>(path, {
