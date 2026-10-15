@@ -560,7 +560,8 @@ export class SalesService {
             if (
               Number(existing.amount) !== requestedAmount ||
               existing.method !== input.method ||
-              (existing.reference ?? null) !== (input.reference?.trim() || null) ||
+              (existing.reference ?? null) !==
+                (input.reference?.trim() || null) ||
               (existing.note ?? null) !== (input.note?.trim() || null)
             ) {
               throw new ConflictException(
