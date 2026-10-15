@@ -35,7 +35,10 @@ export default function OperationsScreen() {
     if (!token || !permitted || !hasBranch) return;
     requestRef.current?.abort();
     detailRequestRef.current?.abort();
+    detailRequestRef.current = null;
     setDetail(null);
+    setDetailLoading(false);
+    setDetailError(null);
     const controller = new AbortController();
     requestRef.current = controller;
     setLoading(true);
