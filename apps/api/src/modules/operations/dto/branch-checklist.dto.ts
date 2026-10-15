@@ -42,6 +42,9 @@ export const listBranchChecklistRunsSchema = z.object({
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().min(1).max(10000).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
+}).refine((value) => !value.from || !value.to || value.from <= value.to, {
+  path: ['to'],
+  message: 'End date must not precede start date.',
 });
 
 export const updateBranchChecklistRunItemSchema = z.object({
