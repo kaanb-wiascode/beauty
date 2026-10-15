@@ -37,6 +37,7 @@ describe('Mobile manager pending leave access scope', () => {
     expect(query.mock.calls[1]?.[0]).toContain('r.status=\'PENDING\'');
     expect(query.mock.calls[1]?.[0]).toContain('a.effective_from<=CURRENT_DATE');
     expect(query.mock.calls[1]?.[0]).toContain('b."companyId"=$2');
+    expect(query.mock.calls[1]?.[0]).toContain('s."branchId"=r.branch_id');
     expect(query.mock.calls[1]?.[0]).toContain('LIMIT 50');
     expect(query.mock.calls[1]?.slice(1)).toEqual(['tenant-a', 'company-a', 'manager-a']);
   });
