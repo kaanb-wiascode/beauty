@@ -13,6 +13,8 @@ type ChecklistRun = {
   status: 'OPEN' | 'COMPLETED';
 };
 
+type ChecklistPage = { data: ChecklistRun[]; meta: { page: number; limit: number; hasMore: boolean } };
+
 type ChecklistDetail = ChecklistRun & {
   items: Array<{ id: string; title: string; status: 'PENDING' | 'COMPLETED' | 'NA'; isRequired: boolean }>;
 };
@@ -30,6 +32,8 @@ export default function OperationsScreen() {
   const permitted = session?.membership.permissions.includes('operations.read') ?? false;
   const hasBranch = Boolean(me?.tenantContext.branchId);
   const [runs, setRuns] = useState<ChecklistRun[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [category, setCategory] = useState<'ALL' | 'OPENING' | 'CLOSING'>('ALL');
   const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
   const [error, setError] = useState<string | null>(null);
@@ -59,14 +63,17 @@ export default function OperationsScreen() {
       start.setDate(start.getDate() - (periodDays - 1));
       const params = new URLSearchParams({ from: localDateString(start), to: localDateString(end) });
       if (category !== 'ALL') params.set('category', category);
+      params.set('page', String(page));
+      params.set('limit', '25');
       const path = `/operations/branch-checklists/runs?${params.toString()}`;
-      const result = await valooRequest<ChecklistRun[]>(path, {
+      const result = await valooRequest<ChecklistPage>(path, {
         accessToken: token,
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
-      if (!Array.isArray(result)) throw new Error('Kontrol listesi yanıtı geçersiz.');
-      setRuns(result.slice(0, 50));
+      if (!Array.isArray(result.data) || result.meta?.page !== page || typeof result.meta?.hasMore !== 'boolean') throw new Error('Kontrol listesi yanıtı geçersiz.');
+      setRuns(result.data);
+      setHasMore(result.meta.hasMore);
     } catch (cause) {
       if (controller.signal.aborted) return;
       if (cause instanceof ValooApiError && cause.status === 401) expireSession();
@@ -77,7 +84,7 @@ export default function OperationsScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, hasBranch, category, periodDays, expireSession]);
+  }, [token, permitted, hasBranch, category, periodDays, page, expireSession]);
 
   const showDetail = useCallback(async (runId: string) => {
     if (!token || !permitted || !hasBranch) return;
@@ -113,6 +120,7 @@ export default function OperationsScreen() {
     if (token && permitted && hasBranch) void load();
     else {
       setRuns(null);
+      setHasMore(false);
       setDetail(null);
       setError(null);
       setDetailError(null);
@@ -145,14 +153,14 @@ export default function OperationsScreen() {
                 ['OPENING', 'Açılış'],
                 ['CLOSING', 'Kapanış'],
               ] as const).map(([value, label]) => (
-                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: category === value }} onPress={() => setCategory(value)} style={[styles.filterButton, category === value && styles.filterSelected]}>
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: category === value }} onPress={() => { setPage(1); setCategory(value); }} style={[styles.filterButton, category === value && styles.filterSelected]}>
                   <Text style={styles.buttonText}>{label}</Text>
                 </Pressable>
               ))}
             </View>
             <View style={styles.filterRow}>
               {([7, 30, 90] as const).map((days) => (
-                <Pressable key={days} accessibilityRole="button" accessibilityState={{ selected: periodDays === days }} onPress={() => setPeriodDays(days)} style={[styles.filterButton, periodDays === days && styles.filterSelected]}>
+                <Pressable key={days} accessibilityRole="button" accessibilityState={{ selected: periodDays === days }} onPress={() => { setPage(1); setPeriodDays(days); }} style={[styles.filterButton, periodDays === days && styles.filterSelected]}>
                   <Text style={styles.buttonText}>Son {days} gün</Text>
                 </Pressable>
               ))}
@@ -187,7 +195,18 @@ export default function OperationsScreen() {
                 ))}
               </View>
             )}
-            {!!runs?.length && <Text style={styles.note}>En fazla ilk 50 kayıt gösterilir. Bu ekran yalnızca görüntüleme amaçlıdır.</Text>}
+            {runs && (
+              <View style={styles.filterRow}>
+                <Pressable accessibilityRole="button" disabled={loading || page === 1} onPress={() => setPage((current) => Math.max(1, current - 1))} style={styles.filterButton}>
+                  <Text style={styles.buttonText}>Önceki</Text>
+                </Pressable>
+                <Text style={styles.body}>Sayfa {page}</Text>
+                <Pressable accessibilityRole="button" disabled={loading || !hasMore} onPress={() => setPage((current) => current + 1)} style={styles.filterButton}>
+                  <Text style={styles.buttonText}>Sonraki</Text>
+                </Pressable>
+              </View>
+            )}
+            {!!runs?.length && <Text style={styles.note}>Sayfa başına 25 kayıt gösterilir. Bu ekran yalnızca görüntüleme amaçlıdır.</Text>}
           </>
         )}
       </ScrollView>
