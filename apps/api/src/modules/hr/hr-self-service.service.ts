@@ -421,6 +421,16 @@ export class HrSelfServiceService {
   );
   return { data: pending.data.filter((entry) => authorizedIds.has(entry.approvalRequestId)) };
  }
+ async mobileManagerAttendanceDecision(userId: string, approvalRequestId: string, decision: 'APPROVE' | 'REJECT', comment?: string) {
+  if (decision !== 'APPROVE' && decision !== 'REJECT') throw new BadRequestException('Geçersiz puantaj onay işlemi.');
+  if (decision === 'REJECT' && !String(comment ?? '').trim()) throw new BadRequestException('Ret gerekçesi zorunludur.');
+  const actionable = await this.mobileManagerActionableAttendance(userId);
+  if (!actionable.data.some((entry) => entry.approvalRequestId === approvalRequestId)) {
+    throw new NotFoundException('Yetkili olduğunuz bekleyen puantaj onayı bulunamadı.');
+  }
+  // The runtime rechecks current-step permissions and separation of duties transactionally.
+  return this.approvalRuntime.act(approvalRequestId, decision, comment);
+ }
  async mobileManagerPendingLeaves(userId: string) {
   const manager = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
