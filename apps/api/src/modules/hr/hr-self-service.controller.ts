@@ -26,6 +26,7 @@ export class HrSelfServiceController {
  @Post('me/attendance/clock-out') clockOut(@Req()r:any){return this.selfService.recordAttendanceEvent(this.userId(r),'CLOCK_OUT');}
  @Get('manager/mobile-team') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerTeam(@Req()r:any){return this.selfService.mobileManagerTeam(this.userId(r));}
  @Get('manager/mobile-pending-leaves') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerPendingLeaves(@Req()r:any){return this.selfService.mobileManagerPendingLeaves(this.userId(r));}
+ @Get('manager/mobile-actionable-leaves') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerActionableLeaves(@Req()r:any){return this.selfService.mobileManagerActionableLeaves(this.userId(r),String(r.user?.roleId??''));}
  @Get('manager') manager(@Req()r:any){return this.selfService.managerHome(this.userId(r));}
  @Post('employees/:staffId/link-user') @RequirePermission('hr','manage') link(@Param('staffId')staffId:string,@Body()b:any,@Req()r:any){return this.selfService.link(staffId,b.userId,this.userId(r));}
 }
