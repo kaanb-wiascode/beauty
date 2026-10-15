@@ -514,6 +514,16 @@ export class ServiceExecutionsService {
           );
         }
 
+        if (
+          appointment.session &&
+          appointment.session.status !== 'RESERVED' &&
+          appointment.session.status !== 'CONSUMED'
+        ) {
+          throw new ConflictException(
+            'Bağlı paket seansı rezerve edilmediği için randevu tamamlanamaz.',
+          );
+        }
+
         if (appointment.status !== 'COMPLETED') {
           if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
             throw new ConflictException(
