@@ -325,6 +325,18 @@ export class HrSelfServiceService {
    };
   });
  }
+ async mobileLeaveHistory(userId: string) {
+  const employee = await this.employee(userId);
+  const requests = await this.leave.requests(employee.id);
+  return { data: requests.slice(0, 20).map((request) => ({
+    id: request.id,
+    leaveType: request.leaveType,
+    startDate: request.startDate,
+    endDate: request.endDate,
+    days: request.days,
+    status: request.status,
+  })) };
+ }
  async mobileAttendanceToday(userId: string) {
   const employee = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
