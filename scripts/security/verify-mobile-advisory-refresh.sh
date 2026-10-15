@@ -11,7 +11,12 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
-pnpm --version
+pnpm_version="$(pnpm --version)"
+echo "pnpm version: $pnpm_version"
+if [[ "$pnpm_version" != 11.* ]]; then
+  echo "This lockfile refresh requires pnpm 11.x; found $pnpm_version" >&2
+  exit 1
+fi
 node --version
 
 # Set targeted replacements without changing other package resolution constraints.
@@ -32,6 +37,11 @@ NODE
 
 # Registry-backed resolution generates real package integrity hashes in the lockfile.
 pnpm install --lockfile-only --ignore-scripts
+if git diff --quiet -- pnpm-lock.yaml; then
+  echo "Lockfile was not updated; refuse to claim that advisories were patched" >&2
+  exit 1
+fi
+git diff --check
 
 # Fail closed when the registry or resolver leaves vulnerable versions in the lockfile.
 node <<'NODE'
