@@ -99,6 +99,18 @@ describe('SalesService payment idempotency', () => {
     expect(tx.salePayment.create).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['reference', { reference: 'different-bank-reference' }],
+    ['note', { note: 'Different payment details' }],
+    ['method', { method: 'CASH' as const }],
+  ])('rejects a reused key with changed %s', async (_field, override) => {
+    const { service, tx } = await setup();
+    await expect(
+      service.addPayment('sale-1', { ...request, ...override }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.salePayment.create).not.toHaveBeenCalled();
+  });
+
   it('rejects a reused key after the original payment has been refunded', async () => {
     const { service, tx } = await setup({ status: 'REFUNDED' });
     await expect(service.addPayment('sale-1', request)).rejects.toBeInstanceOf(
