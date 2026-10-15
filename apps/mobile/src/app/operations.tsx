@@ -24,6 +24,7 @@ export default function OperationsScreen() {
   const hasBranch = Boolean(me?.tenantContext.branchId);
   const [runs, setRuns] = useState<ChecklistRun[] | null>(null);
   const [category, setCategory] = useState<'ALL' | 'OPENING' | 'CLOSING'>('ALL');
+  const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<ChecklistDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -46,7 +47,12 @@ export default function OperationsScreen() {
     setError(null);
     setRuns(null);
     try {
-      const path = category === 'ALL' ? '/operations/branch-checklists/runs' : `/operations/branch-checklists/runs?category=${category}`;
+      const end = new Date();
+      const start = new Date(end);
+      start.setDate(start.getDate() - (periodDays - 1));
+      const params = new URLSearchParams({ from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) });
+      if (category !== 'ALL') params.set('category', category);
+      const path = `/operations/branch-checklists/runs?${params.toString()}`;
       const result = await valooRequest<ChecklistRun[]>(path, {
         accessToken: token,
         signal: controller.signal,
@@ -64,7 +70,7 @@ export default function OperationsScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, hasBranch, category, expireSession]);
+  }, [token, permitted, hasBranch, category, periodDays, expireSession]);
 
   const showDetail = useCallback(async (runId: string) => {
     if (!token || !permitted || !hasBranch) return;
@@ -134,6 +140,13 @@ export default function OperationsScreen() {
               ] as const).map(([value, label]) => (
                 <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: category === value }} onPress={() => setCategory(value)} style={[styles.filterButton, category === value && styles.filterSelected]}>
                   <Text style={styles.buttonText}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.filterRow}>
+              {([7, 30, 90] as const).map((days) => (
+                <Pressable key={days} accessibilityRole="button" accessibilityState={{ selected: periodDays === days }} onPress={() => setPeriodDays(days)} style={[styles.filterButton, periodDays === days && styles.filterSelected]}>
+                  <Text style={styles.buttonText}>Son {days} gün</Text>
                 </Pressable>
               ))}
             </View>
