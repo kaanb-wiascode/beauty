@@ -15,6 +15,8 @@ type MobileProfile = {
 
 type TeamMember = MobileProfile;
 type MobileTeam = { data: TeamMember[] };
+type AttendanceEvent = { id: string; eventType: string; occurredAt: string };
+type MobileAttendance = { data: AttendanceEvent[] };
 
 export default function PersonnelScreen() {
   const { session, expireSession } = useValooSession();
@@ -25,6 +27,8 @@ export default function PersonnelScreen() {
   const requestRef = useRef<AbortController | null>(null);
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
+  const [attendance, setAttendance] = useState<AttendanceEvent[] | null>(null);
+  const [attendanceMessage, setAttendanceMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -38,6 +42,8 @@ export default function PersonnelScreen() {
     setProfile(null);
     setTeam(null);
     setTeamMessage(null);
+    setAttendance(null);
+    setAttendanceMessage(null);
     try {
       const result = await valooRequest<MobileProfile>('/hr/self-service/me/mobile-profile', {
         accessToken: token,
@@ -48,6 +54,23 @@ export default function PersonnelScreen() {
         throw new Error('Personel bilgileri beklenen biçimde değil.');
       }
       setProfile(result);
+      try {
+        const attendanceResult = await valooRequest<MobileAttendance>('/hr/self-service/me/mobile-attendance', {
+          accessToken: token,
+          signal,
+        });
+        if (!signal.aborted) {
+          if (!Array.isArray(attendanceResult.data)) throw new Error('Puantaj yanıtı geçersiz.');
+          setAttendance(attendanceResult.data);
+        }
+      } catch (attendanceError) {
+        if (signal.aborted) return;
+        if (attendanceError instanceof ValooApiError && attendanceError.status === 401) {
+          expireSession();
+          return;
+        }
+        setAttendanceMessage(attendanceError instanceof Error ? attendanceError.message : 'Günlük giriş çıkış kayıtları yüklenemedi.');
+      }
       if (canReadTeam) try {
         const teamResult = await valooRequest<MobileTeam>('/hr/self-service/manager/mobile-team', {
           accessToken: token,
@@ -89,6 +112,8 @@ export default function PersonnelScreen() {
       setProfile(null);
       setTeam(null);
       setTeamMessage(null);
+      setAttendance(null);
+      setAttendanceMessage(null);
       setMessage(null);
     }
     return () => requestRef.current?.abort();
@@ -121,6 +146,20 @@ export default function PersonnelScreen() {
                 <Text style={styles.note}>Bu ekran salt okunurdur. Bilgi değişikliği için yetkili yöneticinizle görüşün.</Text>
               </View>
             )}
+            {attendance && (
+              <View style={styles.card}>
+                <Text style={styles.title}>Bugünkü giriş ve çıkışlarım</Text>
+                {attendance.length === 0 && <Text style={styles.body}>Bugün kayıt bulunamadı.</Text>}
+                {attendance.map((event) => (
+                  <View key={event.id} style={styles.teamRow}>
+                    <Text style={styles.value}>{event.eventType === 'DAY_START' ? 'İşe giriş' : event.eventType === 'DAY_END' ? 'İşten çıkış' : event.eventType === 'BREAK_START' ? 'Mola başlangıcı' : event.eventType === 'BREAK_END' ? 'Mola bitişi' : 'Puantaj olayı'}</Text>
+                    <Text style={styles.body}>{new Date(event.occurredAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</Text>
+                  </View>
+                ))}
+                <Text style={styles.note}>Kayıtlar bilgilendirme amaçlıdır; onay durumu ayrıca değerlendirilir.</Text>
+              </View>
+            )}
+            {!!attendanceMessage && <Text accessibilityRole="alert" style={styles.error}>{attendanceMessage}</Text>}
             {team && (
               <View style={styles.card}>
                 <Text style={styles.title}>Ekibim</Text>
