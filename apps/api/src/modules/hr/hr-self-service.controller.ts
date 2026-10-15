@@ -13,6 +13,7 @@ export class HrSelfServiceController {
  @Get('me/mobile-profile') mobileProfile(@Req()r:any){return this.selfService.mobileProfile(this.userId(r));}
  @Get('me/mobile-attendance') mobileAttendanceToday(@Req()r:any){return this.selfService.mobileAttendanceToday(this.userId(r));}
  @Get('me/mobile-leave-history') mobileLeaveHistory(@Req()r:any){return this.selfService.mobileLeaveHistory(this.userId(r));}
+ @Get('me/mobile-leave-balances') mobileLeaveBalances(@Req()r:any){return this.selfService.mobileLeaveBalances(this.userId(r));}
  @Get('me') me(@Req()r:any){return this.selfService.employeeHome(this.userId(r));}
  @Get('me/notifications') notifications(@Req()r:any){return this.selfService.notifications(this.userId(r));}
  @Post('me/notifications/:id/read') markNotificationRead(@Param('id')id:string,@Req()r:any){return this.selfService.markNotificationRead(this.userId(r),id);}
