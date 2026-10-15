@@ -39,7 +39,8 @@ describe('Approved attendance event projection', () => {
     expect(execute).toHaveBeenCalledTimes(1);
     const statement = execute.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
     const sql = statement.strings.join(' ');
-    expect(sql).toContain("r.status='APPROVED'") ;
+    const sourceQuery = (query.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sourceQuery).toContain("r.status='APPROVED'");
     expect(sql).toContain("exception_status,'')<>'CORRECTED'");
     expect(statement.values).toContain(30);
     expect(statement.values).toContain(450);
