@@ -216,13 +216,29 @@ export class ApprovalRuntimeService {
   }
 
   private async applyApprovedAttendanceEvent(eventId:string,tenantId:string,companyId:string,tx:Prisma.TransactionClient){
-    const rows=await tx.$queryRaw<Array<{staffId:string;branchId:string;workDate:string}>>`
-      SELECT staff_id AS "staffId",branch_id AS "branchId",((occurred_at AT TIME ZONE 'Europe/Istanbul')::date)::text AS "workDate"
-      FROM hr_attendance_events
-      WHERE id=${eventId}
-        AND tenant_id=${tenantId}
-        AND company_id=${companyId}
-      FOR UPDATE
+    const rows=await tx.$queryRaw<Array<{staffId:string;branchId:string;workDate:string;shiftStart:Date}>>`
+      SELECT e.staff_id AS "staffId",e.branch_id AS "branchId",
+             ((COALESCE(shift_start.occurred_at,e.occurred_at) AT TIME ZONE 'Europe/Istanbul')::date)::text AS "workDate",
+             COALESCE(shift_start.occurred_at,e.occurred_at) AS "shiftStart"
+      FROM hr_attendance_events e
+      LEFT JOIN LATERAL (
+        SELECT started.occurred_at
+        FROM hr_attendance_events started
+        JOIN approval_requests approved
+          ON approved."tenantId"=started.tenant_id
+         AND approved."companyId"=started.company_id
+         AND approved."entityType"='hr_attendance_event'
+         AND approved."entityId"=started.id AND approved.status='APPROVED'
+        WHERE started.tenant_id=e.tenant_id AND started.company_id=e.company_id
+          AND started.staff_id=e.staff_id AND started.event_type='DAY_START'
+          AND started.occurred_at<=e.occurred_at
+          AND started.occurred_at>e.occurred_at-INTERVAL '24 hours'
+        ORDER BY started.occurred_at DESC LIMIT 1
+      ) shift_start ON TRUE
+      WHERE e.id=${eventId}
+        AND e.tenant_id=${tenantId}
+        AND e.company_id=${companyId}
+      FOR UPDATE OF e
     `;
     const source=rows[0];
     if(!source)throw new NotFoundException('Onaylanan puantaj hareketi bulunamadı.');
@@ -239,7 +255,8 @@ export class ApprovalRuntimeService {
       WHERE e.tenant_id=${tenantId}
         AND e.company_id=${companyId}
         AND e.staff_id=${source.staffId}
-        AND (e.occurred_at AT TIME ZONE 'Europe/Istanbul')::date=${source.workDate}::date
+        AND e.occurred_at>=${source.shiftStart}
+        AND e.occurred_at<${source.shiftStart}::timestamptz+INTERVAL '24 hours'
       ORDER BY e.occurred_at,e.id
     `;
 
