@@ -274,7 +274,9 @@ export class OperationsBranchChecklistsService {
 
   async listRuns(input: ListBranchChecklistRunsInput) {
     const { tenantId, companyId, branchId } = this.context();
-    return this.prisma.$queryRawUnsafe<RunRow[]>(
+    const paged = input.page !== undefined;
+    const page = input.page ?? 1;
+    const rows = await this.prisma.$queryRawUnsafe<RunRow[]>(
       `SELECT id, category, template_name AS "templateName",
               template_version AS "templateVersion", business_date AS "businessDate",
               status, started_at AS "startedAt", completed_at AS "completedAt", version
@@ -283,14 +285,19 @@ export class OperationsBranchChecklistsService {
          AND ($4::text IS NULL OR category = $4)
          AND ($5::date IS NULL OR business_date >= $5::date)
          AND ($6::date IS NULL OR business_date <= $6::date)
-       ORDER BY business_date DESC, category ASC`,
+       ORDER BY business_date DESC, category ASC, id ASC
+       ${paged ? 'LIMIT $7 OFFSET $8' : ''}`,
       tenantId,
       companyId,
       branchId,
       input.category ?? null,
       input.from ? input.from.toISOString().slice(0, 10) : null,
       input.to ? input.to.toISOString().slice(0, 10) : null,
+      ...(paged ? [input.limit + 1, (page - 1) * input.limit] : []),
     );
+    // Preserve the original array response for callers that do not request pagination.
+    if (!paged) return rows;
+    return { data: rows.slice(0, input.limit), meta: { page, limit: input.limit, hasMore: rows.length > input.limit } };
   }
 
   async getRun(runId: string) {
