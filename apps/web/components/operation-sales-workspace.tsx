@@ -100,14 +100,19 @@ export default function SalesPage(){
  }catch(e){setError(e instanceof ApiError?e.message:"Satış oluşturulamadı.")}finally{setWorking(false)}}
 
  async function saleAction(action:"confirm"|"cancel"){if(!selected)return;setWorking(true);setError("");try{await api(`/sales/${selected.id}/${action}`,{method:"POST"});setNotice(action==="confirm"?"Satış onaylandı.":"Satış iptal edildi.");await load();await openDetail(selected.id)}catch(e){setError(e instanceof ApiError?e.message:"Satış işlemi tamamlanamadı.")}finally{setWorking(false)}}
- async function addPayment(event:FormEvent){event.preventDefault();if(!selected||Number(paymentAmount)<=0||working)return;
-   const fingerprint=JSON.stringify([selected.id,Number(paymentAmount),paymentMethod,paymentReference.trim(),paymentNote.trim()]);
+ async function addPayment(event:FormEvent){event.preventDefault();if(!selected||working)return;
+   const roundedAmount=Math.round((Number(paymentAmount)+Number.EPSILON)*100)/100;
+   if(!Number.isFinite(roundedAmount)||roundedAmount<=0){
+     setError("Ödeme tutarı en az 0,01 TL olmalıdır.");
+     return;
+   }
+   const fingerprint=JSON.stringify([selected.id,roundedAmount,paymentMethod,paymentReference.trim(),paymentNote.trim()]);
    if(paymentRetryRef.current?.fingerprint!==fingerprint){
      paymentRetryRef.current={fingerprint,key:crypto.randomUUID()};
    }
    const idempotencyKey=paymentRetryRef.current.key;
    setWorking(true);setError("");try{
-   await api(`/sales/${selected.id}/payments`,{method:"POST",body:{amount:Number(paymentAmount),method:paymentMethod,idempotencyKey,...(paymentReference.trim()?{reference:paymentReference.trim()}:{}),...(paymentNote.trim()?{note:paymentNote.trim()}:{})}});
+   await api(`/sales/${selected.id}/payments`,{method:"POST",body:{amount:roundedAmount,method:paymentMethod,idempotencyKey,...(paymentReference.trim()?{reference:paymentReference.trim()}:{}),...(paymentNote.trim()?{note:paymentNote.trim()}:{})}});
    paymentRetryRef.current=null;
    setPaymentReference("");setPaymentNote("");setNotice("Satış ödemesi kaydedildi.");await load();await openDetail(selected.id);
  }catch(e){setError(e instanceof ApiError?e.message:"Ödeme kaydedilemedi.")}finally{setWorking(false)}}
