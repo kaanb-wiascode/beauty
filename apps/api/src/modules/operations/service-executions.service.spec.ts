@@ -419,6 +419,62 @@ describe('ServiceExecutionsService', () => {
     },
   );
 
+  it('emits a session event but no duplicate appointment event when a completed appointment still has a reserved session', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'execution-1',
+        visitId: 'visit-1',
+        appointmentId: 'appointment-1',
+        serviceId: 'service-1',
+        staffId: 'staff-1',
+        roomId: null,
+        assetId: null,
+        status: 'COMPLETED',
+        startedAt: new Date(),
+        completedAt: new Date(),
+        note: null,
+        completionNote: null,
+        version: 2,
+      }])
+      .mockResolvedValueOnce([]);
+    appointmentFindFirst.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'COMPLETED',
+      session: { id: 'session-1', status: 'RESERVED' },
+    });
+    sessionUpdateMany.mockResolvedValue({ count: 1 });
+    sessionFindUnique.mockResolvedValue({ customerPackageId: 'package-1' });
+    sessionCount.mockResolvedValue(1);
+    appointmentFindUnique.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'COMPLETED',
+      session: { id: 'session-1', status: 'CONSUMED' },
+    });
+    const domainEvents = {
+      record: jest.fn().mockResolvedValue('event-1'),
+      dispatchStored: jest.fn(),
+    };
+    const service = new ServiceExecutionsService(
+      prisma,
+      tenantContext,
+      domainEvents as never,
+    );
+
+    const result = await service.completeAppointmentHandoff('execution-1');
+
+    expect(appointmentUpdate).not.toHaveBeenCalled();
+    expect(result.consumedSessionId).toBe('session-1');
+    expect(domainEvents.record).toHaveBeenCalledTimes(1);
+    expect(domainEvents.record).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventName: 'session.consumed',
+        aggregateId: 'session-1',
+      }),
+    );
+  });
+
   it('does not consume the same package session again when handoff is retried', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
