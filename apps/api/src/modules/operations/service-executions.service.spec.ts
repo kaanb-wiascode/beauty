@@ -465,6 +465,15 @@ describe('ServiceExecutionsService', () => {
 
     expect(appointmentUpdate).not.toHaveBeenCalled();
     expect(result.consumedSessionId).toBe('session-1');
+    expect(sessionCount).toHaveBeenCalledWith({
+      where: {
+        customerPackageId: 'package-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        status: { in: ['AVAILABLE', 'RESERVED'] },
+      },
+    });
+    expect(customerPackageUpdateMany).not.toHaveBeenCalled();
     expect(domainEvents.record).toHaveBeenCalledTimes(1);
     expect(domainEvents.record).toHaveBeenCalledWith(
       expect.anything(),
