@@ -382,6 +382,34 @@ export class HrSelfServiceService {
     id, eventType, occurredAt, approvalStatus,
   })) };
  }
+ async mobileManagerPendingAttendance(userId: string) {
+  const manager = await this.employee(userId);
+  const { tenantId, companyId } = this.scope();
+  const rows = await this.prisma.$queryRawUnsafe<Array<{
+    id: string; firstName: string; lastName: string; eventType: string;
+    occurredAt: Date; approvalRequestId: string; approvalStatus: string;
+  }>>(
+    `SELECT e.id, s."firstName" AS "firstName", s."lastName" AS "lastName",
+            e.event_type AS "eventType", e.occurred_at AS "occurredAt",
+            r.id AS "approvalRequestId", r.status AS "approvalStatus"
+       FROM hr_attendance_events e
+       JOIN approval_requests r
+         ON r."entityType"='hr_attendance_event' AND r."entityId"=e.id
+        AND r."tenantId"=e.tenant_id AND r."companyId"=e.company_id
+       JOIN staff s ON s.id=e.staff_id AND s."tenantId"=$1
+        AND s."branchId"=e.branch_id
+       JOIN branches b ON b.id=e.branch_id AND b."companyId"=$2
+       JOIN hr_employee_assignments a ON a.staff_id=e.staff_id
+        AND a.tenant_id=$1 AND a.company_id=$2 AND a.manager_staff_id=$3
+        AND a.effective_from<=CURRENT_DATE
+        AND (a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE)
+      WHERE e.tenant_id=$1 AND e.company_id=$2 AND r.status='PENDING'
+      ORDER BY e.occurred_at DESC, e.id DESC
+      LIMIT 50`,
+    tenantId, companyId, manager.id,
+  );
+  return { data: rows };
+ }
  async mobileManagerPendingLeaves(userId: string) {
   const manager = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
