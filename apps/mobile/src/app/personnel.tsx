@@ -15,7 +15,7 @@ type MobileProfile = {
 
 type TeamMember = MobileProfile;
 type MobileTeam = { data: TeamMember[] };
-type AttendanceEvent = { id: string; eventType: string; occurredAt: string };
+type AttendanceEvent = { id: string; eventType: string; occurredAt: string; approvalStatus: string | null };
 type MobileAttendance = { data: AttendanceEvent[] };
 
 export default function PersonnelScreen() {
@@ -187,6 +187,7 @@ export default function PersonnelScreen() {
                   <View key={event.id} style={styles.teamRow}>
                     <Text style={styles.value}>{event.eventType === 'DAY_START' ? 'İşe giriş' : event.eventType === 'DAY_END' ? 'İşten çıkış' : event.eventType === 'BREAK_START' ? 'Mola başlangıcı' : event.eventType === 'BREAK_END' ? 'Mola bitişi' : 'Puantaj olayı'}</Text>
                     <Text style={styles.body}>{new Date(event.occurredAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</Text>
+                    <Text style={styles.label}>Onay: {event.approvalStatus === 'PENDING' ? 'Yönetici onayı bekliyor' : event.approvalStatus === 'APPROVED' ? 'Onaylandı' : event.approvalStatus === 'REJECTED' ? 'Reddedildi' : event.approvalStatus ? event.approvalStatus : 'Onay kaydı bulunamadı'}</Text>
                   </View>
                 ))}
                 <Text style={styles.note}>Yeni işlemler sunucu saatiyle kaydedilir ve onay sürecine girer.</Text>
