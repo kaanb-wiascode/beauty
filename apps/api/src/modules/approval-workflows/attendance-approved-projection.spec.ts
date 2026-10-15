@@ -41,6 +41,11 @@ describe('Approved attendance event projection', () => {
     const sql = statement.strings.join(' ');
     const sourceQuery = (query.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
     expect(sourceQuery).toContain("r.status='APPROVED'");
+    const sourceDateQuery = (query.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    expect(sourceDateQuery).toContain("occurred_at AT TIME ZONE 'Europe/Istanbul'");
+    expect(sourceQuery).toContain("e.occurred_at AT TIME ZONE 'Europe/Istanbul'");
+    expect(sourceDateQuery).not.toContain("AT TIME ZONE 'UTC'");
+    expect(sourceQuery).not.toContain("AT TIME ZONE 'UTC'");
     expect(sql).toContain("exception_status,'')<>'CORRECTED'");
     expect(statement.values).toContain(30);
     expect(statement.values).toContain(450);
