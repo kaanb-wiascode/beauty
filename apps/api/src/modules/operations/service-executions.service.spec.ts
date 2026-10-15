@@ -419,6 +419,42 @@ describe('ServiceExecutionsService', () => {
     },
   );
 
+  it('rejects handoff if a consumed session loses its package linkage', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'execution-1',
+        visitId: 'visit-1',
+        appointmentId: 'appointment-1',
+        serviceId: 'service-1',
+        staffId: 'staff-1',
+        roomId: null,
+        assetId: null,
+        status: 'COMPLETED',
+        startedAt: new Date(),
+        completedAt: new Date(),
+        note: null,
+        completionNote: null,
+        version: 2,
+      }])
+      .mockResolvedValueOnce([]);
+    appointmentFindFirst.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'CONFIRMED',
+      session: { id: 'session-1', status: 'RESERVED' },
+    });
+    appointmentUpdate.mockResolvedValue({ id: 'appointment-1', status: 'COMPLETED' });
+    sessionUpdateMany.mockResolvedValue({ count: 1 });
+    sessionFindUnique.mockResolvedValue(null);
+
+    const service = new ServiceExecutionsService(prisma, tenantContext);
+    await expect(service.completeAppointmentHandoff('execution-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(sessionCount).not.toHaveBeenCalled();
+    expect(customerPackageUpdateMany).not.toHaveBeenCalled();
+  });
+
   it('emits a session event but no duplicate appointment event when a completed appointment still has a reserved session', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
