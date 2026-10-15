@@ -394,7 +394,7 @@ export class HrSelfServiceService {
             r.days::text AS days, t.name AS "leaveType"
        FROM leave_requests r
        JOIN hr_employee_assignments a ON a.staff_id=r.staff_id
-       JOIN staff s ON s.id=r.staff_id AND s."tenantId"=$1
+       JOIN staff s ON s.id=r.staff_id AND s."tenantId"=$1 AND s."branchId"=r.branch_id
        JOIN branches b ON b.id=r.branch_id AND b."companyId"=$2
        LEFT JOIN hr_leave_types t ON t.id=r.leave_type_id
       WHERE r.tenant_id=$1 AND a.tenant_id=$1 AND a.company_id=$2
