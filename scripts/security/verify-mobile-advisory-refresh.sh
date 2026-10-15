@@ -32,6 +32,26 @@ NODE
 
 # Registry-backed resolution generates real package integrity hashes in the lockfile.
 pnpm install --lockfile-only --ignore-scripts
+
+# Fail closed when the registry or resolver leaves vulnerable versions in the lockfile.
+node <<'NODE'
+const fs = require('node:fs');
+const lock = fs.readFileSync('pnpm-lock.yaml', 'utf8');
+for (const [packageName, vulnerable, patched] of [
+  ['node-forge', '1.4.0', '1.4.1'],
+  ['braces', '3.0.3', '3.0.4'],
+]) {
+  const marker = packageName + '@' + patched + ':';
+  if (!lock.includes(marker)) {
+    throw new Error('Expected patched resolution missing: ' + marker);
+  }
+  const oldMarker = packageName + '@' + vulnerable + ':';
+  if (lock.includes(oldMarker) || lock.includes(packageName + ': ' + vulnerable)) {
+    throw new Error('Vulnerable resolution remains: ' + oldMarker);
+  }
+}
+NODE
+
 pnpm install --frozen-lockfile
 pnpm audit --prod --audit-level=high
 
