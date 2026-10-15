@@ -239,7 +239,7 @@ export class ApprovalRuntimeService {
       WHERE e.tenant_id=${tenantId}
         AND e.company_id=${companyId}
         AND e.staff_id=${source.staffId}
-        AND ((e.occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul')::date=${source.workDate}::date
+        AND (e.occurred_at AT TIME ZONE 'Europe/Istanbul')::date=${source.workDate}::date
       ORDER BY e.occurred_at,e.id
     `;
 
