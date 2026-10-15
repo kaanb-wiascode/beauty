@@ -255,6 +255,7 @@ export class ApprovalRuntimeService {
       WHERE e.tenant_id=${tenantId}
         AND e.company_id=${companyId}
         AND e.staff_id=${source.staffId}
+        AND e.branch_id=${source.branchId}
         AND e.occurred_at>=${source.shiftStart}
         AND e.occurred_at<${source.shiftStart}::timestamptz+INTERVAL '24 hours'
         AND NOT EXISTS (
