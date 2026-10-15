@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useValooSession } from '@/lib/valoo-session';
@@ -29,6 +29,9 @@ export default function PersonnelScreen() {
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<AttendanceEvent[] | null>(null);
   const [attendanceMessage, setAttendanceMessage] = useState<string | null>(null);
+  const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
+  const attendanceSubmittingRef = useRef(false);
+  const [attendanceActionMessage, setAttendanceActionMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -106,6 +109,35 @@ export default function PersonnelScreen() {
     }
   }, [token, permitted, canReadTeam, expireSession]);
 
+  const submitAttendance = useCallback((action: 'clock-in' | 'break-start' | 'break-end' | 'clock-out', label: string) => {
+    if (!token || !permitted || loading || attendanceSubmittingRef.current) return;
+    Alert.alert('Puantaj işlemini onayla', `${label} kaydı sunucu saatiyle oluşturulacak ve yönetici onayına gönderilecek. Devam edilsin mi?`, [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'Onayla', onPress: () => {
+        if (attendanceSubmittingRef.current) return;
+        attendanceSubmittingRef.current = true;
+        setAttendanceSubmitting(true);
+        setAttendanceActionMessage(null);
+        void (async () => {
+          try {
+            const result = await valooRequest<{ approvalStatus: string }>(`/hr/self-service/me/attendance/${action}`, {
+              method: 'POST',
+              accessToken: token,
+            });
+            setAttendanceActionMessage(result.approvalStatus === 'PENDING' ? 'İşlem kaydedildi; yönetici onayı bekleniyor.' : 'İşlem kaydedildi.');
+            await load();
+          } catch (error) {
+            if (error instanceof ValooApiError && error.status === 401) expireSession();
+            else setAttendanceActionMessage(error instanceof Error ? error.message : 'Puantaj işlemi tamamlanamadı.');
+          } finally {
+            attendanceSubmittingRef.current = false;
+            setAttendanceSubmitting(false);
+          }
+        })();
+      } },
+    ]);
+  }, [token, permitted, loading, load, expireSession]);
+
   useEffect(() => {
     if (token && permitted) void load();
     else {
@@ -156,7 +188,21 @@ export default function PersonnelScreen() {
                     <Text style={styles.body}>{new Date(event.occurredAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</Text>
                   </View>
                 ))}
-                <Text style={styles.note}>Kayıtlar bilgilendirme amaçlıdır; onay durumu ayrıca değerlendirilir.</Text>
+                <Text style={styles.note}>Yeni işlemler sunucu saatiyle kaydedilir ve onay sürecine girer.</Text>
+                <View style={styles.actionRow}>
+                  {([
+                    ['clock-in', 'İşe giriş'],
+                    ['break-start', 'Molaya çık'],
+                    ['break-end', 'Moladan dön'],
+                    ['clock-out', 'İşten çıkış'],
+                  ] as const).map(([action, label]) => (
+                    <Pressable key={action} accessibilityRole="button" disabled={loading || attendanceSubmitting} onPress={() => submitAttendance(action, label)} style={styles.button}>
+                      <Text style={styles.buttonText}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {attendanceSubmitting && <ActivityIndicator accessibilityLabel="Puantaj işlemi gönderiliyor" />}
+                {!!attendanceActionMessage && <Text accessibilityRole="alert" style={styles.body}>{attendanceActionMessage}</Text>
               </View>
             )}
             {!!attendanceMessage && <Text accessibilityRole="alert" style={styles.error}>{attendanceMessage}</Text>}
@@ -189,6 +235,7 @@ const styles = StyleSheet.create({
   heading: { fontSize: 27, fontWeight: '800', color: '#162d4e' },
   intro: { fontSize: 14, lineHeight: 21, color: '#5b6f89' },
   card: { padding: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e1e9f5', borderRadius: 18, gap: 10 },
+  actionRow: { gap: 8 },
   teamRow: { borderTopWidth: 1, borderTopColor: '#e1e9f5', paddingTop: 12, gap: 4 },
   title: { color: '#1c3553', fontWeight: '700', fontSize: 18 },
   body: { color: '#64748b', fontSize: 14, lineHeight: 21 },
