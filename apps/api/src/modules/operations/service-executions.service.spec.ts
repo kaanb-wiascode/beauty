@@ -384,38 +384,38 @@ describe('ServiceExecutionsService', () => {
   it.each(['AVAILABLE', 'CANCELLED'])(
     'rejects handoff when the linked package session is %s',
     async (sessionStatus) => {
-    queryRawUnsafe
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{
-        id: 'execution-1',
-        visitId: 'visit-1',
-        appointmentId: 'appointment-1',
-        serviceId: 'service-1',
-        staffId: 'staff-1',
-        roomId: null,
-        assetId: null,
-        status: 'COMPLETED',
-        startedAt: new Date(),
-        completedAt: new Date(),
-        note: null,
-        completionNote: null,
-        version: 2,
-      }])
-      .mockResolvedValueOnce([]);
-    appointmentFindFirst.mockResolvedValue({
-      id: 'appointment-1',
-      status: 'CONFIRMED',
-      session: { id: 'session-1', status: sessionStatus },
-    });
+      queryRawUnsafe
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{
+          id: 'execution-1',
+          visitId: 'visit-1',
+          appointmentId: 'appointment-1',
+          serviceId: 'service-1',
+          staffId: 'staff-1',
+          roomId: null,
+          assetId: null,
+          status: 'COMPLETED',
+          startedAt: new Date(),
+          completedAt: new Date(),
+          note: null,
+          completionNote: null,
+          version: 2,
+        }])
+        .mockResolvedValueOnce([]);
+      appointmentFindFirst.mockResolvedValue({
+        id: 'appointment-1',
+        status: 'CONFIRMED',
+        session: { id: 'session-1', status: sessionStatus },
+      });
 
-    const service = new ServiceExecutionsService(prisma, tenantContext);
-    await expect(
-      service.completeAppointmentHandoff('execution-1'),
-    ).rejects.toBeInstanceOf(ConflictException);
+      const service = new ServiceExecutionsService(prisma, tenantContext);
+      await expect(
+        service.completeAppointmentHandoff('execution-1'),
+      ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(appointmentUpdate).not.toHaveBeenCalled();
-    expect(sessionUpdateMany).not.toHaveBeenCalled();
-    expect(customerPackageUpdateMany).not.toHaveBeenCalled();
+      expect(appointmentUpdate).not.toHaveBeenCalled();
+      expect(sessionUpdateMany).not.toHaveBeenCalled();
+      expect(customerPackageUpdateMany).not.toHaveBeenCalled();
     },
   );
 
