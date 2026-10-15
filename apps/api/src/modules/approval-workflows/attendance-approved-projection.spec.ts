@@ -45,4 +45,19 @@ describe('Approved attendance event projection', () => {
     expect(statement.values).toContain(30);
     expect(statement.values).toContain(450);
   });
+  it('ignores an unmatched break end and never subtracts a negative break duration', async () => {
+    query.mockResolvedValueOnce([{ staffId: 'staff-1', branchId: 'branch-1', workDate: '2026-10-15' }])
+      .mockResolvedValueOnce([
+        { eventType: 'DAY_START', occurredAt: new Date('2026-10-15T07:00:00Z') },
+        { eventType: 'BREAK_END', occurredAt: new Date('2026-10-15T08:00:00Z') },
+        { eventType: 'BREAK_START', occurredAt: new Date('2026-10-15T09:30:00Z') },
+        { eventType: 'BREAK_END', occurredAt: new Date('2026-10-15T09:00:00Z') },
+        { eventType: 'DAY_END', occurredAt: new Date('2026-10-15T15:00:00Z') },
+      ]);
+    await (service as any).applyApprovedAttendanceEvent('event-1', 'tenant-1', 'company-1', tx);
+    const statement = execute.mock.calls[0][0] as { values: unknown[] };
+    expect(statement.values).toContain(0);
+    expect(statement.values).toContain(480);
+  });
+
 });
