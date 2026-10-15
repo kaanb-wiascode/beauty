@@ -30,7 +30,8 @@ export default function OperationsScreen() {
   const { session, me, expireSession } = useValooSession();
   const token = session?.accessToken ?? null;
   const permitted = session?.membership.permissions.includes('operations.read') ?? false;
-  const hasBranch = Boolean(me?.tenantContext.branchId);
+  const branchId = me?.tenantContext.branchId ?? null;
+  const hasBranch = Boolean(branchId);
   const [runs, setRuns] = useState<ChecklistRun[] | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -84,7 +85,7 @@ export default function OperationsScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, hasBranch, category, periodDays, page, expireSession]);
+  }, [token, permitted, branchId, category, periodDays, page, expireSession]);
 
   const showDetail = useCallback(async (runId: string) => {
     if (!token || !permitted || !hasBranch) return;
@@ -114,7 +115,7 @@ export default function OperationsScreen() {
         setDetailLoading(false);
       }
     }
-  }, [token, permitted, hasBranch, expireSession]);
+  }, [token, permitted, branchId, expireSession]);
 
   useEffect(() => {
     if (token && permitted && hasBranch) void load();
@@ -131,7 +132,11 @@ export default function OperationsScreen() {
       requestRef.current?.abort();
       detailRequestRef.current?.abort();
     };
-  }, [token, permitted, hasBranch, load]);
+  }, [token, permitted, branchId, load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [branchId, token]);
 
   return (
     <SafeAreaView style={styles.root}>
