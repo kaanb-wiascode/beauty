@@ -29,6 +29,7 @@ export class HrSelfServiceController {
  @Get('manager/mobile-actionable-leaves') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerActionableLeaves(@Req()r:any){return this.selfService.mobileManagerActionableLeaves(this.userId(r),String(r.user?.roleId??''));}
  @Post('manager/mobile-leave-decisions/:approvalId') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerLeaveDecision(@Param('approvalId')approvalId:string,@Body()b:{action:'APPROVE'|'REJECT';comment?:string},@Req()r:any){return this.selfService.mobileManagerLeaveDecision(this.userId(r),String(r.user?.roleId??''),approvalId,b.action,b.comment);}
  @Get('manager/mobile-pending-attendance') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerPendingAttendance(@Req()r:any){return this.selfService.mobileManagerPendingAttendance(this.userId(r));}
+ @Get('manager/mobile-actionable-attendance') @RequirePermissions({resource:'hr_self_service',action:'read'},{resource:'staff',action:'read'}) mobileManagerActionableAttendance(@Req()r:any){return this.selfService.mobileManagerActionableAttendance(this.userId(r));}
  @Get('manager') manager(@Req()r:any){return this.selfService.managerHome(this.userId(r));}
  @Post('employees/:staffId/link-user') @RequirePermission('hr','manage') link(@Param('staffId')staffId:string,@Body()b:any,@Req()r:any){return this.selfService.link(staffId,b.userId,this.userId(r));}
 }
