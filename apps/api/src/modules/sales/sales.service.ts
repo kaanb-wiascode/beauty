@@ -36,6 +36,7 @@ interface AddSalePaymentInput {
   amount: number;
   method: 'CASH' | 'CARD' | 'TRANSFER';
   reference?: string;
+  idempotencyKey?: string;
   note?: string;
 }
 
@@ -544,6 +545,29 @@ export class SalesService {
         if (!sales.length)
           throw new NotFoundException('Satış kaydı bulunamadı.');
         const sale = sales[0];
+        if (input.idempotencyKey) {
+          const existing = await tx.salePayment.findFirst({
+            where: {
+              tenantId,
+              branchId,
+              saleId: sale.id,
+              idempotencyKey: input.idempotencyKey,
+            },
+          });
+          if (existing) {
+            const requestedAmount =
+              Math.round((input.amount + Number.EPSILON) * 100) / 100;
+            if (
+              Number(existing.amount) !== requestedAmount ||
+              existing.method !== input.method
+            ) {
+              throw new ConflictException(
+                'Bu işlem anahtarı farklı bir ödeme için zaten kullanılmış.',
+              );
+            }
+            return existing;
+          }
+        }
         if (sale.status !== 'CONFIRMED') {
           throw new BadRequestException(
             'Yalnızca onaylanmış satışlara ödeme kaydedilebilir.',
@@ -597,6 +621,7 @@ export class SalesService {
             amount,
             method: input.method,
             reference: input.reference?.trim() || null,
+            idempotencyKey: input.idempotencyKey ?? null,
             note: input.note?.trim() || null,
           },
         });
