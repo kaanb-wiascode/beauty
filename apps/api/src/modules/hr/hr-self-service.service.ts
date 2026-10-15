@@ -407,6 +407,33 @@ export class HrSelfServiceService {
   );
   return { data: rows };
  }
+ async mobileManagerActionableLeaves(userId: string, roleId: string) {
+  const pending = await this.mobileManagerPendingLeaves(userId);
+  if (!roleId) return { data: [] };
+  const { tenantId, companyId } = this.scope();
+  const ids = pending.data.map((leave) => leave.id);
+  if (!ids.length) return { data: [] };
+  const approvals = await this.prisma.$queryRawUnsafe<Array<{ id: string; entityId: string }>>(
+    `SELECT i.id, i.entity_id AS "entityId"
+       FROM hr_approval_instances i
+      WHERE i.tenant_id=$1 AND i.company_id=$2
+        AND i.entity_type='LEAVE' AND i.status='PENDING'
+        AND i.entity_id=ANY($3::text[])
+      ORDER BY i.created_at DESC, i.id DESC`,
+    tenantId, companyId, ids,
+  );
+  const result: Array<{ id: string; approvalId: string; firstName: string; lastName: string;
+    startDate: string; endDate: string; days: string; leaveType: string | null }> = [];
+  const examined = new Set<string>();
+  for (const approval of approvals) {
+    if (examined.has(approval.entityId)) continue;
+    examined.add(approval.entityId);
+    if (!(await this.approvals.canAct(approval.id, { userId, roleId }))) continue;
+    const leave = pending.data.find((item) => item.id === approval.entityId);
+    if (leave) result.push({ ...leave, approvalId: approval.id });
+  }
+  return { data: result };
+ }
  async mobileManagerTeam(userId: string) {
   const manager = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
