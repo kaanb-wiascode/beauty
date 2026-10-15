@@ -580,30 +580,28 @@ export class ServiceExecutionsService {
               'Tüketilen paket seansının bağlı olduğu paket bulunamadı.',
             );
           }
-          {
-            const remaining = await tx.session.count({
+          const remaining = await tx.session.count({
+            where: {
+              customerPackageId: consumedSession.customerPackageId,
+              tenantId,
+              branchId,
+              status: { in: ['AVAILABLE', 'RESERVED'] },
+            },
+          });
+          if (remaining === 0) {
+            const completedPackage = await tx.customerPackage.updateMany({
               where: {
-                customerPackageId: consumedSession.customerPackageId,
+                id: consumedSession.customerPackageId,
                 tenantId,
                 branchId,
-                status: { in: ['AVAILABLE', 'RESERVED'] },
+                status: 'ACTIVE',
               },
+              data: { status: 'COMPLETED' },
             });
-            if (remaining === 0) {
-              const completedPackage = await tx.customerPackage.updateMany({
-                where: {
-                  id: consumedSession.customerPackageId,
-                  tenantId,
-                  branchId,
-                  status: 'ACTIVE',
-                },
-                data: { status: 'COMPLETED' },
-              });
-              if (completedPackage.count !== 1) {
-                throw new ConflictException(
-                  'Paket tamamlanırken durumu değişti. Lütfen ekranı yenileyin.',
-                );
-              }
+            if (completedPackage.count !== 1) {
+              throw new ConflictException(
+                'Paket tamamlanırken durumu değişti. Lütfen ekranı yenileyin.',
+              );
             }
           }
 
