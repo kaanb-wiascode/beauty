@@ -237,9 +237,18 @@ export class OperationsRebookingService {
           branchId,
         );
         if (existing[0]) {
-          const appointment = await tx.appointment.findUnique({
-            where: { id: existing[0].targetAppointmentId },
+          const appointment = await tx.appointment.findFirst({
+            where: {
+              id: existing[0].targetAppointmentId,
+              tenantId,
+              branchId,
+            },
           });
+          if (!appointment) {
+            throw new ConflictException(
+              'Önceki yeniden randevunun hedef kaydı bulunamadı. Lütfen kaydı kontrol edin.',
+            );
+          }
           return { rebookingId: existing[0].id, appointment, idempotent: true };
         }
 
