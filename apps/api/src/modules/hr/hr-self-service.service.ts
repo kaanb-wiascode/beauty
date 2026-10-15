@@ -382,6 +382,31 @@ export class HrSelfServiceService {
     id, eventType, occurredAt, approvalStatus,
   })) };
  }
+ async mobileManagerPendingLeaves(userId: string) {
+  const manager = await this.employee(userId);
+  const { tenantId, companyId } = this.scope();
+  const rows = await this.prisma.$queryRawUnsafe<Array<{
+    id: string; firstName: string; lastName: string; startDate: string;
+    endDate: string; days: string; leaveType: string | null;
+  }>>(
+    `SELECT r.id, s."firstName" AS "firstName", s."lastName" AS "lastName",
+            r.start_date::text AS "startDate", r.end_date::text AS "endDate",
+            r.days::text AS days, t.name AS "leaveType"
+       FROM leave_requests r
+       JOIN hr_employee_assignments a ON a.staff_id=r.staff_id
+       JOIN staff s ON s.id=r.staff_id AND s."tenantId"=$1
+       JOIN branches b ON b.id=r.branch_id AND b."companyId"=$2
+       LEFT JOIN hr_leave_types t ON t.id=r.leave_type_id
+      WHERE r.tenant_id=$1 AND a.tenant_id=$1 AND a.company_id=$2
+        AND a.manager_staff_id=$3 AND r.status='PENDING'
+        AND a.effective_from<=CURRENT_DATE
+        AND (a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE)
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT 50`,
+    tenantId, companyId, manager.id,
+  );
+  return { data: rows };
+ }
  async mobileManagerTeam(userId: string) {
   const manager = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
