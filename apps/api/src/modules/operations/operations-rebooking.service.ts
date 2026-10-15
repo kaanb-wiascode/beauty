@@ -258,6 +258,11 @@ export class OperationsRebookingService {
           tenantId,
           branchId,
         );
+        // The preflight check is outside the transaction; reject requests that
+        // crossed into the past while waiting for the source advisory lock.
+        if (input.startAt <= new Date()) {
+          throw new BadRequestException('Yeni randevu zamanı gelecekte olmalıdır.');
+        }
         if (source.status !== 'COMPLETED') {
           throw new BadRequestException(
             'Çıkış ekranından yalnızca tamamlanmış randevu için yeni randevu oluşturulabilir.',
