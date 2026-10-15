@@ -450,12 +450,22 @@ describe('ServiceExecutionsService', () => {
     sessionUpdateMany.mockResolvedValue({ count: 1 });
     sessionFindUnique.mockResolvedValue(null);
 
-    const service = new ServiceExecutionsService(prisma, tenantContext);
+    const domainEvents = {
+      record: jest.fn(),
+      dispatchStored: jest.fn(),
+    };
+    const service = new ServiceExecutionsService(
+      prisma,
+      tenantContext,
+      domainEvents as never,
+    );
     await expect(
       service.completeAppointmentHandoff('execution-1'),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(sessionCount).not.toHaveBeenCalled();
     expect(customerPackageUpdateMany).not.toHaveBeenCalled();
+    expect(domainEvents.record).not.toHaveBeenCalled();
+    expect(domainEvents.dispatchStored).not.toHaveBeenCalled();
   });
 
   it('emits a session event but no duplicate appointment event when a completed appointment still has a reserved session', async () => {
