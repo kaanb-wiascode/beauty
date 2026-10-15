@@ -46,6 +46,7 @@ describe('Approved attendance event projection', () => {
     expect(sourceDateQuery).toContain("AT TIME ZONE 'Europe/Istanbul'");
     expect(sourceQuery).toContain("e.occurred_at>=");
     expect(sourceDateQuery).toContain("started.event_type='DAY_START'");
+    expect(sourceDateQuery).toContain('started.branch_id=e.branch_id');
     expect(sourceDateQuery).not.toContain("AT TIME ZONE 'UTC'");
     expect(sourceQuery).not.toContain("AT TIME ZONE 'UTC'");
     expect(sql).toContain("exception_status,'')<>'CORRECTED'");
