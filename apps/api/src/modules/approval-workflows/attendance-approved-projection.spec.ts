@@ -37,12 +37,12 @@ describe('Approved attendance event projection', () => {
       ]);
     await (service as any).applyApprovedAttendanceEvent('event-1', 'tenant-1', 'company-1', tx);
     expect(execute).toHaveBeenCalledTimes(1);
-    const statement = execute.mock.calls[0][0] as { strings: readonly string[]; values: unknown[] };
-    const sql = statement.strings.join(' ');
-    const sourceQuery = (query.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
+    const statement = execute.mock.calls[0][0] as readonly string[];
+    const sql = statement.join(' ');
+    const sourceQuery = (query.mock.calls[1][0] as readonly string[]).join(' ');
     expect(sourceQuery).toContain("r.status='APPROVED'");
     expect(sourceQuery).toContain('e.branch_id=');
-    const sourceDateQuery = (query.mock.calls[0][0] as { strings: readonly string[] }).strings.join(' ');
+    const sourceDateQuery = (query.mock.calls[0][0] as readonly string[]).join(' ');
     expect(sourceDateQuery).toContain("AT TIME ZONE 'Europe/Istanbul'");
     expect(sourceQuery).toContain("e.occurred_at>=");
     expect(sourceDateQuery).toContain("started.event_type='DAY_START'");
@@ -50,8 +50,8 @@ describe('Approved attendance event projection', () => {
     expect(sourceDateQuery).not.toContain("AT TIME ZONE 'UTC'");
     expect(sourceQuery).not.toContain("AT TIME ZONE 'UTC'");
     expect(sql).toContain("exception_status,'')<>'CORRECTED'");
-    expect(statement.values).toContain(30);
-    expect(statement.values).toContain(450);
+    expect(execute.mock.calls[0].slice(1)).toContain(30);
+    expect(execute.mock.calls[0].slice(1)).toContain(450);
   });
   it('ignores an unmatched break end and never subtracts a negative break duration', async () => {
     query.mockResolvedValueOnce([{ staffId: 'staff-1', branchId: 'branch-1', workDate: '2026-10-15', shiftStart: new Date('2026-10-15T07:00:00Z') }])
@@ -64,8 +64,8 @@ describe('Approved attendance event projection', () => {
       ]);
     await (service as any).applyApprovedAttendanceEvent('event-1', 'tenant-1', 'company-1', tx);
     const statement = execute.mock.calls[0][0] as { values: unknown[] };
-    expect(statement.values).toContain(0);
-    expect(statement.values).toContain(480);
+    expect(execute.mock.calls[0].slice(1)).toContain(0);
+    expect(execute.mock.calls[0].slice(1)).toContain(480);
   });
 
   it('queries across local midnight using approved shift start rather than the event calendar day', async () => {
@@ -75,14 +75,14 @@ describe('Approved attendance event projection', () => {
         { eventType: 'DAY_END', occurredAt: new Date('2026-10-16T03:00:00Z') },
       ]);
     await (service as any).applyApprovedAttendanceEvent('event-overnight', 'tenant-1', 'company-1', tx);
-    const sql = (query.mock.calls[1][0] as { strings: readonly string[] }).strings.join(' ');
+    const sql = (query.mock.calls[1][0] as readonly string[]).join(' ');
     expect(sql).toContain("e.occurred_at>=");
     expect(sql).toContain("INTERVAL '24 hours'");
     expect(sql).toContain('NOT EXISTS');
     expect(sql).toContain("later_start.event_type='DAY_START'");
     expect(sql).toContain("later_approval.status='APPROVED'");
     expect(sql).toContain('later_start.occurred_at<=');
-    expect((execute.mock.calls[0][0] as { values: unknown[] }).values).toContain(480);
+    expect(execute.mock.calls[0].slice(1)).toContain(480);
   });
 
 });
