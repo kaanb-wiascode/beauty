@@ -332,6 +332,55 @@ describe('ServiceExecutionsService', () => {
     },
   );
 
+  it('rolls back handoff if the reserved session was claimed concurrently', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'execution-1',
+        visitId: 'visit-1',
+        appointmentId: 'appointment-1',
+        serviceId: 'service-1',
+        staffId: 'staff-1',
+        roomId: null,
+        assetId: null,
+        status: 'COMPLETED',
+        startedAt: new Date(),
+        completedAt: new Date(),
+        note: null,
+        completionNote: null,
+        version: 2,
+      }])
+      .mockResolvedValueOnce([]);
+    appointmentFindFirst.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'CONFIRMED',
+      session: { id: 'session-1', status: 'RESERVED' },
+    });
+    appointmentUpdate.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'COMPLETED',
+    });
+    sessionUpdateMany.mockResolvedValue({ count: 0 });
+
+    const service = new ServiceExecutionsService(prisma, tenantContext);
+    await expect(
+      service.completeAppointmentHandoff('execution-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(sessionUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'session-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        appointmentId: 'appointment-1',
+        status: 'RESERVED',
+      },
+      data: { status: 'CONSUMED', consumedAt: expect.any(Date) },
+    });
+    expect(sessionCount).not.toHaveBeenCalled();
+    expect(customerPackageUpdateMany).not.toHaveBeenCalled();
+  });
+
   it('rejects handoff when the linked package session is not reserved', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
