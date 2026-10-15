@@ -518,6 +518,19 @@ export class ApprovalWorkflowService {
     return false;
   }
 
+  async canAct(id: string, actor: ApprovalActor): Promise<boolean> {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$transaction(async (tx) => {
+      const instances = await tx.$queryRawUnsafe<any[]>(
+        `SELECT * FROM hr_approval_instances
+          WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='PENDING'`,
+        id, tenantId, companyId,
+      );
+      if (!instances.length) return false;
+      return this.authorized(tx, instances[0], actor);
+    });
+  }
+
   async act(
     id: string,
     action: string,
