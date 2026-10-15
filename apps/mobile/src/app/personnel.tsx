@@ -15,6 +15,8 @@ type MobileProfile = {
 
 type TeamMember = MobileProfile;
 type MobileTeam = { data: TeamMember[] };
+type PendingLeave = { id: string; firstName: string; lastName: string; startDate: string; endDate: string; days: string; leaveType: string | null };
+type PendingLeaves = { data: PendingLeave[] };
 type AttendanceEvent = { id: string; eventType: string; occurredAt: string; approvalStatus: string | null };
 type MobileAttendance = { data: AttendanceEvent[] };
 type LeaveRequest = { id: string; leaveType: string | null; startDate: string; endDate: string; days: string; status: string };
@@ -30,6 +32,7 @@ export default function PersonnelScreen() {
   const [profile, setProfile] = useState<MobileProfile | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const [team, setTeam] = useState<TeamMember[] | null>(null);
+  const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[] | null>(null);
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<AttendanceEvent[] | null>(null);
   const [attendanceMessage, setAttendanceMessage] = useState<string | null>(null);
@@ -58,6 +61,7 @@ export default function PersonnelScreen() {
     setMessage(null);
     setProfile(null);
     setTeam(null);
+    setPendingLeaves(null);
     setTeamMessage(null);
     setAttendance(null);
     setAttendanceMessage(null);
@@ -133,6 +137,8 @@ export default function PersonnelScreen() {
         if (!signal.aborted) {
           if (!Array.isArray(teamResult.data)) throw new Error('Ekip bilgileri beklenen biçimde değil.');
           setTeam(teamResult.data);
+          const pendingResult = await valooRequest<PendingLeaves>('/hr/self-service/manager/mobile-pending-leaves', { accessToken: token, signal });
+          if (!signal.aborted && Array.isArray(pendingResult.data)) setPendingLeaves(pendingResult.data);
         }
       } catch (teamError) {
         if (signal.aborted) return;
@@ -233,6 +239,7 @@ export default function PersonnelScreen() {
     else {
       setProfile(null);
       setTeam(null);
+      setPendingLeaves(null);
       setTeamMessage(null);
       setAttendance(null);
       setAttendanceMessage(null);
@@ -340,6 +347,19 @@ export default function PersonnelScreen() {
               </View>
             )}
             {!!leaveMessage && <Text accessibilityRole="alert" style={styles.error}>{leaveMessage}</Text>}
+            {pendingLeaves && (
+              <View style={styles.card}>
+                <Text style={styles.title}>Ekibimin bekleyen izinleri</Text>
+                {pendingLeaves.length === 0 && <Text style={styles.body}>Bekleyen izin talebi yok.</Text>}
+                {pendingLeaves.map((leave) => (
+                  <View key={leave.id} style={styles.teamRow}>
+                    <Text style={styles.value}>{leave.firstName} {leave.lastName}</Text>
+                    <Text style={styles.body}>{leave.leaveType ?? 'İzin'} · {leave.startDate} – {leave.endDate} · {leave.days} gün</Text>
+                    <Text style={styles.label}>Onay bekliyor</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             {team && (
               <View style={styles.card}>
                 <Text style={styles.title}>Ekibim</Text>
