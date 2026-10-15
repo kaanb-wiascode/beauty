@@ -19,13 +19,13 @@ node <<'NODE'
 const fs = require('node:fs');
 const file = 'pnpm-workspace.yaml';
 let config = fs.readFileSync(file, 'utf8');
-for (const [oldVersion, fixedVersion] of [
-  ["'node-forge@1.4.0': 1.4.1", 'node-forge'],
-  ["'braces@3.0.3': 3.0.4", 'braces'],
+for (const oldVersion of [
+  "'node-forge@1.4.0': 1.4.1",
+  "'braces@3.0.3': 3.0.4",
 ]) {
   if (config.includes(oldVersion)) continue;
-  if (!config.includes('overrides:\\n')) throw new Error('pnpm overrides section missing');
-  config = config.replace('overrides:\\n', 'overrides:\\n  ' + oldVersion + '\\n');
+  if (!config.includes('overrides:' + String.fromCharCode(10))) throw new Error('pnpm overrides section missing');
+  config = config.replace('overrides:' + String.fromCharCode(10), 'overrides:' + String.fromCharCode(10) + '  ' + oldVersion + String.fromCharCode(10));
 }
 fs.writeFileSync(file, config);
 NODE
