@@ -92,7 +92,7 @@ describe('OperationsRebookingService', () => {
       .mockResolvedValueOnce([
         { id: 'rebooking-1', targetAppointmentId: 'appointment-target' },
       ]);
-    appointmentFindUnique.mockResolvedValueOnce({
+    appointmentFindFirst.mockResolvedValueOnce({
       id: 'appointment-target',
       status: 'SCHEDULED',
     });
@@ -111,6 +111,37 @@ describe('OperationsRebookingService', () => {
       rebookingId: 'rebooking-1',
       idempotent: true,
     });
+    expect(appointmentFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'appointment-target',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+      },
+    });
+    expect(appointmentCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an existing rebooking when its target appointment is outside the branch', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([source])
+      .mockResolvedValueOnce([{ locked: 1 }])
+      .mockResolvedValueOnce([
+        { id: 'rebooking-1', targetAppointmentId: 'appointment-target' },
+      ]);
+    appointmentFindFirst.mockResolvedValueOnce(null);
+
+    const service = new OperationsRebookingService(
+      prisma,
+      tenantContext,
+      workingHours,
+      staffEligibility,
+    );
+
+    await expect(
+      service.create(source.id, {
+        startAt: new Date('2199-10-01T10:00:00.000Z'),
+      }),
+    ).rejects.toThrow('Önceki yeniden randevunun hedef kaydı bulunamadı');
     expect(appointmentCreate).not.toHaveBeenCalled();
   });
 });
