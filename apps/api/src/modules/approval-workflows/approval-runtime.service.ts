@@ -230,7 +230,7 @@ export class ApprovalRuntimeService {
          AND approved."entityType"='hr_attendance_event'
          AND approved."entityId"=started.id AND approved.status='APPROVED'
         WHERE started.tenant_id=e.tenant_id AND started.company_id=e.company_id
-          AND started.staff_id=e.staff_id AND started.event_type='DAY_START'
+          AND started.staff_id=e.staff_id AND started.branch_id=e.branch_id AND started.event_type='DAY_START'
           AND started.occurred_at<=e.occurred_at
           AND started.occurred_at>e.occurred_at-INTERVAL '24 hours'
         ORDER BY started.occurred_at DESC LIMIT 1
