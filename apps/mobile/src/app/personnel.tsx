@@ -20,6 +20,7 @@ export default function PersonnelScreen() {
   const { session, expireSession } = useValooSession();
   const token = session?.accessToken ?? null;
   const permitted = session?.membership.permissions.includes('hr_self_service.read') ?? false;
+  const canReadTeam = session?.membership.permissions.includes('staff.read') ?? false;
   const [profile, setProfile] = useState<MobileProfile | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const [team, setTeam] = useState<TeamMember[] | null>(null);
@@ -47,7 +48,7 @@ export default function PersonnelScreen() {
         throw new Error('Personel bilgileri beklenen biçimde değil.');
       }
       setProfile(result);
-      try {
+      if (canReadTeam) try {
         const teamResult = await valooRequest<MobileTeam>('/hr/self-service/manager/mobile-team', {
           accessToken: token,
           signal,
@@ -80,7 +81,7 @@ export default function PersonnelScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, expireSession]);
+  }, [token, permitted, canReadTeam, expireSession]);
 
   useEffect(() => {
     if (token && permitted) void load();
