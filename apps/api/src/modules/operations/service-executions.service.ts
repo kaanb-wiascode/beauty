@@ -590,7 +590,7 @@ export class ServiceExecutionsService {
               },
             });
             if (remaining === 0) {
-              await tx.customerPackage.updateMany({
+              const completedPackage = await tx.customerPackage.updateMany({
                 where: {
                   id: consumedSession.customerPackageId,
                   tenantId,
@@ -599,6 +599,11 @@ export class ServiceExecutionsService {
                 },
                 data: { status: 'COMPLETED' },
               });
+              if (completedPackage.count !== 1) {
+                throw new ConflictException(
+                  'Paket tamamlanırken durumu değişti. Lütfen ekranı yenileyin.',
+                );
+              }
             }
           }
 
