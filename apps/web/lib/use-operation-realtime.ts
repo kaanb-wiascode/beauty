@@ -28,6 +28,7 @@ export function useOperationRealtime(
 
     let active = true;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectAttempts = 0;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const controller = new AbortController();
 
@@ -80,6 +81,7 @@ export function useOperationRealtime(
           throw new Error("Canlı operasyon bağlantısı kurulamadı.");
         }
 
+        reconnectAttempts = 0;
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -108,9 +110,13 @@ export function useOperationRealtime(
       }
 
       if (active) {
+        // Back off during outages to avoid hammering a struggling API.
+        const delay = Math.min(3000 * 2 ** reconnectAttempts, 30000);
+        reconnectAttempts = Math.min(reconnectAttempts + 1, 4);
         retryTimer = setTimeout(() => {
+          retryTimer = null;
           void connect();
-        }, 3000);
+        }, delay);
       }
     };
 
