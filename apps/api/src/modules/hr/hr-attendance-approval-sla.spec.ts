@@ -26,8 +26,7 @@ describe('Default attendance approval SLA', () => {
     const tx = { $queryRaw: query, $executeRaw: execute };
     await (service as any).ensureAttendanceApprovalWorkflow(tx, 'user-1', workflowKey);
     expect(execute).toHaveBeenCalledTimes(1);
-    const statement = execute.mock.calls[0][0];
-    const payload = statement.values.find((value: unknown) =>
+    const payload = execute.mock.calls[0].slice(1).find((value: unknown) =>
       typeof value === 'string' && value.includes('manager-approval'));
     expect(typeof payload).toBe('string');
     const steps = JSON.parse(payload as string);
