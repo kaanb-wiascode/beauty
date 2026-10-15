@@ -660,6 +660,7 @@ model SalePayment {
   refundedAt   DateTime?
   refundReason String?
   reference    String?
+  idempotencyKey String? @db.VarChar(100)
   note         String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -671,6 +672,7 @@ model SalePayment {
 
   @@index([tenantId, branchId, paidAt])
   @@index([tenantId, saleId])
+  @@unique([tenantId, branchId, saleId, idempotencyKey])
   @@index([tenantId, status])
   @@index([tenantId, method])
   @@map("sale_payments")
