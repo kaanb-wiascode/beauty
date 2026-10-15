@@ -575,7 +575,12 @@ export class ServiceExecutionsService {
             where: { id: appointment.session.id },
             select: { customerPackageId: true },
           });
-          if (consumedSession) {
+          if (!consumedSession) {
+            throw new ConflictException(
+              'Tüketilen paket seansının bağlı olduğu paket bulunamadı.',
+            );
+          }
+          {
             const remaining = await tx.session.count({
               where: {
                 customerPackageId: consumedSession.customerPackageId,
