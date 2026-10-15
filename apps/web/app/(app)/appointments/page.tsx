@@ -29,6 +29,7 @@ import { PaymentModal } from "@/components/payment-modal";
 import { TeamShareAction } from "@/components/team-share-action";
 import { ValooSelect } from "@/components/valoo-controls";
 import { useToast } from "@/components/toast";
+import { useOperationRealtime } from "@/lib/use-operation-realtime";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
@@ -254,6 +255,18 @@ export default function AppointmentsPage() {
   }
 
   useEffect(() => { void loadAppointments(); }, [loadAppointments]);
+
+  useOperationRealtime((event) => {
+    if (
+      event.eventName.startsWith("appointment.") ||
+      event.eventName.startsWith("session.") ||
+      event.eventName.startsWith("service_execution.") ||
+      event.eventName.startsWith("visit.")
+    ) {
+      void loadAppointments();
+    }
+  });
+
   useEffect(() => { void loadReferences(); }, []);
 
   useEffect(() => {
