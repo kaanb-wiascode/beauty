@@ -17,6 +17,8 @@ type TeamMember = MobileProfile;
 type MobileTeam = { data: TeamMember[] };
 type PendingLeave = { id: string; firstName: string; lastName: string; startDate: string; endDate: string; days: string; leaveType: string | null };
 type PendingLeaves = { data: PendingLeave[] };
+type ActionableLeave = PendingLeave & { approvalId: string };
+type ActionableLeaves = { data: ActionableLeave[] };
 type AttendanceEvent = { id: string; eventType: string; occurredAt: string; approvalStatus: string | null };
 type MobileAttendance = { data: AttendanceEvent[] };
 type LeaveRequest = { id: string; leaveType: string | null; startDate: string; endDate: string; days: string; status: string };
@@ -33,6 +35,12 @@ export default function PersonnelScreen() {
   const requestRef = useRef<AbortController | null>(null);
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[] | null>(null);
+  const [actionableLeaves, setActionableLeaves] = useState<ActionableLeave[]>([]);
+  const [decisionBusy, setDecisionBusy] = useState(false);
+  const decisionBusyRef = useRef(false);
+  const [rejectionId, setRejectionId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [decisionMessage, setDecisionMessage] = useState<string | null>(null);
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<AttendanceEvent[] | null>(null);
   const [attendanceMessage, setAttendanceMessage] = useState<string | null>(null);
@@ -62,6 +70,7 @@ export default function PersonnelScreen() {
     setProfile(null);
     setTeam(null);
     setPendingLeaves(null);
+    setActionableLeaves([]);
     setTeamMessage(null);
     setAttendance(null);
     setAttendanceMessage(null);
@@ -139,6 +148,8 @@ export default function PersonnelScreen() {
           setTeam(teamResult.data);
           const pendingResult = await valooRequest<PendingLeaves>('/hr/self-service/manager/mobile-pending-leaves', { accessToken: token, signal });
           if (!signal.aborted && Array.isArray(pendingResult.data)) setPendingLeaves(pendingResult.data);
+          const actionableResult = await valooRequest<ActionableLeaves>('/hr/self-service/manager/mobile-actionable-leaves', { accessToken: token, signal });
+          if (!signal.aborted && Array.isArray(actionableResult.data)) setActionableLeaves(actionableResult.data);
         }
       } catch (teamError) {
         if (signal.aborted) return;
@@ -233,6 +244,39 @@ export default function PersonnelScreen() {
       } },
     ]);
   }, [token, permitted, leaveTypeId, startDate, endDate, requestedDays, load, expireSession]);
+
+  const decideLeave = useCallback((approvalId: string, action: 'APPROVE' | 'REJECT', comment?: string) => {
+    if (!token || decisionBusyRef.current || (action === 'REJECT' && !comment?.trim())) {
+      if (action === 'REJECT') setDecisionMessage('Ret gerekçesi zorunludur.');
+      return;
+    }
+    Alert.alert('İzin kararını onayla', action === 'APPROVE' ? 'İzin talebini onaylamak istiyor musunuz?' : 'İzin talebini reddetmek istiyor musunuz?', [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'Devam et', onPress: () => {
+        if (decisionBusyRef.current) return;
+        decisionBusyRef.current = true;
+        setDecisionBusy(true);
+        setDecisionMessage(null);
+        void (async () => {
+          try {
+            await valooRequest(`/hr/self-service/manager/mobile-leave-decisions/${encodeURIComponent(approvalId)}`, {
+              method: 'POST', accessToken: token, body: { action, comment: comment?.trim() },
+            });
+            await load();
+            setRejectionId(null);
+            setRejectionReason('');
+            setDecisionMessage('İzin kararı işlendi. Bekleyen talepler yenilendi.');
+          } catch (error) {
+            if (error instanceof ValooApiError && error.status === 401) expireSession();
+            else setDecisionMessage(error instanceof Error ? error.message : 'İzin kararı işlenemedi.');
+          } finally {
+            decisionBusyRef.current = false;
+            setDecisionBusy(false);
+          }
+        })();
+      } },
+    ]);
+  }, [token, load, expireSession]);
 
   useEffect(() => {
     if (token && permitted) void load();
@@ -347,6 +391,7 @@ export default function PersonnelScreen() {
               </View>
             )}
             {!!leaveMessage && <Text accessibilityRole="alert" style={styles.error}>{leaveMessage}</Text>}
+            {!!decisionMessage && <Text accessibilityRole="alert" style={styles.body}>{decisionMessage}</Text>}
             {pendingLeaves && (
               <View style={styles.card}>
                 <Text style={styles.title}>Ekibimin bekleyen izinleri</Text>
@@ -356,6 +401,24 @@ export default function PersonnelScreen() {
                     <Text style={styles.value}>{leave.firstName} {leave.lastName}</Text>
                     <Text style={styles.body}>{leave.leaveType ?? 'İzin'} · {leave.startDate} – {leave.endDate} · {leave.days} gün</Text>
                     <Text style={styles.label}>Onay bekliyor</Text>
+                    {actionableLeaves.find((item) => item.id === leave.id) && (
+                      <View style={styles.actionRow}>
+                        <Pressable accessibilityRole="button" disabled={decisionBusy || loading} style={styles.button} onPress={() => decideLeave(actionableLeaves.find((item) => item.id === leave.id)!.approvalId, 'APPROVE')}>
+                          <Text style={styles.buttonText}>Onayla</Text>
+                        </Pressable>
+                        <Pressable accessibilityRole="button" disabled={decisionBusy || loading} style={styles.button} onPress={() => { setRejectionId(leave.id); setRejectionReason(''); }}>
+                          <Text style={styles.buttonText}>Reddet</Text>
+                        </Pressable>
+                        {rejectionId === leave.id && (
+                          <>
+                            <TextInput accessibilityLabel="İzin ret gerekçesi" multiline placeholder="Ret gerekçesini yazın" value={rejectionReason} onChangeText={setRejectionReason} style={styles.input} />
+                            <Pressable accessibilityRole="button" disabled={decisionBusy || !rejectionReason.trim()} style={styles.button} onPress={() => decideLeave(actionableLeaves.find((item) => item.id === leave.id)!.approvalId, 'REJECT', rejectionReason)}>
+                              <Text style={styles.buttonText}>Gerekçeyle reddet</Text>
+                            </Pressable>
+                          </>
+                        )}
+                      </View>
+                    )}
                   </View>
                 ))}
               </View>
