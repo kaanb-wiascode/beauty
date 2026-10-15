@@ -419,6 +419,46 @@ describe('ServiceExecutionsService', () => {
     },
   );
 
+  it('rejects handoff if the final package status update affects no rows', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'execution-1',
+        visitId: 'visit-1',
+        appointmentId: 'appointment-1',
+        serviceId: 'service-1',
+        staffId: 'staff-1',
+        roomId: null,
+        assetId: null,
+        status: 'COMPLETED',
+        startedAt: new Date(),
+        completedAt: new Date(),
+        note: null,
+        completionNote: null,
+        version: 2,
+      }])
+      .mockResolvedValueOnce([]);
+    appointmentFindFirst.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'CONFIRMED',
+      session: { id: 'session-1', status: 'RESERVED' },
+    });
+    appointmentUpdate.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'COMPLETED',
+    });
+    sessionUpdateMany.mockResolvedValue({ count: 1 });
+    sessionFindUnique.mockResolvedValue({ customerPackageId: 'package-1' });
+    sessionCount.mockResolvedValue(0);
+    customerPackageUpdateMany.mockResolvedValue({ count: 0 });
+
+    const service = new ServiceExecutionsService(prisma, tenantContext);
+    await expect(
+      service.completeAppointmentHandoff('execution-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(customerPackageUpdateMany).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects handoff if a consumed session loses its package linkage', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
