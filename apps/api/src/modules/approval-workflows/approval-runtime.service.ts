@@ -217,7 +217,7 @@ export class ApprovalRuntimeService {
 
   private async applyApprovedAttendanceEvent(eventId:string,tenantId:string,companyId:string,tx:Prisma.TransactionClient){
     const rows=await tx.$queryRaw<Array<{staffId:string;branchId:string;workDate:string}>>`
-      SELECT staff_id AS "staffId",branch_id AS "branchId",(((occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul')::date)::text AS "workDate"
+      SELECT staff_id AS "staffId",branch_id AS "branchId",((occurred_at AT TIME ZONE 'Europe/Istanbul')::date)::text AS "workDate"
       FROM hr_attendance_events
       WHERE id=${eventId}
         AND tenant_id=${tenantId}
