@@ -89,7 +89,7 @@ export default function SalesPage(){
  }catch(e){setError(e instanceof ApiError?e.message:"Satış detayı yüklenemedi.")}finally{setWorking(false)}},[]);
 
  useOperationRealtime((event)=>{
-   if(event.aggregateType!=="sale"&&!event.eventName.startsWith("appointment.payment_")) return;
+   if(event.aggregateType!=="sale"&&event.aggregateType!=="payment"&&!event.eventName.startsWith("appointment.payment_")&&!event.eventName.startsWith("session.consumed")) return;
    void load();
    if(selectedId) void openDetail(selectedId);
  });
