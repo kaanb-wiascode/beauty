@@ -42,9 +42,13 @@ export const listBranchChecklistRunsSchema = z.object({
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().min(1).max(10000).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
-}).refine((value) => !value.from || !value.to || value.from <= value.to, {
-  path: ['to'],
-  message: 'End date must not precede start date.',
+}).superRefine((value, ctx) => {
+  if (value.from && value.to && value.from > value.to) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: 'End date must not precede start date.' });
+  }
+  if (value.from && value.to && value.to.getTime() - value.from.getTime() > 90 * 24 * 60 * 60 * 1000) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: 'Date range must not exceed 90 days.' });
+  }
 });
 
 export const updateBranchChecklistRunItemSchema = z.object({
