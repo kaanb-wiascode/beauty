@@ -329,10 +329,21 @@ export class HrSelfServiceService {
   const employee = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
   const events = await this.prisma.$queryRawUnsafe<Array<{
-    id: string; eventType: string; occurredAt: Date;
+    id: string; eventType: string; occurredAt: Date; approvalStatus: string | null;
   }>>(
-    `SELECT e.id, e.event_type AS "eventType", e.occurred_at AS "occurredAt"
+    `SELECT e.id, e.event_type AS "eventType", e.occurred_at AS "occurredAt",
+            ar.status AS "approvalStatus"
        FROM hr_attendance_events e
+       LEFT JOIN LATERAL (
+         SELECT r.status
+           FROM approval_requests r
+          WHERE r."tenantId" = e.tenant_id
+            AND r."companyId" = e.company_id
+            AND r."entityType" = 'hr_attendance_event'
+            AND r."entityId" = e.id
+          ORDER BY r."createdAt" DESC, r.id DESC
+          LIMIT 1
+       ) ar ON TRUE
       WHERE e.tenant_id=$1 AND e.company_id=$2 AND e.staff_id=$3
         AND (e.occurred_at AT TIME ZONE 'Europe/Istanbul')::date =
             (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
@@ -340,7 +351,9 @@ export class HrSelfServiceService {
       LIMIT 30`,
     tenantId, companyId, employee.id,
   );
-  return { data: events.map(({ id, eventType, occurredAt }) => ({ id, eventType, occurredAt })) };
+  return { data: events.map(({ id, eventType, occurredAt, approvalStatus }) => ({
+    id, eventType, occurredAt, approvalStatus,
+  })) };
  }
  async mobileManagerTeam(userId: string) {
   const manager = await this.employee(userId);
