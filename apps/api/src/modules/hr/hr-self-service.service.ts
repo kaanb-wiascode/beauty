@@ -325,6 +325,21 @@ export class HrSelfServiceService {
    };
   });
  }
+ async mobileLeaveBalances(userId: string) {
+  const employee = await this.employee(userId);
+  const year = new Date().getFullYear();
+  const types = await this.leave.leaveTypes();
+  const data: Array<{ leaveTypeId: string; name: string; available: number }> = [];
+  for (const type of types.filter((item: any) => item.active)) {
+    try {
+      const balance = await this.leave.balance(employee.id, type.id, year);
+      data.push({ leaveTypeId: type.id, name: type.name, available: Number(balance.available) });
+    } catch {
+      // Some leave types have no entitlement for this employee.
+    }
+  }
+  return { data };
+ }
  async mobileLeaveHistory(userId: string) {
   const employee = await this.employee(userId);
   const requests = await this.leave.requests(employee.id);
