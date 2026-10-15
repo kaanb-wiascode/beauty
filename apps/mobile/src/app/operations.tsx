@@ -23,6 +23,7 @@ export default function OperationsScreen() {
   const permitted = session?.membership.permissions.includes('operations.read') ?? false;
   const hasBranch = Boolean(me?.tenantContext.branchId);
   const [runs, setRuns] = useState<ChecklistRun[] | null>(null);
+  const [category, setCategory] = useState<'ALL' | 'OPENING' | 'CLOSING'>('ALL');
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<ChecklistDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -45,7 +46,8 @@ export default function OperationsScreen() {
     setError(null);
     setRuns(null);
     try {
-      const result = await valooRequest<ChecklistRun[]>('/operations/branch-checklists/runs', {
+      const path = category === 'ALL' ? '/operations/branch-checklists/runs' : `/operations/branch-checklists/runs?category=${category}`;
+      const result = await valooRequest<ChecklistRun[]>(path, {
         accessToken: token,
         signal: controller.signal,
       });
@@ -62,7 +64,7 @@ export default function OperationsScreen() {
         setLoading(false);
       }
     }
-  }, [token, permitted, hasBranch, expireSession]);
+  }, [token, permitted, hasBranch, category, expireSession]);
 
   const showDetail = useCallback(async (runId: string) => {
     if (!token || !permitted || !hasBranch) return;
@@ -124,6 +126,17 @@ export default function OperationsScreen() {
           <View style={styles.card}><Text style={styles.body}>Kayıtları görüntülemek için aktif şube bağlamı gerekli.</Text></View>
         ) : (
           <>
+            <View style={styles.filterRow}>
+              {([
+                ['ALL', 'Tümü'],
+                ['OPENING', 'Açılış'],
+                ['CLOSING', 'Kapanış'],
+              ] as const).map(([value, label]) => (
+                <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: category === value }} onPress={() => setCategory(value)} style={[styles.filterButton, category === value && styles.filterSelected]}>
+                  <Text style={styles.buttonText}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Şube kontrol listelerini yenile" disabled={loading} onPress={() => void load()} style={styles.button}>
               <Text style={styles.buttonText}>Listeyi yenile</Text>
             </Pressable>
@@ -169,6 +182,9 @@ const styles = StyleSheet.create({
   heading: { color: '#162d4e', fontSize: 25, fontWeight: '800' },
   intro: { color: '#586e89', lineHeight: 21, fontSize: 14 },
   card: { padding: 18, backgroundColor: '#fff', borderRadius: 17, borderWidth: 1, borderColor: '#e1e9f5', gap: 9 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterButton: { backgroundColor: '#fff', borderRadius: 10, padding: 11 },
+  filterSelected: { backgroundColor: '#cde3ff' },
   detailRow: { borderTopWidth: 1, borderTopColor: '#e1e9f5', paddingTop: 10, gap: 3 },
   title: { color: '#1b3453', fontSize: 16, fontWeight: '700' },
   body: { color: '#4a6280', fontSize: 14, lineHeight: 20 },
