@@ -449,7 +449,15 @@ describe('ServiceExecutionsService', () => {
       session: { id: 'session-1', status: 'CONSUMED' },
     });
 
-    const service = new ServiceExecutionsService(prisma, tenantContext);
+    const domainEvents = {
+      record: jest.fn().mockResolvedValue('event-1'),
+      dispatchStored: jest.fn(),
+    };
+    const service = new ServiceExecutionsService(
+      prisma,
+      tenantContext,
+      domainEvents as never,
+    );
     const result = await service.completeAppointmentHandoff('execution-1');
 
     expect(appointmentUpdate).not.toHaveBeenCalled();
@@ -457,5 +465,7 @@ describe('ServiceExecutionsService', () => {
     expect(sessionCount).not.toHaveBeenCalled();
     expect(customerPackageUpdateMany).not.toHaveBeenCalled();
     expect(result.consumedSessionId).toBeNull();
+    expect(domainEvents.record).not.toHaveBeenCalled();
+    expect(domainEvents.dispatchStored).not.toHaveBeenCalled();
   });
 });
