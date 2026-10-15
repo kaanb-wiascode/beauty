@@ -443,14 +443,17 @@ describe('ServiceExecutionsService', () => {
       status: 'CONFIRMED',
       session: { id: 'session-1', status: 'RESERVED' },
     });
-    appointmentUpdate.mockResolvedValue({ id: 'appointment-1', status: 'COMPLETED' });
+    appointmentUpdate.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'COMPLETED',
+    });
     sessionUpdateMany.mockResolvedValue({ count: 1 });
     sessionFindUnique.mockResolvedValue(null);
 
     const service = new ServiceExecutionsService(prisma, tenantContext);
-    await expect(service.completeAppointmentHandoff('execution-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.completeAppointmentHandoff('execution-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(sessionCount).not.toHaveBeenCalled();
     expect(customerPackageUpdateMany).not.toHaveBeenCalled();
   });
