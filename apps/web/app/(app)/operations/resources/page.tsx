@@ -5,6 +5,7 @@ import { CardInfo } from "@/components/card-info";
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/ui";
+import { useOperationRealtime } from "@/lib/use-operation-realtime";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -91,6 +92,14 @@ export default function OperationsResourcesPage() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useOperationRealtime((event) => {
+    if (event.eventName.startsWith("resource.") ||
+        event.eventName.startsWith("appointment.") ||
+        event.eventName.startsWith("service_execution.")) {
+      void load();
+    }
+  }, hasActiveBranch());
 
   const assetTypes = useMemo(
     () => [...new Set(assets.map((asset) => asset.assetType))].sort(),
