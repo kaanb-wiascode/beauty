@@ -257,6 +257,21 @@ export class ApprovalRuntimeService {
         AND e.staff_id=${source.staffId}
         AND e.occurred_at>=${source.shiftStart}
         AND e.occurred_at<${source.shiftStart}::timestamptz+INTERVAL '24 hours'
+        AND NOT EXISTS (
+          SELECT 1 FROM hr_attendance_events later_start
+          JOIN approval_requests later_approval
+            ON later_approval."tenantId"=later_start.tenant_id
+           AND later_approval."companyId"=later_start.company_id
+           AND later_approval."entityType"='hr_attendance_event'
+           AND later_approval."entityId"=later_start.id
+           AND later_approval.status='APPROVED'
+          WHERE later_start.tenant_id=e.tenant_id
+            AND later_start.company_id=e.company_id
+            AND later_start.staff_id=e.staff_id
+            AND later_start.event_type='DAY_START'
+            AND later_start.occurred_at>${source.shiftStart}
+            AND later_start.occurred_at<=e.occurred_at
+        )
       ORDER BY e.occurred_at,e.id
     `;
 
