@@ -58,6 +58,8 @@ describe('Branch checklist history pagination', () => {
   });
 
   it('rejects unbounded pagination values', () => {
+    expect(() => listBranchChecklistRunsSchema.parse({ from: '2026-10-15', to: '2026-10-01' })).toThrow();
+    expect(listBranchChecklistRunsSchema.parse({ from: '2026-10-01', to: '2026-10-15' }).limit).toBe(25);
     expect(() => listBranchChecklistRunsSchema.parse({ page: '0' })).toThrow();
     expect(() => listBranchChecklistRunsSchema.parse({ page: '10001' })).toThrow();
     expect(() => listBranchChecklistRunsSchema.parse({ page: '1', limit: '101' })).toThrow();
