@@ -1,5 +1,5 @@
 import { PrismaService } from '@beauty-erp/database';
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { SessionsService } from './sessions.service';
@@ -168,6 +168,21 @@ describe('SessionsService concurrency guards', () => {
     await expect(service.consume('session-a')).rejects.toBeInstanceOf(
       ConflictException,
     );
+    expect(tx.session.count).not.toHaveBeenCalled();
+    expect(tx.customerPackage.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects consumption before the linked appointment is completed', async () => {
+    const { service, tx } = await createService({
+      sessionStatus: 'RESERVED',
+      appointmentId: 'appointment-a',
+    });
+    tx.appointment.findFirst.mockResolvedValueOnce(null);
+
+    await expect(service.consume('session-a')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(tx.session.updateMany).not.toHaveBeenCalled();
     expect(tx.session.count).not.toHaveBeenCalled();
     expect(tx.customerPackage.updateMany).not.toHaveBeenCalled();
   });
