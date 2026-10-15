@@ -410,6 +410,17 @@ export class HrSelfServiceService {
   );
   return { data: rows };
  }
+ async mobileManagerActionableAttendance(userId: string) {
+  const pending = await this.mobileManagerPendingAttendance(userId);
+  if (!pending.data.length) return { data: [] };
+  // inbox applies the current workflow step, delegation, SLA and separation-of-duties checks.
+  const inbox = await this.approvalRuntime.inbox('PENDING');
+  const authorizedIds = new Set(
+    inbox.filter((request: any) => request.entityType === 'hr_attendance_event')
+      .map((request: any) => request.id),
+  );
+  return { data: pending.data.filter((entry) => authorizedIds.has(entry.approvalRequestId)) };
+ }
  async mobileManagerPendingLeaves(userId: string) {
   const manager = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
