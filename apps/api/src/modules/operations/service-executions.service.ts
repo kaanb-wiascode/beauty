@@ -624,16 +624,18 @@ export class ServiceExecutionsService {
           },
         });
 
-        const appointmentEventId = await this.domainEvents?.record(tx, {
-          eventName: 'appointment.completed_from_execution',
-          aggregateType: 'appointment',
-          aggregateId: refreshed?.id ?? executionId,
-          payload: {
-            executionId,
-            consumedSessionId,
-          },
-        });
-        if (appointmentEventId) eventIds.push(appointmentEventId);
+        if (appointment.status !== 'COMPLETED') {
+          const appointmentEventId = await this.domainEvents?.record(tx, {
+            eventName: 'appointment.completed_from_execution',
+            aggregateType: 'appointment',
+            aggregateId: refreshed?.id ?? executionId,
+            payload: {
+              executionId,
+              consumedSessionId,
+            },
+          });
+          if (appointmentEventId) eventIds.push(appointmentEventId);
+        }
 
         if (consumedSessionId) {
           const sessionEventId = await this.domainEvents?.record(tx, {
