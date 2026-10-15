@@ -325,6 +325,23 @@ export class HrSelfServiceService {
    };
   });
  }
+ async mobileAttendanceToday(userId: string) {
+  const employee = await this.employee(userId);
+  const { tenantId, companyId } = this.scope();
+  const events = await this.prisma.$queryRawUnsafe<Array<{
+    id: string; eventType: string; occurredAt: Date;
+  }>>(
+    `SELECT e.id, e.event_type AS "eventType", e.occurred_at AS "occurredAt"
+       FROM hr_attendance_events e
+      WHERE e.tenant_id=$1 AND e.company_id=$2 AND e.staff_id=$3
+        AND (e.occurred_at AT TIME ZONE 'Europe/Istanbul')::date =
+            (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
+      ORDER BY e.occurred_at DESC, e.id DESC
+      LIMIT 30`,
+    tenantId, companyId, employee.id,
+  );
+  return { data: events.map(({ id, eventType, occurredAt }) => ({ id, eventType, occurredAt })) };
+ }
  async mobileManagerTeam(userId: string) {
   const manager = await this.employee(userId);
   const { tenantId, companyId } = this.scope();
