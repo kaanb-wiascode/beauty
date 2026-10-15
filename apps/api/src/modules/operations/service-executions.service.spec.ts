@@ -282,8 +282,56 @@ describe('ServiceExecutionsService', () => {
         consumedAt: expect.any(Date),
       },
     });
+    expect(sessionCount).toHaveBeenCalledWith({
+      where: {
+        customerPackageId: 'package-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        status: { in: ['AVAILABLE', 'RESERVED'] },
+      },
+    });
     expect(result.packageSessionRequiresExplicitConsumption).toBe(false);
     expect(result.consumedSessionId).toBe('session-1');
     expect(result.appointment?.session?.status).toBe('CONSUMED');
   });
+  it('does not consume the same package session again when handoff is retried', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'execution-1',
+        visitId: 'visit-1',
+        appointmentId: 'appointment-1',
+        serviceId: 'service-1',
+        staffId: 'staff-1',
+        roomId: null,
+        assetId: null,
+        status: 'COMPLETED',
+        startedAt: new Date(),
+        completedAt: new Date(),
+        note: null,
+        completionNote: null,
+        version: 2,
+      }])
+      .mockResolvedValueOnce([]);
+    appointmentFindFirst.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'COMPLETED',
+      session: { id: 'session-1', status: 'CONSUMED' },
+    });
+    appointmentFindUnique.mockResolvedValue({
+      id: 'appointment-1',
+      status: 'COMPLETED',
+      session: { id: 'session-1', status: 'CONSUMED' },
+    });
+
+    const service = new ServiceExecutionsService(prisma, tenantContext);
+    const result = await service.completeAppointmentHandoff('execution-1');
+
+    expect(appointmentUpdate).not.toHaveBeenCalled();
+    expect(sessionUpdateMany).not.toHaveBeenCalled();
+    expect(sessionCount).not.toHaveBeenCalled();
+    expect(customerPackageUpdateMany).not.toHaveBeenCalled();
+    expect(result.consumedSessionId).toBeNull();
+  });
+
 });
