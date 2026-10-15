@@ -381,7 +381,9 @@ describe('ServiceExecutionsService', () => {
     expect(customerPackageUpdateMany).not.toHaveBeenCalled();
   });
 
-  it('rejects handoff when the linked package session is not reserved', async () => {
+  it.each(['AVAILABLE', 'CANCELLED'])(
+    'rejects handoff when the linked package session is %s',
+    async (sessionStatus) => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{
@@ -403,7 +405,7 @@ describe('ServiceExecutionsService', () => {
     appointmentFindFirst.mockResolvedValue({
       id: 'appointment-1',
       status: 'CONFIRMED',
-      session: { id: 'session-1', status: 'AVAILABLE' },
+      session: { id: 'session-1', status: sessionStatus },
     });
 
     const service = new ServiceExecutionsService(prisma, tenantContext);
@@ -414,7 +416,8 @@ describe('ServiceExecutionsService', () => {
     expect(appointmentUpdate).not.toHaveBeenCalled();
     expect(sessionUpdateMany).not.toHaveBeenCalled();
     expect(customerPackageUpdateMany).not.toHaveBeenCalled();
-  });
+    },
+  );
 
   it('does not consume the same package session again when handoff is retried', async () => {
     queryRawUnsafe
@@ -455,5 +458,4 @@ describe('ServiceExecutionsService', () => {
     expect(customerPackageUpdateMany).not.toHaveBeenCalled();
     expect(result.consumedSessionId).toBeNull();
   });
-
 });
