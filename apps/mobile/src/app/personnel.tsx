@@ -126,6 +126,7 @@ export default function PersonnelScreen() {
             });
             setAttendanceActionMessage(result.approvalStatus === 'PENDING' ? 'İşlem kaydedildi; yönetici onayı bekleniyor.' : 'İşlem kaydedildi.');
             await load();
+            setAttendanceActionMessage(result.approvalStatus === 'PENDING' ? 'İşlem kaydedildi; yönetici onayı bekleniyor.' : 'İşlem kaydedildi.');
           } catch (error) {
             if (error instanceof ValooApiError && error.status === 401) expireSession();
             else setAttendanceActionMessage(error instanceof Error ? error.message : 'Puantaj işlemi tamamlanamadı.');
@@ -202,7 +203,7 @@ export default function PersonnelScreen() {
                   ))}
                 </View>
                 {attendanceSubmitting && <ActivityIndicator accessibilityLabel="Puantaj işlemi gönderiliyor" />}
-                {!!attendanceActionMessage && <Text accessibilityRole="alert" style={styles.body}>{attendanceActionMessage}</Text>
+                {!!attendanceActionMessage && <Text accessibilityRole="alert" style={styles.body}>{attendanceActionMessage}</Text>}
               </View>
             )}
             {!!attendanceMessage && <Text accessibilityRole="alert" style={styles.error}>{attendanceMessage}</Text>}
