@@ -13,6 +13,10 @@ type ChecklistRun = {
   status: 'OPEN' | 'COMPLETED';
 };
 
+type ChecklistDetail = ChecklistRun & {
+  items: Array<{ id: string; title: string; status: 'PENDING' | 'COMPLETED' | 'NA'; isRequired: boolean }>;
+};
+
 export default function OperationsScreen() {
   const { session, me, expireSession } = useValooSession();
   const token = session?.accessToken ?? null;
@@ -20,12 +24,18 @@ export default function OperationsScreen() {
   const hasBranch = Boolean(me?.tenantContext.branchId);
   const [runs, setRuns] = useState<ChecklistRun[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<ChecklistDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const detailRequestRef = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(false);
   const requestRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !permitted || !hasBranch) return;
     requestRef.current?.abort();
+    detailRequestRef.current?.abort();
+    setDetail(null);
     const controller = new AbortController();
     requestRef.current = controller;
     setLoading(true);
@@ -51,14 +61,50 @@ export default function OperationsScreen() {
     }
   }, [token, permitted, hasBranch, expireSession]);
 
+  const showDetail = useCallback(async (runId: string) => {
+    if (!token || !permitted || !hasBranch) return;
+    detailRequestRef.current?.abort();
+    const controller = new AbortController();
+    detailRequestRef.current = controller;
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+    try {
+      const result = await valooRequest<ChecklistDetail>(
+        `/operations/branch-checklists/runs/${encodeURIComponent(runId)}`,
+        { accessToken: token, signal: controller.signal },
+      );
+      if (controller.signal.aborted) return;
+      if (result.id !== runId || !Array.isArray(result.items)) {
+        throw new Error('Kontrol listesi detayı beklenen biçimde değil.');
+      }
+      setDetail(result);
+    } catch (cause) {
+      if (controller.signal.aborted) return;
+      if (cause instanceof ValooApiError && cause.status === 401) expireSession();
+      else setDetailError(cause instanceof Error ? cause.message : 'Detay yüklenemedi.');
+    } finally {
+      if (detailRequestRef.current === controller) {
+        detailRequestRef.current = null;
+        setDetailLoading(false);
+      }
+    }
+  }, [token, permitted, hasBranch, expireSession]);
+
   useEffect(() => {
     if (token && permitted && hasBranch) void load();
     else {
       setRuns(null);
+      setDetail(null);
       setError(null);
+      setDetailError(null);
       setLoading(false);
+      setDetailLoading(false);
     }
-    return () => requestRef.current?.abort();
+    return () => {
+      requestRef.current?.abort();
+      detailRequestRef.current?.abort();
+    };
   }, [token, permitted, hasBranch, load]);
 
   return (
@@ -86,8 +132,25 @@ export default function OperationsScreen() {
                 <Text style={styles.title}>{run.templateName}</Text>
                 <Text style={styles.body}>{run.category === 'OPENING' ? 'Açılış' : 'Kapanış'} · {run.status === 'COMPLETED' ? 'Tamamlandı' : 'Açık'}</Text>
                 <Text style={styles.body}>İş günü: {run.businessDate.slice(0, 10)}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Kontrol listesi detayını göster" onPress={() => void showDetail(run.id)} style={styles.button}>
+                  <Text style={styles.buttonText}>Detayını görüntüle</Text>
+                </Pressable>
               </View>
             ))}
+            {detailLoading && <ActivityIndicator color="#086ad8" accessibilityLabel="Kontrol listesi detayı yükleniyor" />}
+            {!!detailError && <Text accessibilityRole="alert" style={styles.error}>{detailError}</Text>}
+            {detail && (
+              <View style={styles.card}>
+                <Text style={styles.title}>{detail.templateName} — Detay</Text>
+                {detail.items.length === 0 && <Text style={styles.body}>Kontrol maddesi bulunamadı.</Text>}
+                {detail.items.map((item) => (
+                  <View key={item.id} style={styles.detailRow}>
+                    <Text style={styles.body}>{item.title}</Text>
+                    <Text style={styles.note}>{item.status === 'COMPLETED' ? 'Tamamlandı' : item.status === 'NA' ? 'Uygulanmaz' : 'Bekliyor'}{item.isRequired ? ' · Zorunlu' : ''}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             {!!runs?.length && <Text style={styles.note}>En fazla ilk 50 kayıt gösterilir. Bu ekran yalnızca görüntüleme amaçlıdır.</Text>}
           </>
         )}
@@ -103,6 +166,7 @@ const styles = StyleSheet.create({
   heading: { color: '#162d4e', fontSize: 25, fontWeight: '800' },
   intro: { color: '#586e89', lineHeight: 21, fontSize: 14 },
   card: { padding: 18, backgroundColor: '#fff', borderRadius: 17, borderWidth: 1, borderColor: '#e1e9f5', gap: 9 },
+  detailRow: { borderTopWidth: 1, borderTopColor: '#e1e9f5', paddingTop: 10, gap: 3 },
   title: { color: '#1b3453', fontSize: 16, fontWeight: '700' },
   body: { color: '#4a6280', fontSize: 14, lineHeight: 20 },
   note: { color: '#6c7d96', fontSize: 12, lineHeight: 19 },
