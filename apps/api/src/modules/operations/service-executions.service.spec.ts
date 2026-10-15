@@ -452,11 +452,21 @@ describe('ServiceExecutionsService', () => {
     sessionCount.mockResolvedValue(0);
     customerPackageUpdateMany.mockResolvedValue({ count: 0 });
 
-    const service = new ServiceExecutionsService(prisma, tenantContext);
+    const domainEvents = {
+      record: jest.fn(),
+      dispatchStored: jest.fn(),
+    };
+    const service = new ServiceExecutionsService(
+      prisma,
+      tenantContext,
+      domainEvents as never,
+    );
     await expect(
       service.completeAppointmentHandoff('execution-1'),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(customerPackageUpdateMany).toHaveBeenCalledTimes(1);
+    expect(domainEvents.record).not.toHaveBeenCalled();
+    expect(domainEvents.dispatchStored).not.toHaveBeenCalled();
   });
 
   it('rejects handoff if a consumed session loses its package linkage', async () => {
