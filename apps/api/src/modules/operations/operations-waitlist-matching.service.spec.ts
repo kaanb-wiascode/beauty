@@ -140,6 +140,48 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(executeRawUnsafe).not.toHaveBeenCalled();
   });
 
+  it('books a matched slot and closes its waitlist entry with the created appointment', async () => {
+    const staffId = '00000000-0000-4000-8000-000000000010';
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...target, status: 'MATCH_FOUND', version: 1 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'waitlist-1',
+        status: 'BOOKED',
+        version: 2,
+        bookedAppointmentId: 'appointment-1',
+      }]);
+    staffFindFirst.mockResolvedValueOnce({ id: staffId });
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    appointmentCreate.mockResolvedValueOnce({
+      id: 'appointment-1',
+      startAt: new Date('2099-09-20T07:00:00.000Z'),
+      endAt: new Date('2099-09-20T08:00:00.000Z'),
+      status: 'SCHEDULED',
+    });
+
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+    const result = await service.acceptMatch('waitlist-1', {
+      expectedVersion: 1,
+      staffId,
+      startAt: new Date('2099-09-20T07:00:00.000Z'),
+      endAt: new Date('2099-09-20T08:00:00.000Z'),
+      roomId: null,
+      assetId: null,
+    });
+
+    expect(result.waitlist).toMatchObject({
+      status: 'BOOKED',
+      version: 2,
+      bookedAppointmentId: 'appointment-1',
+    });
+    expect(result.appointment.id).toBe('appointment-1');
+    expect(appointmentCreate).toHaveBeenCalledTimes(1);
+    expect(executeRawUnsafe).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects a matched slot already occupied by another appointment', async () => {
     const staffId = '00000000-0000-4000-8000-000000000010';
     queryRawUnsafe
