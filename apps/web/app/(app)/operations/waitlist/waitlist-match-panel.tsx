@@ -110,7 +110,7 @@ export function WaitlistMatchPanel({
       setSearched(false);
       setError(
         err instanceof ApiError
-          ? err.message
+          ? `${err.message} Uygun saatleri yeniden arayın.`
           : "Seçilen saat artık uygun değil. Yeniden eşleştirme yapın.",
       );
     } finally {
