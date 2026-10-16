@@ -44,6 +44,7 @@ export function WaitlistMatchPanel({
     setMatches([]);
     setMatchedVersion(entryVersion);
     setSearched(false);
+    setLoading(false);
     setError("");
   }, [entryId, entryVersion]);
 
