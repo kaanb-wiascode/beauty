@@ -101,10 +101,19 @@ export default function SalesPage(){
    if(selectedId) void openDetail(selectedId);
  });
 
- async function createSale(event:FormEvent){event.preventDefault();if(!customerId||lines.some(l=>!l.referenceId||Number(l.quantity)<=0)){setError("Müşteri ve tüm satış kalemleri zorunludur.");return}setWorking(true);setError("");try{
-   await api("/sales",{method:"POST",body:{customerId,discountTotal:Number(discount||0),items:lines.map(l=>({type:l.type,referenceId:l.referenceId,quantity:Number(l.quantity)}))}});
-   setCreateOpen(false);setCustomerId("");setDiscount("0");setLines([{type:"SERVICE",referenceId:"",quantity:"1"}]);setNotice("Satış taslağı oluşturuldu.");await load();
- }catch(e){setError(e instanceof ApiError?e.message:"Satış oluşturulamadı.")}finally{setWorking(false)}}
+ async function createSale(event:FormEvent){event.preventDefault();if(working)return;
+   if(!customerId||lines.some(l=>!l.referenceId||!Number.isInteger(Number(l.quantity))||Number(l.quantity)<=0)){setError("Müşteri ve pozitif tam sayı miktarlı satış kalemleri zorunludur.");return}
+   const discountAmount=Number(discount);
+   if(!Number.isFinite(discountAmount)||discountAmount<0){setError("İndirim sıfır veya pozitif bir tutar olmalıdır.");return}
+   setWorking(true);setError("");
+   try{
+     const created=await api<{id:string}>("/sales",{method:"POST",body:{customerId,discountTotal:discountAmount,items:lines.map(l=>({type:l.type,referenceId:l.referenceId,quantity:Number(l.quantity)}))}});
+     setCreateOpen(false);setCustomerId(linkedCustomerId);setDiscount("0");setLines([{type:"SERVICE",referenceId:"",quantity:"1"}]);
+     setNotice(`Satış taslağı oluşturuldu: ${created.id}`);
+     try{await load()}catch{/* The sale was committed; a refresh error must not imply failure. */}
+     await openDetail(created.id);
+   }catch(e){setError(e instanceof ApiError?e.message:"Satış oluşturulamadı. İşlemi tekrarlamadan önce kayıtları kontrol edin.")}finally{setWorking(false)}
+ }
 
  async function saleAction(action:"confirm"|"cancel"){if(!selected)return;setWorking(true);setError("");try{await api(`/sales/${selected.id}/${action}`,{method:"POST"});setNotice(action==="confirm"?"Satış onaylandı.":"Satış iptal edildi.");await load();await openDetail(selected.id)}catch(e){setError(e instanceof ApiError?e.message:"Satış işlemi tamamlanamadı.")}finally{setWorking(false)}}
  async function addPayment(event:FormEvent){event.preventDefault();if(!selected||working)return;
