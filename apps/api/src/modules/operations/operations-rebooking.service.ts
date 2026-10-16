@@ -276,6 +276,12 @@ export class OperationsRebookingService {
           staffId,
         );
 
+        // Recheck after the staff lock: another operation may have taken time
+        // while this transaction waited for the same staff member.
+        if (input.startAt <= new Date()) {
+          throw new BadRequestException('Yeni randevu zamanı gelecekte olmalıdır.');
+        }
+
         const staff = await tx.staff.findFirst({
           where: { id: staffId, tenantId, branchId, status: 'ACTIVE' },
           select: { id: true },
