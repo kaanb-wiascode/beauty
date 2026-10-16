@@ -150,14 +150,21 @@ describe('SalesService payment idempotency', () => {
     const { service, tx } = await setup();
     tx.salePayment.findFirst.mockResolvedValueOnce(null);
     tx.$queryRawUnsafe
-      .mockResolvedValueOnce([{ id: 'sale-1', total: 100, status: 'CONFIRMED' }])
+      .mockResolvedValueOnce([
+        { id: 'sale-1', total: 100, status: 'CONFIRMED' },
+      ])
       .mockResolvedValueOnce([{ paid: 80 }]);
 
     await expect(
       service.addPayment('sale-1', { ...request, amount: 25 }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(tx.salePayment.create).not.toHaveBeenCalled();
-    expect(tx.$queryRawUnsafe.mock.calls[0][0]).toContain('FOR UPDATE');
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('FOR UPDATE'),
+      'sale-1',
+      'tenant-1',
+      'branch-1',
+    );
   });
 
   it('rejects payment on an unconfirmed sale before writing a payment', async () => {
