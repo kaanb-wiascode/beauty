@@ -121,7 +121,7 @@ export default function SalesPage(){
    }catch(e){setError(e instanceof ApiError?e.message:"Satış oluşturulamadı. İşlemi tekrarlamadan önce kayıtları kontrol edin.")}finally{setWorking(false)}
  }
 
- async function saleAction(action:"confirm"|"cancel"){if(!selected)return;setWorking(true);setError("");try{await api(`/sales/${selected.id}/${action}`,{method:"POST"});setNotice(action==="confirm"?"Satış onaylandı.":"Satış iptal edildi.");await load();await openDetail(selected.id)}catch(e){setError(e instanceof ApiError?e.message:"Satış işlemi tamamlanamadı.")}finally{setWorking(false)}}
+ async function saleAction(action:"confirm"|"cancel"){if(!selected||working)return;setWorking(true);setError("");try{await api(`/sales/${selected.id}/${action}`,{method:"POST"});setNotice(action==="confirm"?"Satış onaylandı.":"Satış iptal edildi.");await load();await openDetail(selected.id)}catch(e){setError(e instanceof ApiError?e.message:"Satış işleminin sonucu doğrulanamadı. Yeniden denemeden önce kayıt durumunu kontrol edin.")}finally{setWorking(false)}}
  async function addPayment(event:FormEvent){event.preventDefault();if(!selected||working)return;
    const roundedAmount=Math.round((Number(paymentAmount)+Number.EPSILON)*100)/100;
    if(!Number.isFinite(roundedAmount)||roundedAmount<=0){
