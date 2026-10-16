@@ -113,10 +113,11 @@ export default function SalesPage(){
      // The write is committed. Detail and list refreshes must not turn success into a retryable error.
      try {
        await load();
-       await openDetail(created.id);
      } catch {
-       setNotice(`Satış ${created.id} kaydedildi. Listeyi yenileyerek detayını kontrol edin.`);
+       setNotice(`Satış ${created.id} kaydedildi. Listeyi yenileyerek kontrol edin.`);
      }
+     // openDetail reports read failures independently and cannot undo the committed sale.
+     await openDetail(created.id);
    }catch(e){setError(e instanceof ApiError?e.message:"Satış oluşturulamadı. İşlemi tekrarlamadan önce kayıtları kontrol edin.")}finally{setWorking(false)}
  }
 
