@@ -110,8 +110,13 @@ export default function SalesPage(){
      const created=await api<{id:string}>("/sales",{method:"POST",body:{customerId,discountTotal:discountAmount,items:lines.map(l=>({type:l.type,referenceId:l.referenceId,quantity:Number(l.quantity)}))}});
      setCreateOpen(false);setCustomerId(linkedCustomerId);setDiscount("0");setLines([{type:"SERVICE",referenceId:"",quantity:"1"}]);
      setNotice(`Satış taslağı oluşturuldu: ${created.id}`);
-     try{await load()}catch{/* The sale was committed; a refresh error must not imply failure. */}
-     await openDetail(created.id);
+     // The write is committed. Detail and list refreshes must not turn success into a retryable error.
+     try {
+       await load();
+       await openDetail(created.id);
+     } catch {
+       setNotice(`Satış ${created.id} kaydedildi. Listeyi yenileyerek detayını kontrol edin.`);
+     }
    }catch(e){setError(e instanceof ApiError?e.message:"Satış oluşturulamadı. İşlemi tekrarlamadan önce kayıtları kontrol edin.")}finally{setWorking(false)}
  }
 
