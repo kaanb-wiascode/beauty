@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Alert, Button } from "@/components/ui";
 import { CardInfo } from "@/components/card-info";
@@ -37,9 +37,21 @@ export function WaitlistMatchPanel({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
+  const requestGeneration = useRef(0);
+
+  useEffect(() => {
+    requestGeneration.current += 1;
+    setMatches([]);
+    setMatchedVersion(entryVersion);
+    setSearched(false);
+    setError("");
+  }, [entryId, entryVersion]);
 
   async function findMatches() {
+    const generation = ++requestGeneration.current;
     setLoading(true);
+    setMatches([]);
+    setSearched(false);
     setError("");
     try {
       const result = await api<{
@@ -50,18 +62,21 @@ export function WaitlistMatchPanel({
         method: "POST",
         body: { limit: 10 },
       });
+      if (generation !== requestGeneration.current || result.entryId !== entryId) return;
       setMatches(result.matches);
       setMatchedVersion(result.entryVersion);
       setSearched(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Uygun saat bulunamadı.");
+      if (generation === requestGeneration.current) {
+        setError(err instanceof ApiError ? err.message : "Uygun saat bulunamadı.");
+      }
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }
 
   async function accept(match: WaitlistMatch) {
-    if (!canUpdate) return;
+    if (!canUpdate || busyKey || loading || matchedVersion !== entryVersion) return;
     const key = `${match.staffId}:${match.startAt}`;
     setBusyKey(key);
     setError("");
@@ -134,7 +149,7 @@ export function WaitlistMatchPanel({
                 </p>
                 {canUpdate ? (
                   <div className="mt-3 flex justify-end">
-                    <Button disabled={Boolean(busyKey)} onClick={() => void accept(match)}>
+                    <Button disabled={Boolean(busyKey) || loading || matchedVersion !== entryVersion} onClick={() => void accept(match)}>
                       {busyKey === key ? "Randevulaştırılıyor..." : "Bu Saati Randevuya Dönüştür"}
                     </Button>
                   </div>
