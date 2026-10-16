@@ -38,10 +38,13 @@ export function WaitlistMatchPanel({
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
   const requestGeneration = useRef(0);
+  const bookingInFlight = useRef(false);
+  const [bookedAppointmentId, setBookedAppointmentId] = useState<string | null>(null);
 
   useEffect(() => {
     requestGeneration.current += 1;
     setMatches([]);
+    setBookedAppointmentId(null);
     setMatchedVersion(entryVersion);
     setSearched(false);
     setLoading(false);
@@ -77,12 +80,13 @@ export function WaitlistMatchPanel({
   }
 
   async function accept(match: WaitlistMatch) {
-    if (!canUpdate || busyKey || loading || matches.length === 0) return;
+    if (!canUpdate || bookingInFlight.current || loading || matches.length === 0 || bookedAppointmentId) return;
+    bookingInFlight.current = true;
     const key = `${match.staffId}:${match.startAt}`;
     setBusyKey(key);
     setError("");
     try {
-      await api(`/operations/waitlist/${entryId}/accept-match`, {
+      const result = await api<{ appointment: { id: string } }>(`/operations/waitlist/${entryId}/accept-match`, {
         method: "POST",
         body: {
           expectedVersion: matchedVersion,
@@ -94,9 +98,14 @@ export function WaitlistMatchPanel({
         },
       });
       setMatches([]);
-      await onBooked();
+      setBookedAppointmentId(result.appointment.id);
+      try {
+        await onBooked();
+      } catch {
+        setError("Randevu oluşturuldu ancak liste yenilenemedi. Sayfayı yenileyerek kontrol edin.");
+      }
     } catch (err) {
-      // A conflict invalidates the returned slots; the operator must rescan.
+      // A failed booking invalidates the returned slots; the operator must rescan.
       setMatches([]);
       setSearched(false);
       setError(
@@ -105,6 +114,7 @@ export function WaitlistMatchPanel({
           : "Seçilen saat artık uygun değil. Yeniden eşleştirme yapın.",
       );
     } finally {
+      bookingInFlight.current = false;
       setBusyKey(null);
     }
   }
@@ -118,10 +128,16 @@ export function WaitlistMatchPanel({
             Personel, oda, cihaz, bakım, kullanılamama kayıtları ile hazırlık ve temizlik süreleri birlikte değerlendirilir.
           </p>
         </div>
-        <Button variant="secondary" disabled={loading || Boolean(busyKey)} onClick={() => void findMatches()}>
+        <Button variant="secondary" disabled={loading || Boolean(busyKey) || Boolean(bookedAppointmentId)} onClick={() => void findMatches()}>
           {loading ? "Taranıyor..." : searched ? "Uygun Saatleri Yenile" : "Uygun Saat Bul"}
         </Button>
       </div>
+
+      {bookedAppointmentId ? (
+        <p role="status" className="mt-3 text-xs font-medium text-[var(--ink)]">
+          Randevu oluşturuldu. Kayıt numarası: {bookedAppointmentId}
+        </p>
+      ) : null}
 
       {error ? (
         <div className="mt-3">
@@ -153,7 +169,7 @@ export function WaitlistMatchPanel({
                 </p>
                 {canUpdate ? (
                   <div className="mt-3 flex justify-end">
-                    <Button disabled={Boolean(busyKey) || loading} onClick={() => void accept(match)}>
+                    <Button disabled={Boolean(busyKey) || loading || Boolean(bookedAppointmentId)} onClick={() => void accept(match)}>
                       {busyKey === key ? "Randevulaştırılıyor..." : "Bu Saati Randevuya Dönüştür"}
                     </Button>
                   </div>
