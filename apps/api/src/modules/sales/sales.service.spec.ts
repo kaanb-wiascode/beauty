@@ -120,7 +120,13 @@ describe('SalesService payment idempotency', () => {
     expect(tx.salePayment.create).not.toHaveBeenCalled();
   });
 
-  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+  it.each([
+    0,
+    -1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  ])(
     'rejects an invalid payment amount (%s) before opening a transaction',
     async (amount) => {
       const { service, prisma, tx } = await setup();
