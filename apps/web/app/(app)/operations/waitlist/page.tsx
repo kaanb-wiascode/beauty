@@ -71,7 +71,7 @@ export default function OperationsWaitlistPage() {
     const query = search.trim().toLocaleLowerCase("tr-TR");
     return !query || [entry.customerName, entry.serviceName, entry.preferredStaffName ?? "", entry.note ?? ""]
       .some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
-  });
+  }).sort((a, b) => b.priority - a.priority || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff] = useState<StaffOption[]>([]);
