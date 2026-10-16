@@ -128,6 +128,10 @@ export default function SalesPage(){
      setError("Ödeme tutarı en az 0,01 TL olmalıdır.");
      return;
    }
+   if(summary?.saleId===selected.id && roundedAmount>Math.round((Number(summary.balance)+Number.EPSILON)*100)/100){
+     setError("Ödeme tutarı kalan bakiyeyi aşamaz. Bakiyeyi yenileyip tekrar kontrol edin.");
+     return;
+   }
    const fingerprint=JSON.stringify([selected.id,roundedAmount,paymentMethod,paymentReference.trim(),paymentNote.trim()]);
    if(paymentRetryRef.current?.fingerprint!==fingerprint){
      paymentRetryRef.current={fingerprint,key:crypto.randomUUID()};
@@ -142,12 +146,9 @@ export default function SalesPage(){
    setPaymentReference("");
    setPaymentNote("");
    setNotice("Satış ödemesi kaydedildi.");
-   try {
-     await load();
-     await openDetail(selected.id);
-   } catch {
-     setError("Ödeme kaydedildi ancak ekran güncellenemedi. Yenileyerek kontrol edin; ödemeyi tekrar göndermeyin.");
-   }
+   await load();
+   // openDetail handles read errors itself; neither refresh can reverse the charge.
+   await openDetail(selected.id);
  }catch(e){setError(e instanceof ApiError?e.message:"Ödeme doğrulanamadı. Tekrar denemeden önce satış detayını kontrol edin.")}finally{setWorking(false)}}
  async function refund(payment:SalePayment){if(!selected)return;const reason=window.prompt("İade nedeni");if(!reason?.trim())return;setWorking(true);setError("");try{
    await api(`/sales/${selected.id}/payments/${payment.id}/refund`,{method:"POST",body:{reason:reason.trim()}});
