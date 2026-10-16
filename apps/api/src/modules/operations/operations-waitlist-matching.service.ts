@@ -397,6 +397,16 @@ export class OperationsWaitlistMatchingService {
         if (!booked[0]) {
           throw new ConflictException('Bekleme listesi kaydı randevulaştırma sırasında değişti. Lütfen yeniden eşleştirin.');
         }
+        if (
+          booked.length !== 1 ||
+          booked[0].status !== 'BOOKED' ||
+          booked[0].bookedAppointmentId !== appointment.id ||
+          booked[0].version !== input.expectedVersion + 1
+        ) {
+          throw new ConflictException(
+            'Bekleme listesi kaydı oluşturulan randevu ile eşleşmedi. İşlem geri alındı.',
+          );
+        }
 
         await tx.$executeRawUnsafe(
           `INSERT INTO operations_waitlist_events (
