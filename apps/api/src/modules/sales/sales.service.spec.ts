@@ -146,6 +146,33 @@ describe('SalesService payment idempotency', () => {
     expect(tx.salePayment.create).not.toHaveBeenCalled();
   });
 
+  it('rejects overpayment using the locked sale balance, without inserting a payment', async () => {
+    const { service, tx } = await setup();
+    tx.salePayment.findFirst.mockResolvedValueOnce(null);
+    tx.$queryRawUnsafe
+      .mockResolvedValueOnce([{ id: 'sale-1', total: 100, status: 'CONFIRMED' }])
+      .mockResolvedValueOnce([{ paid: 80 }]);
+
+    await expect(
+      service.addPayment('sale-1', { ...request, amount: 25 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.salePayment.create).not.toHaveBeenCalled();
+    expect(tx.$queryRawUnsafe.mock.calls[0][0]).toContain('FOR UPDATE');
+  });
+
+  it('rejects payment on an unconfirmed sale before writing a payment', async () => {
+    const { service, tx } = await setup();
+    tx.salePayment.findFirst.mockResolvedValueOnce(null);
+    tx.$queryRawUnsafe.mockResolvedValueOnce([
+      { id: 'sale-1', total: 100, status: 'DRAFT' },
+    ]);
+
+    await expect(service.addPayment('sale-1', request)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(tx.salePayment.create).not.toHaveBeenCalled();
+  });
+
   it('rejects a reused key after the original payment has been refunded', async () => {
     const { service, tx } = await setup({ status: 'REFUNDED' });
     await expect(service.addPayment('sale-1', request)).rejects.toBeInstanceOf(
