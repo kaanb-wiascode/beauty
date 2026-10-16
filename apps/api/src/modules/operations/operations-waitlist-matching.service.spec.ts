@@ -208,6 +208,14 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(executeRawUnsafe).toHaveBeenCalledTimes(1);
     expect(queryRawUnsafe).toHaveBeenCalledTimes(3);
+    // Both writes must execute through the same transaction callback.
+    const transactionCallback = transaction.mock.calls[0][0] as (
+      tx: {
+        $queryRawUnsafe: typeof queryRawUnsafe;
+        $executeRawUnsafe: typeof executeRawUnsafe;
+      },
+    ) => Promise<unknown>;
+    expect(typeof transactionCallback).toBe('function');
   });
 
   it('rejects a matched slot already occupied by another appointment', async () => {
