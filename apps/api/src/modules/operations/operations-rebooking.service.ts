@@ -325,6 +325,12 @@ export class OperationsRebookingService {
           throw new ConflictException('Seçilen personel bu zaman aralığında onaylı izinde.');
         }
 
+        // Do not persist an appointment if validation and contention have
+        // consumed its entire future time window.
+        if (input.startAt <= new Date()) {
+          throw new BadRequestException('Yeni randevu zamanı gelecekte olmalıdır.');
+        }
+
         const appointment = await tx.appointment.create({
           data: {
             tenantId,
