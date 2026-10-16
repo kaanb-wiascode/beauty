@@ -729,6 +729,14 @@ export default function AppointmentsPage() {
                   <Button className="col-span-2 w-full" onClick={() => openEdit(selected)} disabled={!canUpdateAppointment}>Randevuyu Düzenle <Icon name="chevron" className="h-4 w-4" /></Button>
                   <Button variant="secondary" className="w-full" onClick={() => openEdit(selected)} disabled={!canUpdateAppointment}>Düzenle</Button>
                   <Button variant="secondary" className="w-full text-[#a34658]" onClick={() => { setPendingCancel(selected); setConfirmOpen(true); }} disabled={!canCancelAppointment}>İptal Et</Button>
+                  {hasPermission("sales", "read") ? (
+                    <a
+                      href={`/operations/sales?customerId=${encodeURIComponent(selected.customerId)}`}
+                      className="col-span-2 flex min-h-10 items-center justify-center rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-xs font-semibold text-[var(--ink)] transition hover:brightness-[0.98]"
+                    >
+                      Müşterinin Satış ve Tahsilat Kayıtları
+                    </a>
+                  ) : null}
                   <TeamShareAction
                     payload={{
                       kind: "APPOINTMENT",
