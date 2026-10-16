@@ -230,20 +230,29 @@ export default function OperationsRebookingPage() {
     setNotice("");
 
     try {
-      await api(`/operations/rebooking/appointments/${selected.id}`, {
-        method: "POST",
-        body: {
-          startAt: start.toISOString(),
-          staffId: selectedStaffId || selected.staffId,
-          notes: `Önceki randevu ${selected.id.slice(0, 8)} üzerinden yeniden randevu`,
+      const result = await api<{ appointment: { id: string }; idempotent: boolean }>(
+        `/operations/rebooking/appointments/${selected.id}`, {
+          method: "POST",
+          body: {
+            startAt: start.toISOString(),
+            staffId: selectedStaffId || selected.staffId,
+            notes: `Önceki randevu ${selected.id.slice(0, 8)} üzerinden yeniden randevu`,
+          },
         },
-      });
-
-      setNotice("Yeni randevu oluşturuldu ve önceki hizmetle bağlantısı kaydedildi.");
+      );
+      setNotice(
+        result.idempotent
+          ? `Bu kaynak randevu için zaten bir kayıt mevcut: ${result.appointment.id}`
+          : `Yeni randevu oluşturuldu: ${result.appointment.id}`,
+      );
       setSelectedId("");
       setSelectedStaffId("");
       setStartAt("");
-      await load();
+      try {
+        await load();
+      } catch {
+        setNotice(`Randevu ${result.appointment.id} kaydedildi; listeyi yenileyerek kontrol edin.`);
+      }
     } catch (err) {
       setError(errorMessage(err, "Yeni randevu oluşturulamadı."));
     } finally {
