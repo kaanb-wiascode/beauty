@@ -144,6 +144,39 @@ describe('OperationsRebookingService', () => {
     ).rejects.toThrow('Önceki yeniden randevunun hedef kaydı bulunamadı');
     expect(appointmentCreate).not.toHaveBeenCalled();
   });
+  it('rejects a start time expiring after leave and overlap checks', async () => {
+    jest.useFakeTimers({ now: new Date('2199-09-30T10:00:00.000Z') });
+    try {
+      queryRawUnsafe
+        .mockResolvedValueOnce([source])
+        .mockResolvedValueOnce([{ locked: 1 }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([source])
+        .mockResolvedValueOnce([{ locked: 1 }])
+        .mockImplementationOnce(async () => {
+          jest.setSystemTime(new Date('2199-10-02T10:00:00.000Z'));
+          return [];
+        });
+      staffFindFirst.mockResolvedValueOnce({ id: 'staff-1' });
+      appointmentFindFirst.mockResolvedValueOnce(null);
+
+      const service = new OperationsRebookingService(
+        prisma,
+        tenantContext,
+        workingHours,
+        staffEligibility,
+      );
+      await expect(
+        service.create(source.id, {
+          startAt: new Date('2199-10-01T10:00:00.000Z'),
+        }),
+      ).rejects.toThrow('Yeni randevu zamanı gelecekte olmalıdır.');
+      expect(appointmentCreate).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('rejects a start time expiring while the staff lock is pending', async () => {
     jest.useFakeTimers({ now: new Date('2199-09-30T10:00:00.000Z') });
     try {
