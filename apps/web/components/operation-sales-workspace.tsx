@@ -147,8 +147,8 @@ export default function SalesPage(){
    setNotice("Taksit planı oluşturuldu.");await openDetail(selected.id);
  }catch(e){setError(e instanceof ApiError?e.message:"Taksit planı oluşturulamadı.")}finally{setWorking(false)}}
 
- const filteredSales=useMemo(()=>linkedCustomerId?sales.filter(s=>s.customer?.id===linkedCustomerId):sales,[sales,linkedCustomerId]);
- const totals=useMemo(()=>({count:sales.length,total:sales.reduce((sum,s)=>sum+Number(s.total||0),0),confirmed:sales.filter(s=>s.status==="CONFIRMED").length}),[sales]);
+ const filteredSales=useMemo(()=>linkedCustomerId?sales.filter(s=>s.customerId===linkedCustomerId):sales,[sales,linkedCustomerId]);
+ const totals=useMemo(()=>({count:filteredSales.length,total:filteredSales.reduce((sum,s)=>sum+Number(s.total||0),0),confirmed:filteredSales.filter(s=>s.status==="CONFIRMED").length}),[filteredSales]);
 
  if(loading&&!sales.length)return <Spinner label="Satış merkezi hazırlanıyor..."/>;
  return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
