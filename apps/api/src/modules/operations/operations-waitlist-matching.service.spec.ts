@@ -95,7 +95,8 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(sql).toContain("ra.room_id = r.id AND ra.status = 'RESERVED'");
     expect(sql).toContain("ra.inventory_asset_id = a.id AND ra.status = 'RESERVED'");
     expect(sql.split("cancelled_ap.status::text IN ('CANCELLED', 'NO_SHOW')").length - 1)
-      .toBe(2);  });
+      .toBe(2);
+  });
 
   it('rejects an expired matched slot without creating an appointment', async () => {
     queryRawUnsafe
