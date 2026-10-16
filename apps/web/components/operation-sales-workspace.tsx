@@ -5,6 +5,7 @@ import { MasterDataQuickCreate, type QuickCreateKind } from "@/components/master
 import { ValooSelect } from "@/components/valoo-controls";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { TeamShareAction } from "@/components/team-share-action";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
@@ -34,6 +35,9 @@ const statusLabels:Record<string,string>={DRAFT:"Taslak",CONFIRMED:"Onaylandı",
 const paymentMethodLabels:Record<string,string>={CASH:"Nakit",CARD:"Kart",TRANSFER:"Havale / EFT"};
 
 export default function SalesPage(){
+ const searchParams=useSearchParams();
+ const linkedCustomerId=searchParams.get("customerId")??"";
+ const linkedSaleId=searchParams.get("saleId")??"";
  const canReadSales=hasPermission("sales","read");
  const canReadCustomers=hasPermission("customers","read");
  const canReadServices=hasPermission("services","read");
@@ -47,7 +51,7 @@ export default function SalesPage(){
  const[sales,setSales]=useState<Sale[]>([]),[customers,setCustomers]=useState<Customer[]>([]),[services,setServices]=useState<Service[]>([]),[packages,setPackages]=useState<Package[]>([]),[products,setProducts]=useState<Product[]>([]);
  const[loading,setLoading]=useState(true),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const[createOpen,setCreateOpen]=useState(false),[selectedId,setSelectedId]=useState(""),[selected,setSelected]=useState<Sale|null>(null),[summary,setSummary]=useState<PaymentSummary|null>(null);
- const[customerId,setCustomerId]=useState(""),[discount,setDiscount]=useState("0"),[lines,setLines]=useState<LineDraft[]>([{type:"SERVICE",referenceId:"",quantity:"1"}]);
+ const[customerId,setCustomerId]=useState(linkedCustomerId),[discount,setDiscount]=useState("0"),[lines,setLines]=useState<LineDraft[]>([{type:"SERVICE",referenceId:"",quantity:"1"}]);
  const[paymentAmount,setPaymentAmount]=useState(""),[paymentMethod,setPaymentMethod]=useState<"CASH"|"CARD"|"TRANSFER">("CARD"),[paymentReference,setPaymentReference]=useState(""),[paymentNote,setPaymentNote]=useState("");
  const[installmentCount,setInstallmentCount]=useState("2"),[firstDueAt,setFirstDueAt]=useState(new Date().toISOString().slice(0,10)),[intervalMonths,setIntervalMonths]=useState("1");
  const[quickCreate,setQuickCreate]=useState<{kind:QuickCreateKind;name:string;lineIndex:number|null}|null>(null);
@@ -82,11 +86,14 @@ export default function SalesPage(){
    setLoading(false);
  },[canReadCustomers,canReadInventory,canReadSales,canReadServices]);
  useEffect(()=>{void load()},[load]);
+ useEffect(()=>{if(linkedCustomerId)setCustomerId(linkedCustomerId)},[linkedCustomerId]);
 
  const openDetail=useCallback(async(id:string)=>{setSelectedId(id);setWorking(true);setError("");try{
    const[detail,paymentSummary]=await Promise.all([api<Sale>(`/sales/${id}`),api<PaymentSummary>(`/sales/${id}/payment-summary`)]);
    setSelected(detail);setSummary(paymentSummary);setPaymentAmount(String(paymentSummary.balance||""));
  }catch(e){setError(e instanceof ApiError?e.message:"Satış detayı yüklenemedi.")}finally{setWorking(false)}},[]);
+
+ useEffect(()=>{if(linkedSaleId&&canReadSales)void openDetail(linkedSaleId)},[linkedSaleId,canReadSales,openDetail]);
 
  useOperationRealtime((event)=>{
    if(event.aggregateType!=="sale"&&event.aggregateType!=="payment"&&!event.eventName.startsWith("appointment.payment_")&&!event.eventName.startsWith("session.consumed")) return;
@@ -140,6 +147,7 @@ export default function SalesPage(){
    setNotice("Taksit planı oluşturuldu.");await openDetail(selected.id);
  }catch(e){setError(e instanceof ApiError?e.message:"Taksit planı oluşturulamadı.")}finally{setWorking(false)}}
 
+ const filteredSales=useMemo(()=>linkedCustomerId?sales.filter(s=>s.customer?.id===linkedCustomerId):sales,[sales,linkedCustomerId]);
  const totals=useMemo(()=>({count:sales.length,total:sales.reduce((sum,s)=>sum+Number(s.total||0),0),confirmed:sales.filter(s=>s.status==="CONFIRMED").length}),[sales]);
 
  if(loading&&!sales.length)return <Spinner label="Satış merkezi hazırlanıyor..."/>;
@@ -148,9 +156,13 @@ export default function SalesPage(){
   {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}{notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
   {canCreateSale&&(!canReadCustomers||!canReadServices)?<Alert>Yeni satış oluşturmak için müşteri ve hizmet/paket okuma yetkileri gereklidir. Mevcut satışları görüntüleme ve yetkiniz olan tahsilat işlemleri çalışmaya devam eder.</Alert>:null}
   <section className="grid gap-3 sm:grid-cols-3"><Metric label="Satış Sayısı" value={totals.count}/><Metric label="Satış Toplamı" value={money(totals.total)}/><Metric label="Onaylı Satış" value={totals.confirmed}/></section>
+  {linkedCustomerId?<div className="flex flex-wrap items-center gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs">
+    <span>Randevudan yönlendirilen müşterinin satışları görüntüleniyor.</span>
+    <a className="font-semibold underline" href="/operations/sales">Tüm satışları göster</a>
+  </div>:null}
   <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
-   {sales.length?<div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-xs"><thead><tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/40"><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Müşteri</th><th className="px-4 py-3">Kalem</th><th className="px-4 py-3">İndirim</th><th className="px-4 py-3">Toplam</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3"></th></tr></thead><tbody>
-   {sales.map(s=><tr key={s.id} className="border-b border-[var(--line)] last:border-0"><td className="px-4 py-4 text-[var(--muted)]">{date(s.createdAt)}</td><td className="px-4 py-4 font-medium">{s.customer?.firstName} {s.customer?.lastName}</td><td className="px-4 py-4 text-[var(--muted)]">{s.items?.length??0}</td><td className="px-4 py-4">{money(s.discountTotal)}</td><td className="px-4 py-4 font-semibold">{money(s.total)}</td><td className="px-4 py-4">{statusLabels[s.status]??s.status}</td><td className="px-4 py-4"><Button size="sm" variant="secondary" onClick={()=>void openDetail(s.id)}>Aç</Button></td></tr>)}
+   {filteredSales.length?<div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-xs"><thead><tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/40"><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Müşteri</th><th className="px-4 py-3">Kalem</th><th className="px-4 py-3">İndirim</th><th className="px-4 py-3">Toplam</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3"></th></tr></thead><tbody>
+   {filteredSales.map(s=><tr key={s.id} className="border-b border-[var(--line)] last:border-0"><td className="px-4 py-4 text-[var(--muted)]">{date(s.createdAt)}</td><td className="px-4 py-4 font-medium">{s.customer?.firstName} {s.customer?.lastName}</td><td className="px-4 py-4 text-[var(--muted)]">{s.items?.length??0}</td><td className="px-4 py-4">{money(s.discountTotal)}</td><td className="px-4 py-4 font-semibold">{money(s.total)}</td><td className="px-4 py-4">{statusLabels[s.status]??s.status}</td><td className="px-4 py-4"><Button size="sm" variant="secondary" onClick={()=>void openDetail(s.id)}>Aç</Button></td></tr>)}
    </tbody></table></div>:<EmptyState title="Satış bulunamadı" description="Henüz satış kaydı oluşturulmamış."/>}
   </section>
 
