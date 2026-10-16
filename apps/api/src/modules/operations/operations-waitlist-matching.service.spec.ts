@@ -140,6 +140,42 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(executeRawUnsafe).not.toHaveBeenCalled();
   });
 
+  it('rejects a matched slot already occupied by another appointment', async () => {
+    const staffId = '00000000-0000-4000-8000-000000000010';
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...target, status: 'MATCH_FOUND', version: 1 }])
+      .mockResolvedValueOnce([]);
+    staffFindFirst.mockResolvedValueOnce({ id: staffId });
+    appointmentFindFirst.mockResolvedValueOnce({ id: 'competing-appointment' });
+
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+    await expect(
+      service.acceptMatch('waitlist-1', {
+        expectedVersion: 1,
+        staffId,
+        startAt: new Date('2099-09-20T07:00:00.000Z'),
+        endAt: new Date('2099-09-20T08:00:00.000Z'),
+        roomId: null,
+        assetId: null,
+      }),
+    ).rejects.toThrow('artık uygun değil');
+    expect(appointmentFindFirst).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        staffId,
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        startAt: { lt: new Date('2099-09-20T08:00:00.000Z') },
+        endAt: { gt: new Date('2099-09-20T07:00:00.000Z') },
+      },
+      select: { id: true },
+    });
+    expect(appointmentCreate).not.toHaveBeenCalled();
+    expect(executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it('rejects accepting a stale matched version before creating an appointment', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
