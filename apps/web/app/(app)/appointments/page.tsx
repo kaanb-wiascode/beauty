@@ -261,6 +261,19 @@ export default function AppointmentsPage() {
     }
   }
 
+  useEffect(() => {
+    if (!appointmentIdFromUrl) return;
+    const linkedStart = appointmentStartFromUrl ? new Date(appointmentStartFromUrl) : null;
+    if (linkedStart && !Number.isNaN(linkedStart.getTime())) {
+      setSelectedDate(startOfDay(linkedStart));
+    }
+    setSearch("");
+    setStaffFilter("");
+    setServiceFilter("");
+    setStatusFilter("");
+    setSelectedId(appointmentIdFromUrl);
+  }, [appointmentIdFromUrl, appointmentStartFromUrl]);
+
   useEffect(() => { void loadAppointments(); }, [loadAppointments]);
 
   useOperationRealtime((event) => {
