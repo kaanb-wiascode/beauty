@@ -206,7 +206,8 @@ export class OperationsWaitlistMatchingService {
 
     let entryVersion = target.version;
     if (matches[0] && target.status === 'WAITING') {
-      const updated = await this.prisma.$queryRawUnsafe<Array<{ version: number }>>(
+      entryVersion = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.$queryRawUnsafe<Array<{ version: number }>>(
         `UPDATE operations_waitlist_entries
          SET status = 'MATCH_FOUND', matched_slot_from = $5, matched_slot_to = $6,
              version = version + 1, updated_at = CURRENT_TIMESTAMP
@@ -226,8 +227,7 @@ export class OperationsWaitlistMatchingService {
           'Bekleme listesi kaydı eşleştirme sırasında değişti. Lütfen yeniden arayın.',
         );
       }
-      entryVersion = updated[0].version;
-      await this.prisma.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
           `INSERT INTO operations_waitlist_events (
              waitlist_entry_id, tenant_id, branch_id, actor_membership_id,
              event_type, from_status, to_status, note
@@ -238,6 +238,8 @@ export class OperationsWaitlistMatchingService {
           membershipId,
           `First compatible slot: ${matches[0].startAt.toISOString()}`,
       );
+        return updated[0].version;
+      });
     }
 
     return { entryId, entryVersion, matches };
