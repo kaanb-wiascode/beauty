@@ -62,6 +62,16 @@ export default function OperationsWaitlistPage() {
   const canReadServices = hasPermission("services", "read");
   const canReadStaff = hasPermission("staff", "read");
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | WaitlistEntry["status"]>("ACTIVE");
+  const activeStatuses: WaitlistEntry["status"][] = ["WAITING", "MATCH_FOUND", "CONTACTED"];
+  const filteredEntries = entries.filter((entry) => {
+    if (statusFilter === "ACTIVE" && !activeStatuses.includes(entry.status)) return false;
+    if (statusFilter !== "ALL" && statusFilter !== "ACTIVE" && entry.status !== statusFilter) return false;
+    const query = search.trim().toLocaleLowerCase("tr-TR");
+    return !query || [entry.customerName, entry.serviceName, entry.preferredStaffName ?? "", entry.note ?? ""]
+      .some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
+  });
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff] = useState<StaffOption[]>([]);
@@ -234,11 +244,27 @@ export default function OperationsWaitlistPage() {
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="border-b border-[var(--line)] px-6 py-4">
           <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Bekleme Talepleri</h2><CardInfo help={getCardHelp("Bekleme Talepleri")} /></div>
-          <p className="mt-1 text-xs text-[var(--muted)]">{entries.length} kayıt · aktif talepler öncelik sırasıyla gösterilir</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">{filteredEntries.length} gösteriliyor / {entries.length} toplam · {entries.filter((entry) => activeStatuses.includes(entry.status)).length} aktif talep</p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div className="min-w-[220px] flex-1">
+              <Field label="Müşteri veya hizmet ara">
+                <TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="İsim, hizmet veya not..." />
+              </Field>
+            </div>
+            <div className="min-w-[180px]">
+              <Field label="Durum">
+                <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+                  <option value="ACTIVE">Aktif talepler</option>
+                  <option value="ALL">Tüm talepler</option>
+                  {Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+              </Field>
+            </div>
+          </div>
         </div>
-        {entries.length ? (
+        {filteredEntries.length ? (
           <div className="divide-y divide-[var(--line)]">
-            {entries.map((entry) => {
+            {filteredEntries.map((entry) => {
               const active = ["WAITING", "MATCH_FOUND", "CONTACTED"].includes(entry.status);
               return (
                 <div key={entry.id} className="px-6 py-4">
@@ -260,7 +286,7 @@ export default function OperationsWaitlistPage() {
               );
             })}
           </div>
-        ) : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Bekleme listesinde kayıt yok.</div>}
+        ) : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">{entries.length ? "Aramanızla eşleşen kayıt bulunamadı." : "Bekleme listesinde kayıt yok."}</div>}
       </section>
     </div>
   );
