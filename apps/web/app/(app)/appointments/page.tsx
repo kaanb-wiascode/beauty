@@ -187,15 +187,20 @@ export default function AppointmentsPage() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const customerIdFromUrl = searchParams.get("customerId");
+  const appointmentIdFromUrl = searchParams.get("appointmentId");
+  const appointmentStartFromUrl = searchParams.get("startAt");
 
-  const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const linkedStart = appointmentStartFromUrl ? new Date(appointmentStartFromUrl) : null;
+    return startOfDay(linkedStart && !Number.isNaN(linkedStart.getTime()) ? linkedStart : new Date());
+  });
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [eligibleSessions, setEligibleSessions] = useState<EligibleSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(appointmentIdFromUrl);
   const [search, setSearch] = useState("");
   const [staffFilter, setStaffFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
@@ -227,14 +232,16 @@ export default function AppointmentsPage() {
       setSelectedId((current) =>
         current && result.data.some((item) => item.id === current)
           ? current
-          : result.data[0]?.id ?? null,
+          : appointmentIdFromUrl && result.data.some((item) => item.id === appointmentIdFromUrl)
+            ? appointmentIdFromUrl
+            : result.data[0]?.id ?? null,
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Randevular Yüklenemedi.");
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo]);
+  }, [appointmentIdFromUrl, dateFrom, dateTo]);
 
   async function loadReferences() {
     setLoadingRefs(true);
