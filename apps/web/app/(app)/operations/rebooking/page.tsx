@@ -78,6 +78,7 @@ export default function OperationsRebookingPage() {
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
   const [notice, setNotice] = useState("");
+  const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null);
 
   async function load() {
     if (!hasActiveBranch()) {
@@ -232,6 +233,7 @@ export default function OperationsRebookingPage() {
     setBusy(true);
     setError("");
     setNotice("");
+    setCreatedAppointmentId(null);
 
     try {
       const result = await api<{ appointment: { id: string }; idempotent: boolean }>(
@@ -244,6 +246,7 @@ export default function OperationsRebookingPage() {
           },
         },
       );
+      setCreatedAppointmentId(result.appointment.id);
       setNotice(
         result.idempotent
           ? `Bu kaynak randevu için zaten bir kayıt mevcut: ${result.appointment.id}`
@@ -252,11 +255,7 @@ export default function OperationsRebookingPage() {
       setSelectedId("");
       setSelectedStaffId("");
       setStartAt("");
-      try {
-        await load();
-      } catch {
-        setNotice(`Randevu ${result.appointment.id} kaydedildi; listeyi yenileyerek kontrol edin.`);
-      }
+      await load();
     } catch (err) {
       setError(errorMessage(err, "Yeni randevu oluşturulamadı."));
     } finally {
@@ -296,6 +295,13 @@ export default function OperationsRebookingPage() {
         </div>
       ) : null}
       {notice ? <Alert tone="success" onClose={() => setNotice("")}>{notice}</Alert> : null}
+      {createdAppointmentId ? (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs">
+          <span>Oluşturulan randevu: <strong>{createdAppointmentId}</strong></span>
+          <a className="font-semibold underline" href="/appointments">Randevuları görüntüle</a>
+          <Button variant="secondary" onClick={() => void navigator.clipboard.writeText(createdAppointmentId)}>Randevu numarasını kopyala</Button>
+        </div>
+      ) : null}
       {!canReadAppointments ? (
         <Alert>
           Yeniden randevu fırsatlarını ve performans özetini görüntülemek için randevu görüntüleme yetkisi gereklidir. Hizmet dönüş politikasını yetkiniz varsa yine yönetebilirsiniz.
