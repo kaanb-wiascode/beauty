@@ -122,6 +122,11 @@ export class OperationsWaitlistMatchingService {
            AND NOT EXISTS (
              SELECT 1 FROM operations_resource_allocations ra
              WHERE ra.room_id = r.id AND ra.status = 'RESERVED'
+               AND NOT EXISTS (
+                 SELECT 1 FROM appointments cancelled_ap
+                 WHERE cancelled_ap.id = ra.appointment_id
+                   AND cancelled_ap.status::text IN ('CANCELLED', 'NO_SHOW')
+               )
                AND ra.blocked_from < sl.blocked_to AND ra.blocked_to > sl.blocked_from
            )
            AND NOT EXISTS (
@@ -143,6 +148,11 @@ export class OperationsWaitlistMatchingService {
            AND NOT EXISTS (
              SELECT 1 FROM operations_resource_allocations ra
              WHERE ra.inventory_asset_id = a.id AND ra.status = 'RESERVED'
+               AND NOT EXISTS (
+                 SELECT 1 FROM appointments cancelled_ap
+                 WHERE cancelled_ap.id = ra.appointment_id
+                   AND cancelled_ap.status::text IN ('CANCELLED', 'NO_SHOW')
+               )
                AND ra.blocked_from < sl.blocked_to AND ra.blocked_to > sl.blocked_from
            )
            AND NOT EXISTS (
@@ -527,6 +537,11 @@ export class OperationsWaitlistMatchingService {
            AND NOT EXISTS (
              SELECT 1 FROM operations_resource_allocations ra
              WHERE ra.room_id = r.id AND ra.status = 'RESERVED'
+               AND NOT EXISTS (
+                 SELECT 1 FROM appointments cancelled_ap
+                 WHERE cancelled_ap.id = ra.appointment_id
+                   AND cancelled_ap.status::text IN ('CANCELLED', 'NO_SHOW')
+               )
                AND ra.blocked_from < $7 AND ra.blocked_to > $6
            )
            AND NOT EXISTS (
@@ -561,6 +576,11 @@ export class OperationsWaitlistMatchingService {
            AND NOT EXISTS (
              SELECT 1 FROM operations_resource_allocations ra
              WHERE ra.inventory_asset_id = a.id AND ra.status = 'RESERVED'
+               AND NOT EXISTS (
+                 SELECT 1 FROM appointments cancelled_ap
+                 WHERE cancelled_ap.id = ra.appointment_id
+                   AND cancelled_ap.status::text IN ('CANCELLED', 'NO_SHOW')
+               )
                AND ra.blocked_from < $7 AND ra.blocked_to > $6
            )
            AND NOT EXISTS (
