@@ -221,6 +221,11 @@ export class OperationsWaitlistMatchingService {
         matches[0].endAt,
         target.version,
       );
+      if (!updated[0]) {
+        throw new ConflictException(
+          'Bekleme listesi kaydı eşleştirme sırasında değişti. Lütfen yeniden arayın.',
+        );
+      }
       if (updated[0]) {
         entryVersion = updated[0].version;
         await this.prisma.$executeRawUnsafe(
