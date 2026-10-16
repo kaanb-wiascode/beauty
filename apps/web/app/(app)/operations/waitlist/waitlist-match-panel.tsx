@@ -77,7 +77,7 @@ export function WaitlistMatchPanel({
   }
 
   async function accept(match: WaitlistMatch) {
-    if (!canUpdate || busyKey || loading || matchedVersion !== entryVersion) return;
+    if (!canUpdate || busyKey || loading || matches.length === 0) return;
     const key = `${match.staffId}:${match.startAt}`;
     setBusyKey(key);
     setError("");
@@ -96,6 +96,9 @@ export function WaitlistMatchPanel({
       setMatches([]);
       await onBooked();
     } catch (err) {
+      // A conflict invalidates the returned slots; the operator must rescan.
+      setMatches([]);
+      setSearched(false);
       setError(
         err instanceof ApiError
           ? err.message
@@ -150,7 +153,7 @@ export function WaitlistMatchPanel({
                 </p>
                 {canUpdate ? (
                   <div className="mt-3 flex justify-end">
-                    <Button disabled={Boolean(busyKey) || loading || matchedVersion !== entryVersion} onClick={() => void accept(match)}>
+                    <Button disabled={Boolean(busyKey) || loading} onClick={() => void accept(match)}>
                       {busyKey === key ? "Randevulaştırılıyor..." : "Bu Saati Randevuya Dönüştür"}
                     </Button>
                   </div>
