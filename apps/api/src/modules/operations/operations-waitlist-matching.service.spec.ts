@@ -94,9 +94,8 @@ describe('OperationsWaitlistMatchingService', () => {
     const sql = queryRawUnsafe.mock.calls[1][0] as string;
     expect(sql).toContain("ra.room_id = r.id AND ra.status = 'RESERVED'");
     expect(sql).toContain("ra.inventory_asset_id = a.id AND ra.status = 'RESERVED'");
-    expect((sql.match(/cancelled_ap.status::text IN \\('CANCELLED', 'NO_SHOW'\\)/g) ?? []).length)
-      .toBe(2);
-  });
+    expect(sql.split("cancelled_ap.status::text IN ('CANCELLED', 'NO_SHOW')").length - 1)
+      .toBe(2);  });
 
   it('rejects an expired matched slot without creating an appointment', async () => {
     queryRawUnsafe
