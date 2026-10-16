@@ -292,6 +292,7 @@ describe('OperationsWaitlistMatchingService', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ ...target, status: 'MATCH_FOUND', version: 1 }])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]) // room advisory lock
       .mockResolvedValueOnce([{ id: 'room-1' }])
       .mockResolvedValueOnce([{
         id: 'waitlist-1',
