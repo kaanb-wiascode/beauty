@@ -327,6 +327,13 @@ export class OperationsWaitlistMatchingService {
           blockedTo,
         });
 
+        // Resource/leave checks may take time; never book an expired slot.
+        if (input.startAt <= new Date()) {
+          throw new ConflictException(
+            'Bulunan randevu saati artık geçmişte. Lütfen yeniden eşleştirin.',
+          );
+        }
+
         const appointment = await tx.appointment.create({
           data: {
             tenantId,
@@ -463,6 +470,9 @@ export class OperationsWaitlistMatchingService {
   }
 
   private assertRequestedSlot(target: WaitlistTarget, input: AcceptWaitlistMatchInput) {
+    if (input.startAt <= new Date()) {
+      throw new ConflictException('Bulunan randevu saati artık geçmişte. Lütfen yeniden eşleştirin.');
+    }
     if (input.startAt >= input.endAt) {
       throw new BadRequestException('Uygun saatin başlangıcı bitişinden önce olmalıdır.');
     }
