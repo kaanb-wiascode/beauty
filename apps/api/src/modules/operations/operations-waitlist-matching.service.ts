@@ -208,25 +208,25 @@ export class OperationsWaitlistMatchingService {
     if (matches[0] && target.status === 'WAITING') {
       entryVersion = await this.prisma.$transaction(async (tx) => {
         const updated = await tx.$queryRawUnsafe<Array<{ version: number }>>(
-        `UPDATE operations_waitlist_entries
-         SET status = 'MATCH_FOUND', matched_slot_from = $5, matched_slot_to = $6,
-             version = version + 1, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1 AND tenant_id = $2 AND company_id = $3 AND branch_id = $4
-           AND status = 'WAITING' AND version = $7
-         RETURNING version`,
-        entryId,
-        tenantId,
-        companyId,
-        branchId,
-        matches[0].startAt,
-        matches[0].endAt,
-        target.version,
-      );
-        if (!updated[0]) {
-        throw new ConflictException(
-          'Bekleme listesi kaydı eşleştirme sırasında değişti. Lütfen yeniden arayın.',
+          `UPDATE operations_waitlist_entries
+           SET status = 'MATCH_FOUND', matched_slot_from = $5, matched_slot_to = $6,
+               version = version + 1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND tenant_id = $2 AND company_id = $3 AND branch_id = $4
+             AND status = 'WAITING' AND version = $7
+           RETURNING version`,
+          entryId,
+          tenantId,
+          companyId,
+          branchId,
+          matches[0].startAt,
+          matches[0].endAt,
+          target.version,
         );
-      }
+        if (!updated[0]) {
+          throw new ConflictException(
+            'Bekleme listesi kaydı eşleştirme sırasında değişti. Lütfen yeniden arayın.',
+          );
+        }
         await tx.$executeRawUnsafe(
           `INSERT INTO operations_waitlist_events (
              waitlist_entry_id, tenant_id, branch_id, actor_membership_id,
@@ -237,7 +237,7 @@ export class OperationsWaitlistMatchingService {
           branchId,
           membershipId,
           `First compatible slot: ${matches[0].startAt.toISOString()}`,
-      );
+        );
         return updated[0].version;
       });
     }
