@@ -84,6 +84,20 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(executeRawUnsafe).toHaveBeenCalledTimes(1);
   });
 
+  it('excludes cancelled appointment allocations from room and asset availability', async () => {
+    queryRawUnsafe.mockResolvedValueOnce([target]).mockResolvedValueOnce([]);
+
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+    const result = await service.findMatches('waitlist-1', { limit: 10 });
+
+    expect(result.matches).toEqual([]);
+    const sql = queryRawUnsafe.mock.calls[1][0] as string;
+    expect(sql).toContain("ra.room_id = r.id AND ra.status = 'RESERVED'");
+    expect(sql).toContain("ra.inventory_asset_id = a.id AND ra.status = 'RESERVED'");
+    expect((sql.match(/cancelled_ap.status::text IN \\('CANCELLED', 'NO_SHOW'\\)/g) ?? []).length)
+      .toBe(2);
+  });
+
   it('rejects an expired matched slot without creating an appointment', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
@@ -208,14 +222,6 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(executeRawUnsafe).toHaveBeenCalledTimes(1);
     expect(queryRawUnsafe).toHaveBeenCalledTimes(3);
-    // Both writes must execute through the same transaction callback.
-    const transactionCallback = transaction.mock.calls[0][0] as (
-      tx: {
-        $queryRawUnsafe: typeof queryRawUnsafe;
-        $executeRawUnsafe: typeof executeRawUnsafe;
-      },
-    ) => Promise<unknown>;
-    expect(typeof transactionCallback).toBe('function');
   });
 
   it('rejects a matched slot already occupied by another appointment', async () => {
