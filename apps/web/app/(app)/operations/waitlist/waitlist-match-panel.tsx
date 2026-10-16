@@ -40,11 +40,13 @@ export function WaitlistMatchPanel({
   const requestGeneration = useRef(0);
   const bookingInFlight = useRef(false);
   const [bookedAppointmentId, setBookedAppointmentId] = useState<string | null>(null);
+  const [bookedStartAt, setBookedStartAt] = useState<string | null>(null);
 
   useEffect(() => {
     requestGeneration.current += 1;
     setMatches([]);
     setBookedAppointmentId(null);
+    setBookedStartAt(null);
     setMatchedVersion(entryVersion);
     setSearched(false);
     setLoading(false);
@@ -99,6 +101,7 @@ export function WaitlistMatchPanel({
       });
       setMatches([]);
       setBookedAppointmentId(result.appointment.id);
+      setBookedStartAt(match.startAt);
       try {
         await onBooked();
       } catch {
@@ -137,7 +140,7 @@ export function WaitlistMatchPanel({
         <p role="status" className="mt-3 text-xs font-medium text-[var(--ink)]">
           Randevu oluşturuldu. Kayıt numarası: {bookedAppointmentId}
           {" · "}
-          <a className="underline" href="/appointments">Randevuları görüntüle</a>
+          <a className="underline" href={`/appointments?appointmentId=${encodeURIComponent(bookedAppointmentId)}&startAt=${encodeURIComponent(bookedStartAt ?? "")}`}>Randevuyu görüntüle</a>
         </p>
       ) : null}
 
