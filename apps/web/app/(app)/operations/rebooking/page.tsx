@@ -79,6 +79,7 @@ export default function OperationsRebookingPage() {
   const [warning, setWarning] = useState("");
   const [notice, setNotice] = useState("");
   const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null);
+  const [createdAppointmentStartAt, setCreatedAppointmentStartAt] = useState<string | null>(null);
 
   async function load() {
     if (!hasActiveBranch()) {
@@ -234,9 +235,10 @@ export default function OperationsRebookingPage() {
     setError("");
     setNotice("");
     setCreatedAppointmentId(null);
+    setCreatedAppointmentStartAt(null);
 
     try {
-      const result = await api<{ appointment: { id: string }; idempotent: boolean }>(
+      const result = await api<{ appointment: { id: string; startAt: string }; idempotent: boolean }>(
         `/operations/rebooking/appointments/${selected.id}`, {
           method: "POST",
           body: {
@@ -247,6 +249,7 @@ export default function OperationsRebookingPage() {
         },
       );
       setCreatedAppointmentId(result.appointment.id);
+      setCreatedAppointmentStartAt(result.appointment.startAt);
       setNotice(
         result.idempotent
           ? `Bu kaynak randevu için zaten bir kayıt mevcut: ${result.appointment.id}`
@@ -298,7 +301,7 @@ export default function OperationsRebookingPage() {
       {createdAppointmentId ? (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-xs">
           <span>Oluşturulan randevu: <strong>{createdAppointmentId}</strong></span>
-          <a className="font-semibold underline" href="/appointments">Randevuları görüntüle</a>
+          <a className="font-semibold underline" href={`/appointments?appointmentId=${encodeURIComponent(createdAppointmentId)}&startAt=${encodeURIComponent(createdAppointmentStartAt ?? "")}`}>Randevuyu görüntüle</a>
           <Button variant="secondary" onClick={() => void navigator.clipboard.writeText(createdAppointmentId)}>Randevu numarasını kopyala</Button>
         </div>
       ) : null}
