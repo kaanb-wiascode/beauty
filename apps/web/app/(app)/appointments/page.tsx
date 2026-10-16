@@ -345,7 +345,8 @@ export default function AppointmentsPage() {
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
   }, [appointments, customerMap, search, serviceFilter, serviceMap, staffFilter, staffMap, statusFilter]);
 
-  const selected = filteredAppointments.find((item) => item.id === selectedId) ?? filteredAppointments[0] ?? null;
+  const selected = filteredAppointments.find((item) => item.id === selectedId) ?? (appointmentIdFromUrl ? null : filteredAppointments[0] ?? null);
+  const linkedAppointmentMissing = Boolean(appointmentIdFromUrl) && !loading && !appointments.some((item) => item.id === appointmentIdFromUrl);
   const counts = useMemo(() => ({
     total: appointments.length,
     waiting: appointments.filter((item) => item.status === "SCHEDULED").length,
@@ -598,6 +599,10 @@ export default function AppointmentsPage() {
               </>
             }
           />
+
+          {linkedAppointmentMissing ? (
+            <Alert>Bağlantıdaki randevu seçili günün ilk 100 kaydı arasında bulunamadı. Tarihi ve şubeyi kontrol edin.</Alert>
+          ) : null}
 
           {loading ? (
             <Spinner label="Randevular Hazırlanıyor..." />
