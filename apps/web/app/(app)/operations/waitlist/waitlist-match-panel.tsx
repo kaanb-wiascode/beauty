@@ -136,6 +136,8 @@ export function WaitlistMatchPanel({
       {bookedAppointmentId ? (
         <p role="status" className="mt-3 text-xs font-medium text-[var(--ink)]">
           Randevu oluşturuldu. Kayıt numarası: {bookedAppointmentId}
+          {" · "}
+          <a className="underline" href="/appointments">Randevuları görüntüle</a>
         </p>
       ) : null}
 
