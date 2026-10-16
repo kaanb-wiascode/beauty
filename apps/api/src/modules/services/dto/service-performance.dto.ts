@@ -1,10 +1,7 @@
-import { z } from 'zod';
+import {
+  reportDateRangeSchema,
+  ReportDateRangeInput,
+} from '../../reports/dto/report-filters.dto';
 
-export const servicePerformanceSchema = z.object({
-  from: z.coerce.date(),
-  to: z.coerce.date(),
-});
-
-export type ServicePerformanceInput = z.infer<
-  typeof servicePerformanceSchema
->;
+export const servicePerformanceSchema = reportDateRangeSchema;
+export type ServicePerformanceInput = ReportDateRangeInput;

@@ -1,10 +1,7 @@
-import { z } from 'zod';
+import {
+  reportDateRangeSchema,
+  ReportDateRangeInput,
+} from '../../reports/dto/report-filters.dto';
 
-export const dashboardReportSchema = z.object({
-  from: z.coerce.date(),
-  to: z.coerce.date(),
-});
-
-export type DashboardReportInput = z.infer<
-  typeof dashboardReportSchema
->;
+export const dashboardReportSchema = reportDateRangeSchema;
+export type DashboardReportInput = ReportDateRangeInput;

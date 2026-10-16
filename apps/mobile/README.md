@@ -1,56 +1,64 @@
-# Welcome to your Expo app 👋
+# VALOO Mobil — İlk entegrasyon
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Bu Expo uygulaması VALOO API ile gerçek personel girişini, sunucu tarafında kullanıcı/şirket/üyelik doğrulamasını ve izin verilen randevuları **salt okunur** görüntülemeyi destekler.
 
-## Get started
+## Yapılandırma
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Node 22.13.1 ve pnpm 11.9.0 kullanın. Repository kökünden:
 
 ```bash
-npm run reset-project
+pnpm install --frozen-lockfile
+EXPO_PUBLIC_API_URL=https://api.ornek-valoo-alanadi.com pnpm --filter mobile start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+`EXPO_PUBLIC_API_URL`, **API'nin gerçek kök adresi** olmalıdır (örneğin `/auth/login` isteklerini alan sunucu). Yerel geliştirmede yalnızca `localhost` veya `127.0.0.1` için HTTP kullanılabilir. Gerçek telefonlarda `localhost` geliştirme bilgisayarını değil telefonu gösterir: erişilebilir HTTPS adresi kullanın.
 
-### Other setup steps
+- Bu adrese JWT, API anahtarı, parola veya erişim belirteci koymayın. `EXPO_PUBLIC_*` değerleri uygulama paketine gömülür ve herkese açıktır.
+- Mobil tarayıcıda kullanım için web-origin CORS izinlerinin API'de ayrıca yapılandırılması gerekir.
+- GitHub CI yalnızca TypeScript ve Android/iOS imzasız JavaScript export işlemini gerçekleştirir; uygulamayı mağazalara dağıtmaz.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Kimlik doğrulama ve veri kapsamı
 
-## Learn more
+1. `POST /auth/login`: kayıtlı VALOO kullanıcı adı/şifresi.
+2. Güvenlik politikası MFA gerektiriyorsa `POST /auth/mfa/verify`; ilk kurulumda `POST /auth/mfa/challenge/:id/setup` ve `POST /auth/mfa/challenge/:id/enroll`.
+3. Giriş başarılı olunca `GET /auth/me` ile kullanıcı, tenant ve üyelik kimlikleri doğrulanır.
+4. `appointments.read` izni varsa `GET /appointments/mobile-list` ile seçilen tarih ve personel filtresinde randevular gösterilir; şube/şirket kısıtlaması sunucu tarafından uygulanır.
+5. Oturum belirteci **yalnızca uygulama belleğinde** tutulur; uygulama kapanınca yeni giriş gerekir. Kalıcı oturum ve güvenli cihaz-bağımlı yenileme yönetimi henüz uygulanmadı.
+6. Giriş/MFA/yenileme yanıtlarındaki `sessionId`, sunucu oturum kayıtlarının kullanıcıya açık, SHA-256 tabanlı kimliğidir; gizli yenileme belirteci değildir. Mobil çıkış, JWT ile yetkilendirilmiş `POST /auth/sessions/:id/revoke` isteğiyle **sadece o oturumun yenileme belirtecini** iptal eder. API, kullanıcı ve şirket kapsamını doğrular. Ağ isteği başarısız olursa uygulama yerel belirteci yine siler ve kullanıcıyı uyarır.
+7. **JWT oturum iptali:** Erişim JWT'si sunucu oturumuna ait `sessionId` içerir. Her korumalı API isteğinde JWT imzası/süresi yanında Redis oturum kaydı ve kullanıcı, tenant, üyelik, şirket, şube kapsamı denetlenir. Oturum iptali veya yenileme dönüşümü sonrasında eski JWT sonraki istekte **401** alır. Giriş öncesi eski JWT'ler yeni kural nedeniyle artık kabul edilmez; geçişte yeniden giriş veya geçerli yenileme çereziyle oturum yenileme gerekir. Redis erişilemezse korumalı istekler başarılı sayılmaz. Bu adım gerçek cihaz testlerinin yerine geçmez.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Randevu görünümü
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- **Randevular** ekranı müşteri adı, hizmet, personel, şube ve randevu durumunu API'nin `appointments.read` yetki kontrolüyle listeler.
+- Mobil uygulama `GET /appointments/mobile-list` üzerinden açık alan listesiyle sınırlandırılmış veri alır: kayıt kimliği, tarih, durum, ilgili nesne kimlikleri, müşteri/personel adları, hizmet ve şube adı. Finans, paket, seans ve serbest metin notlar yanıta dahil edilmez. Genel web `GET /appointments` endpoint'inin kapsamı değişmemiştir.
+- Tarih seçenekleri **Bugün / 7 gün / 30 gün** ve **Tümü / Planlandı / Onaylandı / Tamamlandı / İptal edildi / Gelmedi** durumu için sunucu filtreleri kullanılır; şube kapsamı API tarafından uygulanır.
+- Randevu kartlarındaki **Randevu detayını gör** kontrolü, yalnızca zaten erişimi onaylanmış listede bulunan hizmet, müşteri, personel, şube, tarih ve kayıt kimliği alanlarını genişletir; ek bir hassas ayrıntı isteği yapmaz.
+- **Personel seç** kontrolü, yalnızca `appointments.read` izniyle erişilen `GET /appointments/staff-options?search=...` üzerinden en fazla 30 aktif personel seçeneğini döndürür. API, görevlinin şirket/şube kapsamını uygular ve yalnızca `id`, `firstName`, `lastName` ve `branchId` seçer. Tam personel rehberine ve iletişim bilgilerine erişim verilmez.
+- Seçilen personelin UUID'si randevu listesine `staffId` filtresi olarak eklenir; API ayrıca yetki kapsamına göre filtreler. Hesap değiştiğinde personel seçimi silinir.
+- Randevular salt okunurdur; ekleme, iptal, tahsilat ve personel puantaj işlemleri bu mobil sürümde bulunmaz.
+- Tarihler cihazın yerel gün başlangıcına göre hesaplanır. Gerçek cihazda saat dilimi ve yaz saati sınırları doğrulanmalıdır.
 
-## Join the community
+## Aktif Oturumlar
 
-Join our community of developers creating universal apps.
+- Giriş yaptıktan sonra **Aktif Oturumlar** bölümünde `GET /auth/sessions` ile sunucunun o kullanıcıya ve şirkete erişim hakkı verdiği oturumlar listelenir.
+- İlgili girişe ait SHA-256 `sessionId` eşleşiyorsa **Bu oturum**, diğerleri **Diğer oturum** olarak gösterilir. Bu etiketler fiziksel cihaz kimliğini doğrulamaz.
+- Diğer oturumu kapatma işlemi iki aşamalı kullanıcı onayı ardından `POST /auth/sessions/:id/revoke` ile yapılır. İptal edilen oturumun JWT'si sonraki istekte reddedilir, mevcut oturum aktif kalır.
+- Yetki veya oturum süresi bitmişse API'den dönen 401 üzerine yerel oturum temizlenir; zaten reddedilen JWT ile gereksiz çıkış isteği tekrarlanmaz.
+- **Sınır:** Erişim JWT'si 15 dakika içinde sona erer ve mobil uygulamada güvenli kalıcı yenileme henüz uygulanmadı. JWT süresi dolmuşsa sunucuda bir oturum kaydı mevcut olsa bile mobil iptal isteği gönderilemeyebilir. Bu durumda kullanıcı yeniden oturum açıp oturum listesinden eski oturumu iptal edebilir. Çıkışın sunucuda doğrulandığından emin olunamıyorsa uygulama kullanıcıyı uyarır.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Bilinen kapsam sınırları
+
+- Randevu ekleme, güncelleme, iptal, tahsilat ve personel puantajı **aktif değildir**.
+- Bu aşamada kimlik doğrulama ve veri listesi için uçtan uca gerçek cihaz testleri yapılmadı.
+- MFA, kimlik ve yetki kontrolü sunucunun yerine mobil UI'da uygulanmaz; sunucu kesin otoritedir.
+- `braces` ve `node-forge` Expo araç zinciri bağımlılıkları için yüksek önem dereceli güvenlik bildirimleri açık: GitHub Issue #11 ve #12. Genel bağımlılık denetimi devre dışı bırakılmadı.
+
+## Doğrulama
+
+```bash
+pnpm --filter mobile exec tsc --noEmit
+pnpm --filter mobile exec expo export --platform android --output-dir /tmp/valoo-mobile-android
+pnpm --filter mobile exec expo export --platform ios --output-dir /tmp/valoo-mobile-ios
+```
+
+Güncel CI: `.github/workflows/mobile-quality.yml`.

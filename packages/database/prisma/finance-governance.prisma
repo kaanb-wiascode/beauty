@@ -1,0 +1,27 @@
+enum FinancialPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model FinancialPeriod {
+  id          String                @id @default(uuid())
+  tenantId    String                @map("tenant_id")
+  companyId   String                @map("company_id")
+  branchId    String?               @map("branch_id")
+  name        String
+  startsAt    DateTime              @map("starts_at")
+  endsAt      DateTime              @map("ends_at")
+  status      FinancialPeriodStatus @default(OPEN)
+  closedBy    String?               @map("closed_by")
+  closedAt    DateTime?             @map("closed_at")
+  reopenedBy  String?               @map("reopened_by")
+  reopenedAt  DateTime?             @map("reopened_at")
+  closeReason String?               @map("close_reason")
+  createdBy   String                @map("created_by")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  @@index([tenantId, companyId, startsAt, endsAt], map: "financial_periods_scope_dates_idx")
+  @@index([companyId, branchId, status], map: "financial_periods_company_branch_status_idx")
+  @@map("financial_periods")
+}

@@ -1,0 +1,630 @@
+import { randomUUID } from 'node:crypto';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { ApprovalRuntimeService } from '../approval-workflows/approval-runtime.service';
+
+export type PayrollItemInput = {
+  staffId: string;
+  branchId: string;
+  costCenterId?: string;
+  grossAmount: number;
+  netAmount: number;
+  incomeTax?: number;
+  stampTax?: number;
+  employeeSocialSecurity?: number;
+  unemploymentEmployee?: number;
+  employerSocialSecurity?: number;
+  unemploymentEmployer?: number;
+  otherDeductions?: number;
+  employerCost: number;
+  note?: string;
+};
+
+@Injectable()
+export class PayrollAccountingService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenant: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
+    private readonly approvalRuntime: ApprovalRuntimeService,
+  ) {}
+
+  private context() {
+    return {
+      tenantId: this.tenant.getTenantId(),
+      companyId: this.tenant.getCompanyId(),
+    };
+  }
+
+  private async branchIds(): Promise<string[] | null> {
+    const branchId = this.tenant.getBranchId();
+    if (branchId) return [branchId];
+    const roleScope = this.tenant.getRoleScope();
+    if (roleScope === 'CENTRAL') return null;
+    if (roleScope === 'COMPANY') return this.organizationScope.getAssignedActiveBranchIds();
+    return [];
+  }
+
+  private round(v: number) {
+    return Math.round((v + Number.EPSILON) * 100) / 100;
+  }
+
+  private journalNumber(d: Date) {
+    return `JE-${d.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  }
+
+  private async ensurePayrollApprovalWorkflow(tx:Prisma.TransactionClient,userId:string){
+    const {tenantId,companyId}=this.context();
+    const workflowKey='hr.payroll-period-approval';
+    const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
+    await tx.$queryRaw`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext(${lockKey}))) SELECT 1 AS locked FROM lock_guard`;
+
+    const existing=await tx.$queryRaw<Array<{id:string}>>`
+      SELECT id
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+        AND status='PUBLISHED'
+      LIMIT 1
+    `;
+    if(existing.length)return;
+
+    const versions=await tx.$queryRaw<Array<{version:number}>>`
+      SELECT COALESCE(MAX(version),0)::int AS version
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+    `;
+    const version=Number(versions[0]?.version??0)+1;
+    const steps=[
+      {
+        key:'accounting-control',
+        name:'Muhasebe Kontrolü',
+        approverType:'ROLE',
+        approverValue:'accounting-manager',
+        slaMinutes:240,
+        timeoutAction:'ESCALATE',
+        escalationApproverType:'ROLE',
+        escalationApproverValue:'finance-manager',
+      },
+      {
+        key:'upper-management-approval',
+        name:'Üst Yönetim Onayı',
+        approverType:'ROLE',
+        approverValue:'general-manager',
+        slaMinutes:240,
+        timeoutAction:'ESCALATE',
+        escalationApproverType:'ROLE',
+        escalationApproverValue:'deputy-general-manager',
+      },
+    ];
+
+    await tx.$executeRaw`
+      INSERT INTO approval_workflow_definitions(
+        id,"tenantId","companyId","workflowKey",name,domain,description,
+        version,status,conditions,steps,"createdByUserId","publishedAt","createdAt","updatedAt"
+      ) VALUES(
+        gen_random_uuid()::text,${tenantId},${companyId},${workflowKey},
+        'Bordro Onay Akışı','hr',
+        'Bordro dönemleri için muhasebe kontrolü ve üst yönetim onayı.',
+        ${version},'PUBLISHED','{}'::jsonb,${JSON.stringify(steps)}::jsonb,
+        ${userId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+      )
+    `;
+  }
+
+  async upsertItem(_periodId: string, _input: PayrollItemInput) {
+    throw new BadRequestException(
+      'Bordro ücret kalemleri manuel olarak oluşturulamaz veya değiştirilemez. Bordroyu puantaj kapanışı ve aktif NET ücret sözleşmesi üzerinden yeniden hazırlayın.',
+    );
+  }
+
+  async submit(periodId: string, userId?: string) {
+    const { tenantId, companyId } = this.context();
+    const branchIds = await this.branchIds();
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const periods = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,year,month,status,branch_id AS "branchId"
+           FROM payroll_periods
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
+             AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
+           FOR UPDATE`,
+          periodId,
+          tenantId,
+          companyId,
+          branchIds,
+        );
+        if (!periods.length) throw new BadRequestException('Taslak bordro dönemi bulunamadı.');
+        const period = periods[0];
+        if (!period.branchId) throw new BadRequestException('Bordro gönderimi için şubeye bağlı dönem gereklidir.');
+
+        const closures = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,staff_count AS "staffCount"
+           FROM hr_attendance_period_closures
+           WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+             AND payroll_period_id=$4::text AND year=$5 AND month=$6 AND status='CLOSED'
+           LIMIT 1`,
+          tenantId,
+          companyId,
+          period.branchId,
+          periodId,
+          Number(period.year),
+          Number(period.month),
+        );
+        if (!closures.length) {
+          throw new BadRequestException('Bordro gönderilemez: ilgili ayın puantaj kapanışı tamamlanmamış.');
+        }
+        const closure = closures[0];
+
+        const counts = await tx.$queryRawUnsafe<any[]>(
+          `SELECT
+             COUNT(*)::int AS "itemCount",
+             COUNT(*) FILTER(
+               WHERE calculation_snapshot->'workInputs'->>'source'='ATTENDANCE_PERIOD_CLOSE'
+                 AND calculation_snapshot->'workInputs'->>'closureId'=$5::text
+             )::int AS "workInputCount",
+             COUNT(*) FILTER(
+               WHERE calculation_snapshot ? 'grossAmount'
+                 AND calculation_snapshot ? 'netAmount'
+                 AND calculation_snapshot ? 'employerCost'
+                 AND calculation_snapshot->'salaryContract'->>'salaryBasis'='MONTHLY_NET'
+                 AND calculation_snapshot->'legalCalculation'->>'source'='NET_CONTRACT_LEGAL_ENGINE'
+                 AND calculation_snapshot->'netCompensationAdjustment'->>'source'='NET_CONTRACT_POLICY'
+             )::int AS "financialSnapshotCount"
+           FROM payroll_items
+           WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+          closure.id,
+        );
+        const summary = counts[0] ?? {};
+        const itemCount = Number(summary.itemCount ?? 0);
+        const staffCount = Number(closure.staffCount ?? 0);
+        const workInputCount = Number(summary.workInputCount ?? 0);
+        const financialSnapshotCount = Number(summary.financialSnapshotCount ?? 0);
+
+        if (itemCount !== staffCount) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: kapanışta ${staffCount} personel var, taslak bordroda ${itemCount} personel kalemi bulunuyor.`,
+          );
+        }
+        if (workInputCount !== itemCount) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: ${itemCount - workInputCount} personelin kapanmış puantaj girdisi bordroya bağlanmamış.`,
+          );
+        }
+        if (financialSnapshotCount !== itemCount) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: ${itemCount - financialSnapshotCount} personelin parasal bordro hesabı tamamlanmamış.`,
+          );
+        }
+
+        const pendingCompensation = await tx.$queryRawUnsafe<any[]>(
+          `SELECT r.id,r.staff_id AS "staffId",r.type,r.amount
+           FROM hr_compensation_requests r
+           WHERE r.tenant_id=$1::text AND r.company_id=$2::text AND r.branch_id=$3::text
+             AND r.period_year=$4 AND r.period_month=$5 AND r.status='APPROVED'
+             AND NOT EXISTS (
+               SELECT 1
+               FROM payroll_items pi
+               CROSS JOIN LATERAL jsonb_array_elements(
+                 COALESCE(pi.calculation_snapshot->'approvedVariableCompensation'->'requests','[]'::jsonb)
+               ) compensation_item
+               WHERE pi.period_id=$6::text
+                 AND pi.tenant_id=$1::text
+                 AND pi.company_id=$2::text
+                 AND pi.branch_id=$3::text
+                 AND compensation_item->>'id'=r.id
+             )`,
+          tenantId,
+          companyId,
+          period.branchId,
+          Number(period.year),
+          Number(period.month),
+          periodId,
+        );
+        if (pendingCompensation.length) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: ${pendingCompensation.length} onaylanmış prim/komisyon kaydı henüz bordro hesabına alınmamış. Bordroyu yeniden hesaplayın.`,
+          );
+        }
+
+        const updated = await tx.$executeRawUnsafe(
+          `UPDATE payroll_periods
+           SET status='SUBMITTED',updated_at=NOW()
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
+             AND branch_id=$4::text`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+        );
+        if (updated !== 1) throw new BadRequestException('Bordro dönemi eşzamanlı olarak değiştirildi.');
+
+        if(!userId) throw new BadRequestException('Bordro onay talebini oluşturan kullanıcı belirlenemedi.');
+        await this.ensurePayrollApprovalWorkflow(tx,userId);
+        const approval=await this.approvalRuntime.createWithinTransaction({
+          workflowKey:'hr.payroll-period-approval',
+          entityType:'hr_payroll_period',
+          entityId:periodId,
+          branchId:period.branchId,
+          reason:`Bordro ${period.year}/${String(period.month).padStart(2,'0')} onayı`,
+          payload:{
+            periodId,
+            year:Number(period.year),
+            month:Number(period.month),
+            branchId:period.branchId,
+            staffCount,
+            payrollItemCount:itemCount,
+          },
+        },tx);
+
+        return {
+          periodId,
+          status: 'SUBMITTED',
+          approvalRequestId: approval.id,
+          staffCount,
+          payrollItemCount: itemCount,
+          closedAttendanceInputCount: workInputCount,
+          calculatedPayrollItemCount: financialSnapshotCount,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async approve(periodId: string, userId: string) {
+    const { tenantId, companyId } = this.context();
+    const branchIds = await this.branchIds();
+
+    return this.prisma.$transaction(async (tx) => {
+      const periods = await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,branch_id AS "branchId",status,approved_by_user_id AS "approvedByUserId",approved_at AS "approvedAt"
+         FROM payroll_periods
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+           AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
+         FOR UPDATE`,
+        periodId,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if (!periods.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
+      const period=periods[0];
+      if(period.status==='APPROVED'){
+        return {
+          periodId,
+          status:'APPROVED',
+          approvedByUserId:period.approvedByUserId,
+          approvedAt:period.approvedAt,
+          duplicate:true,
+        };
+      }
+      if(period.status!=='SUBMITTED'){
+        throw new BadRequestException('Yalnız onaya gönderilmiş bordro dönemi onaylanabilir.');
+      }
+
+      const requests=await tx.$queryRawUnsafe<any[]>(
+        `SELECT r.id,r.status,
+                (
+                  SELECT a."actorUserId"
+                  FROM approval_request_actions a
+                  WHERE a."requestId"=r.id AND a.action='APPROVE'
+                  ORDER BY a."createdAt" DESC
+                  LIMIT 1
+                ) AS "finalApproverUserId"
+         FROM approval_requests r
+         WHERE r."tenantId"=$1::text AND r."companyId"=$2::text
+           AND r."entityType"='hr_payroll_period' AND r."entityId"=$3::text
+         ORDER BY r."createdAt" DESC
+         LIMIT 1`,
+        tenantId,
+        companyId,
+        periodId,
+      );
+      const approval=requests[0];
+      if(!approval||approval.status!=='APPROVED'){
+        throw new BadRequestException(
+          'Bordro, merkezi onay akışındaki Muhasebe Kontrolü ve Üst Yönetim Onayı tamamlanmadan onaylanamaz.',
+        );
+      }
+
+      const finalApproverUserId=String(approval.finalApproverUserId??userId);
+      const updated=await tx.$executeRawUnsafe(
+        `UPDATE payroll_periods
+         SET status='APPROVED',approved_by_user_id=$2::text,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status='SUBMITTED'
+           AND ($5::text[] IS NULL OR branch_id=ANY($5::text[]))`,
+        periodId,
+        finalApproverUserId,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if(updated!==1) throw new BadRequestException('Bordro dönemi eşzamanlı olarak değiştirildi.');
+      return {periodId,status:'APPROVED',approvedByUserId:finalApproverUserId,approvalRequestId:approval.id};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
+
+  private async ensureAccount(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    companyId: string,
+    code: string,
+    name: string,
+    type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE',
+  ) {
+    const x = await tx.chartOfAccount.findFirst({
+      where: { tenantId, companyId, code },
+      select: { id: true, active: true },
+    });
+    if (x) {
+      if (!x.active) {
+        return tx.chartOfAccount.update({ where: { id: x.id }, data: { active: true }, select: { id: true } });
+      }
+      return x;
+    }
+    return tx.chartOfAccount.create({
+      data: { tenantId, companyId, code, name, type, active: true },
+      select: { id: true },
+    });
+  }
+
+  async post(periodId: string) {
+    const { tenantId, companyId } = this.context();
+    const branchIds = await this.branchIds();
+    return this.prisma.$transaction(
+      async (tx) => {
+        const periods = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,year,month,status,branch_id AS "branchId",journal_entry_id AS "journalEntryId"
+           FROM payroll_periods
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
+           FOR UPDATE`,
+          periodId,
+          tenantId,
+          companyId,
+          branchIds,
+        );
+        if (!periods.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
+        const period = periods[0];
+        if (period.status === 'POSTED') {
+          return { periodId, status: 'POSTED', journalEntryId: period.journalEntryId, duplicate: true };
+        }
+        if (period.status !== 'APPROVED') {
+          throw new BadRequestException('Yalnız onaylanmış bordro muhasebeleştirilebilir.');
+        }
+        const items = await tx.$queryRawUnsafe<any[]>(
+          `SELECT * FROM payroll_items
+           WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND branch_id=$4::text
+             AND ($5::text[] IS NULL OR branch_id=ANY($5::text[]))
+           ORDER BY id FOR UPDATE`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+          branchIds,
+        );
+        if (!items.length) throw new BadRequestException('Bordro döneminde aktif kapsamda bordro kalemi bulunmuyor.');
+        let expense = 0;
+        let net = 0;
+        let taxes = 0;
+        let social = 0;
+        let other = 0;
+        for (const i of items) {
+          expense = this.round(expense + Number(i.employer_cost));
+          net = this.round(net + Number(i.net_amount));
+          taxes = this.round(taxes + Number(i.income_tax) + Number(i.stamp_tax));
+          social = this.round(
+            social +
+              Number(i.employee_social_security) +
+              Number(i.unemployment_employee) +
+              Number(i.employer_social_security) +
+              Number(i.unemployment_employer),
+          );
+          other = this.round(other + Number(i.other_deductions));
+        }
+        const credits = this.round(net + taxes + social + other);
+        if (Math.abs(expense - credits) > 0.01) {
+          throw new BadRequestException(
+            `Bordro muhasebe fişi dengede değil. Gider: ${expense}, yükümlülükler: ${credits}.`,
+          );
+        }
+        const expenseAcc = await this.ensureAccount(
+          tx,
+          tenantId,
+          companyId,
+          '770',
+          'Genel Yönetim Giderleri - Personel',
+          'EXPENSE',
+        );
+        const personnel = await this.ensureAccount(
+          tx,
+          tenantId,
+          companyId,
+          '335',
+          'Personele Borçlar',
+          'LIABILITY',
+        );
+        const tax = await this.ensureAccount(
+          tx,
+          tenantId,
+          companyId,
+          '360',
+          'Ödenecek Vergi ve Fonlar',
+          'LIABILITY',
+        );
+        const socialAcc = await this.ensureAccount(
+          tx,
+          tenantId,
+          companyId,
+          '361',
+          'Ödenecek Sosyal Güvenlik Kesintileri',
+          'LIABILITY',
+        );
+        const otherAcc =
+          other > 0
+            ? await this.ensureAccount(
+                tx,
+                tenantId,
+                companyId,
+                '369',
+                'Ödenecek Diğer Yükümlülükler',
+                'LIABILITY',
+              )
+            : null;
+        const now = new Date();
+        const entry = await tx.journalEntry.create({
+          data: {
+            tenantId,
+            companyId,
+            branchId: period.branchId,
+            number: this.journalNumber(now),
+            status: 'POSTED',
+            entryDate: now,
+            description: `Bordro ${period.year}/${String(period.month).padStart(2, '0')}`,
+            referenceType: 'PAYROLL_PERIOD',
+            referenceId: periodId,
+            postedAt: now,
+            lines: {
+              create: [
+                {
+                  accountId: expenseAcc.id,
+                  debit: expense,
+                  credit: 0,
+                  memo: 'Brüt ücret ve işveren maliyetleri',
+                },
+                { accountId: personnel.id, debit: 0, credit: net, memo: 'Net ücret borcu' },
+                ...(taxes > 0
+                  ? [{ accountId: tax.id, debit: 0, credit: taxes, memo: 'Vergi ve damga vergisi' }]
+                  : []),
+                ...(social > 0
+                  ? [
+                      {
+                        accountId: socialAcc.id,
+                        debit: 0,
+                        credit: social,
+                        memo: 'SGK ve işsizlik yükümlülükleri',
+                      },
+                    ]
+                  : []),
+                ...(other > 0 && otherAcc
+                  ? [{ accountId: otherAcc.id, debit: 0, credit: other, memo: 'Diğer bordro kesintileri' }]
+                  : []),
+              ],
+            },
+          },
+        });
+        const expenseLine = await tx.journalEntryLine.findFirst({
+          where: { journalEntryId: entry.id, accountId: expenseAcc.id },
+          select: { id: true },
+        });
+        if (expenseLine) {
+          const centers = [...new Set(items.map((i) => i.cost_center_id).filter(Boolean))];
+          if (centers.length === 1) {
+            await tx.$executeRawUnsafe(
+              `INSERT INTO cost_center_expense_links(journal_entry_line_id,cost_center_id)
+               VALUES($1::text,$2::text)
+               ON CONFLICT(journal_entry_line_id) DO UPDATE SET cost_center_id=EXCLUDED.cost_center_id`,
+              expenseLine.id,
+              centers[0],
+            );
+          }
+        }
+        await tx.$executeRawUnsafe(
+          `UPDATE payroll_items
+           SET status='POSTED',updated_at=NOW()
+           WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND branch_id=$4::text
+             AND ($5::text[] IS NULL OR branch_id=ANY($5::text[]))`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+          branchIds,
+        );
+        await tx.$executeRawUnsafe(
+          `UPDATE payroll_periods
+           SET status='POSTED',posted_at=NOW(),journal_entry_id=$2::text,updated_at=NOW()
+           WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text
+             AND branch_id=$5::text
+             AND ($6::text[] IS NULL OR branch_id=ANY($6::text[]))`,
+          periodId,
+          entry.id,
+          tenantId,
+          companyId,
+          period.branchId,
+          branchIds,
+        );
+
+        await tx.$executeRawUnsafe(
+          `UPDATE hr_compensation_requests r
+           SET status='APPLIED',applied_payroll_period_id=$1::text,updated_at=NOW()
+           WHERE r.tenant_id=$2::text AND r.company_id=$3::text AND r.status='APPROVED'
+             AND r.id IN (
+               SELECT compensation_item->>'id'
+               FROM payroll_items pi
+               CROSS JOIN LATERAL jsonb_array_elements(
+                 COALESCE(pi.calculation_snapshot->'approvedVariableCompensation'->'requests','[]'::jsonb)
+               ) compensation_item
+               WHERE pi.period_id=$1::text
+                 AND pi.tenant_id=$2::text
+                 AND pi.company_id=$3::text
+                 AND pi.branch_id=$4::text
+             )`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+        );
+
+        for (const item of items) {
+          const amountDue=this.round(Number(item.net_amount));
+          await tx.$executeRawUnsafe(
+            `INSERT INTO hr_payroll_payment_queue(
+               tenant_id,company_id,branch_id,period_id,staff_id,
+               amount_due,amount_paid,remaining_amount,status,queued_at,updated_at
+             ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,0,$6,'PENDING',NOW(),NOW())
+             ON CONFLICT(period_id,staff_id) DO UPDATE SET
+               amount_due=EXCLUDED.amount_due,
+               remaining_amount=GREATEST(0,EXCLUDED.amount_due-hr_payroll_payment_queue.amount_paid),
+               status=CASE
+                 WHEN hr_payroll_payment_queue.amount_paid>=EXCLUDED.amount_due THEN 'PAID'
+                 WHEN hr_payroll_payment_queue.amount_paid>0 THEN 'PARTIALLY_PAID'
+                 ELSE 'PENDING'
+               END,
+               updated_at=NOW()`,
+            tenantId,
+            companyId,
+            period.branchId,
+            periodId,
+            item.staff_id,
+            amountDue,
+          );
+        }
+        return {
+          periodId,
+          status: 'POSTED',
+          journalEntryId: entry.id,
+          totals: {
+            employerCost: expense,
+            netPayable: net,
+            taxesPayable: taxes,
+            socialSecurityPayable: social,
+            otherPayables: other,
+          },
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+}

@@ -1,0 +1,34 @@
+model ReportSchedule {
+  id              String    @id
+  tenantId        String    @map("tenant_id")
+  companyId       String    @map("company_id")
+  branchId        String?   @map("branch_id")
+  ownerId         String    @map("owner_id")
+  membershipId    String    @map("membership_id")
+  roleId          String    @map("role_id")
+  roleScope       String    @map("role_scope")
+  name            String
+  reportKey       String    @map("report_key")
+  frequency       String
+  timezone        String
+  localHour       Int       @map("local_hour")
+  localMinute     Int       @map("local_minute")
+  dayOfWeek       Int?      @map("day_of_week")
+  dayOfMonth      Int?      @map("day_of_month")
+  format          String
+  filters         Json
+  columns         Json
+  sort            Json?
+  includeSummary  Boolean   @default(true) @map("include_summary")
+  enabled         Boolean   @default(true)
+  nextRunAt       DateTime? @map("next_run_at")
+  lastRunAt       DateTime? @map("last_run_at")
+  lastExportJobId String?   @map("last_export_job_id")
+  lastErrorCode   String?   @map("last_error_code")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @map("updated_at")
+
+  @@index([tenantId, companyId, ownerId, updatedAt], map: "report_schedules_owner_idx")
+  @@index([tenantId, companyId, reportKey], map: "report_schedules_report_idx")
+  @@map("report_schedules")
+}

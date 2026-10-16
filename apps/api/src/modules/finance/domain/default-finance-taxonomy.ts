@@ -1,0 +1,132 @@
+export interface DefaultFinanceCategory {
+  code: string;
+  name: string;
+  children?: readonly DefaultFinanceCategory[];
+}
+
+export const DEFAULT_EXPENSE_TAXONOMY: readonly DefaultFinanceCategory[] = [
+  {
+    code: 'PERSONNEL',
+    name: 'Personel',
+    children: [
+      { code: 'PERSONNEL_SALARY', name: 'Maaş' },
+      { code: 'PERSONNEL_BONUS', name: 'Prim ve Bonus' },
+      { code: 'PERSONNEL_COMMISSION', name: 'Komisyon' },
+      { code: 'PERSONNEL_ADVANCE', name: 'Personel Avansı' },
+      { code: 'PERSONNEL_MEAL', name: 'Yemek' },
+      { code: 'PERSONNEL_TRANSPORT', name: 'Ulaşım' },
+      { code: 'PERSONNEL_INSURANCE', name: 'Özel Sigorta' },
+      { code: 'PERSONNEL_TRAINING', name: 'Eğitim' },
+      { code: 'PERSONNEL_TRAVEL', name: 'Seyahat' },
+      { code: 'PERSONNEL_PER_DIEM', name: 'Harcırah' },
+      { code: 'PERSONNEL_REPRESENTATION', name: 'Temsil ve Ağırlama' },
+    ],
+  },
+  {
+    code: 'FACILITY',
+    name: 'Şube ve Tesis',
+    children: [
+      { code: 'FACILITY_RENT', name: 'Kira' },
+      { code: 'FACILITY_DUES', name: 'Aidat' },
+      { code: 'FACILITY_ELECTRICITY', name: 'Elektrik' },
+      { code: 'FACILITY_WATER', name: 'Su' },
+      { code: 'FACILITY_GAS', name: 'Doğalgaz' },
+      { code: 'FACILITY_INTERNET', name: 'İnternet' },
+      { code: 'FACILITY_PHONE', name: 'Telefon' },
+      { code: 'FACILITY_CLEANING', name: 'Temizlik' },
+      { code: 'FACILITY_SECURITY', name: 'Güvenlik' },
+      { code: 'FACILITY_MAINTENANCE', name: 'Bakım' },
+      { code: 'FACILITY_REPAIR', name: 'Onarım' },
+      { code: 'FACILITY_RENOVATION', name: 'Tadilat' },
+      { code: 'FACILITY_EQUIPMENT', name: 'Ekipman' },
+    ],
+  },
+  {
+    code: 'FINANCIAL',
+    name: 'Finansman ve Banka',
+    children: [
+      { code: 'FINANCIAL_BANK_FEE', name: 'Banka Masrafı' },
+      { code: 'FINANCIAL_POS_FEE', name: 'POS Komisyonu' },
+      { code: 'FINANCIAL_CARD_FEE', name: 'Kart Masrafı' },
+      { code: 'FINANCIAL_LOAN_INTEREST', name: 'Kredi Faizi' },
+      { code: 'FINANCIAL_TRANSFER_FEE', name: 'Transfer Masrafı' },
+      { code: 'FINANCIAL_FX_LOSS', name: 'Kur Zararı' },
+    ],
+  },
+  {
+    code: 'STATUTORY',
+    name: 'Yasal ve İdari',
+    children: [
+      { code: 'STATUTORY_VAT', name: 'KDV' },
+      { code: 'STATUTORY_WITHHOLDING', name: 'Stopaj' },
+      { code: 'STATUTORY_SGK', name: 'SGK' },
+      { code: 'STATUTORY_INCOME_TAX', name: 'Gelir Vergisi' },
+      { code: 'STATUTORY_CORPORATE_TAX', name: 'Kurumlar Vergisi' },
+      { code: 'STATUTORY_STAMP_DUTY', name: 'Damga Vergisi' },
+      { code: 'STATUTORY_LICENSE', name: 'Ruhsat ve Lisans' },
+      { code: 'STATUTORY_NOTARY', name: 'Noter' },
+      { code: 'STATUTORY_LITIGATION', name: 'Dava ve Yargılama' },
+      { code: 'STATUTORY_ENFORCEMENT', name: 'İcra' },
+      { code: 'STATUTORY_LEGAL_COUNSEL', name: 'Hukuk Danışmanlığı' },
+      { code: 'STATUTORY_ACCOUNTING', name: 'Mali Müşavirlik' },
+    ],
+  },
+  {
+    code: 'MARKETING',
+    name: 'Pazarlama',
+    children: [
+      { code: 'MARKETING_META', name: 'Meta Reklamları' },
+      { code: 'MARKETING_GOOGLE', name: 'Google Reklamları' },
+      { code: 'MARKETING_TIKTOK', name: 'TikTok Reklamları' },
+      { code: 'MARKETING_INFLUENCER', name: 'Influencer' },
+      { code: 'MARKETING_AGENCY', name: 'Ajans' },
+      { code: 'MARKETING_PRODUCTION', name: 'Prodüksiyon' },
+      { code: 'MARKETING_PRINT', name: 'Basılı Materyal' },
+      { code: 'MARKETING_SPONSORSHIP', name: 'Sponsorluk' },
+    ],
+  },
+  {
+    code: 'OPERATIONS',
+    name: 'Operasyon',
+    children: [
+      { code: 'OPERATIONS_CONSUMABLES', name: 'Sarf Malzemesi' },
+      { code: 'OPERATIONS_DEVICE_MAINTENANCE', name: 'Cihaz Bakımı' },
+      { code: 'OPERATIONS_MEDICAL_PRODUCT', name: 'Medikal Ürün' },
+      { code: 'OPERATIONS_COSMETIC_PRODUCT', name: 'Kozmetik Ürün' },
+      { code: 'OPERATIONS_HYGIENE', name: 'Hijyen' },
+      { code: 'OPERATIONS_UNIFORM', name: 'Üniforma' },
+      { code: 'OPERATIONS_HOSPITALITY', name: 'İkram' },
+      { code: 'OPERATIONS_CARGO', name: 'Kargo ve Kurye' },
+    ],
+  },
+  {
+    code: 'ADMINISTRATION',
+    name: 'Yönetim',
+    children: [
+      { code: 'ADMIN_CONSULTING', name: 'Danışmanlık' },
+      { code: 'ADMIN_SOFTWARE', name: 'Yazılım' },
+      { code: 'ADMIN_SUBSCRIPTIONS', name: 'Abonelikler' },
+      { code: 'ADMIN_LICENSES', name: 'Lisanslar' },
+      { code: 'ADMIN_MEETINGS', name: 'Toplantılar' },
+      { code: 'ADMIN_OTHER', name: 'Diğer Yönetim Giderleri' },
+    ],
+  },
+];
+
+export const DEFAULT_INCOME_TAXONOMY: readonly DefaultFinanceCategory[] = [
+  { code: 'INCOME_SERVICE', name: 'Hizmet Geliri' },
+  { code: 'INCOME_PRODUCT', name: 'Ürün Geliri' },
+  { code: 'INCOME_MEMBERSHIP', name: 'Üyelik ve Paket Geliri' },
+  { code: 'INCOME_RENTAL', name: 'Kira ve Alt Kiralama Geliri' },
+  { code: 'INCOME_COMMISSION', name: 'Komisyon Geliri' },
+  { code: 'INCOME_INTEREST', name: 'Faiz Geliri' },
+  { code: 'INCOME_FX_GAIN', name: 'Kur Farkı Geliri' },
+  { code: 'INCOME_SUPPLIER_REFUND', name: 'Tedarikçi İadesi' },
+  { code: 'INCOME_INSURANCE', name: 'Sigorta Tazminatı' },
+  { code: 'INCOME_GOVERNMENT_SUPPORT', name: 'Teşvik ve Destek' },
+  { code: 'INCOME_DEPOSIT_RETURN', name: 'Depozito İadesi' },
+  { code: 'INCOME_EMPLOYEE_REPAYMENT', name: 'Personel Geri Ödemesi' },
+  { code: 'INCOME_ASSET_SALE', name: 'Varlık Satışı' },
+  { code: 'INCOME_CAPITAL_CONTRIBUTION', name: 'Sermaye Katkısı' },
+  { code: 'INCOME_OTHER', name: 'Diğer Gelirler' },
+];

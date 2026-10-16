@@ -2,59 +2,29 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from "@nestjs/common";
+} from '@nestjs/common';
 
-import { PrismaService } from "@beauty-erp/database";
+import { PrismaService } from '@beauty-erp/database';
 
-import { TenantContext } from "../../common/tenant/tenant-context";
-import { CreateCareEventInput } from "./dto/create-care-event.dto";
-import { UpdateCareEventInput } from "./dto/update-care-event.dto";
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { CreateCareEventInput } from './dto/create-care-event.dto';
+import { UpdateCareEventInput } from './dto/update-care-event.dto';
 
 @Injectable()
 export class CareEventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
   ) {}
 
-  private requireBranchId(): string {
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        "A branch must be selected for this operation.",
-      );
-    }
-
-    return branchId;
-  }
-
-  private getCustomerScope() {
-    const tenantId = this.tenantContext.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === "CENTRAL" && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
-  }
-
   private async ensureCustomer(customerId: string) {
+    const scope = await this.organizationScope.getBranchScopedWhere();
     const customer = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
-        ...this.getCustomerScope(),
+        ...scope,
       },
       select: {
         id: true,
@@ -63,7 +33,7 @@ export class CareEventsService {
     });
 
     if (!customer) {
-      throw new NotFoundException("Customer not found");
+      throw new NotFoundException('Customer not found');
     }
 
     return customer;
@@ -72,59 +42,38 @@ export class CareEventsService {
   private async ensureAppointment(
     customerId: string,
     appointmentId: string,
+    branchId: string,
   ) {
-    const tenantId = this.tenantContext.getTenantId();
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        "A branch must be selected for this operation.",
-      );
-    }
-
     const appointment = await this.prisma.appointment.findFirst({
       where: {
         id: appointmentId,
-        tenantId,
+        tenantId: this.tenantContext.getTenantId(),
         customerId,
         branchId,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!appointment) {
       throw new BadRequestException(
-        "Selected appointment does not belong to this customer.",
+        'Selected appointment does not belong to this customer.',
       );
     }
   }
 
-  private async ensureStaff(staffId: string) {
-    const tenantId = this.tenantContext.getTenantId();
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        "A branch must be selected for this operation.",
-      );
-    }
-
+  private async ensureStaff(staffId: string, branchId: string) {
     const staff = await this.prisma.staff.findFirst({
       where: {
         id: staffId,
-        tenantId,
+        tenantId: this.tenantContext.getTenantId(),
         branchId,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!staff) {
       throw new BadRequestException(
-        "Selected staff member does not belong to this salon.",
+        'Selected staff member does not belong to this branch.',
       );
     }
   }
@@ -136,19 +85,12 @@ export class CareEventsService {
           id: true,
           startAt: true,
           service: {
-            select: {
-              id: true,
-              name: true,
-            },
+            select: { id: true, name: true },
           },
         },
       },
       staff: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-        },
+        select: { id: true, firstName: true, lastName: true },
       },
     } as const;
   }
@@ -163,32 +105,26 @@ export class CareEventsService {
         branchId: customer.branchId,
       },
       include: this.getInclude(),
-      orderBy: {
-        occurredAt: "desc",
-      },
+      orderBy: { occurredAt: 'desc' },
     });
   }
 
-  async create(
-    customerId: string,
-    input: CreateCareEventInput,
-  ) {
+  async create(customerId: string, input: CreateCareEventInput) {
     const customer = await this.ensureCustomer(customerId);
 
     if (input.appointmentId) {
       await this.ensureAppointment(
         customerId,
         input.appointmentId,
+        customer.branchId,
       );
     }
 
     if (input.staffId) {
-      await this.ensureStaff(input.staffId);
+      await this.ensureStaff(input.staffId, customer.branchId);
     }
 
-    const resolved =
-      input.status === "RESOLVED" ||
-      input.status === "CLOSED";
+    const resolved = input.status === 'RESOLVED' || input.status === 'CLOSED';
 
     return this.prisma.customerCareEvent.create({
       data: {
@@ -226,84 +162,57 @@ export class CareEventsService {
         customerId,
         branchId: customer.branchId,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!event) {
-      throw new NotFoundException("Care event not found");
+      throw new NotFoundException('Care event not found');
     }
 
     if (input.appointmentId) {
       await this.ensureAppointment(
         customerId,
         input.appointmentId,
+        customer.branchId,
       );
     }
 
     if (input.staffId) {
-      await this.ensureStaff(input.staffId);
+      await this.ensureStaff(input.staffId, customer.branchId);
     }
 
-    const resolved =
-      input.status === "RESOLVED" ||
-      input.status === "CLOSED";
+    const resolved = input.status === 'RESOLVED' || input.status === 'CLOSED';
 
     return this.prisma.customerCareEvent.update({
-      where: {
-        id: event.id,
-      },
+      where: { id: event.id },
       data: {
         ...(input.appointmentId !== undefined && {
           appointmentId: input.appointmentId,
         }),
-        ...(input.staffId !== undefined && {
-          staffId: input.staffId,
-        }),
-        ...(input.type !== undefined && {
-          type: input.type,
-        }),
-        ...(input.status !== undefined && {
-          status: input.status,
-        }),
-        ...(input.severity !== undefined && {
-          severity: input.severity,
-        }),
-        ...(input.title !== undefined && {
-          title: input.title.trim(),
-        }),
+        ...(input.staffId !== undefined && { staffId: input.staffId }),
+        ...(input.type !== undefined && { type: input.type }),
+        ...(input.status !== undefined && { status: input.status }),
+        ...(input.severity !== undefined && { severity: input.severity }),
+        ...(input.title !== undefined && { title: input.title.trim() }),
         ...(input.description !== undefined && {
           description: input.description?.trim() || null,
         }),
-        ...(input.onsetAt !== undefined && {
-          onsetAt: input.onsetAt,
-        }),
-        ...(input.occurredAt !== undefined && {
-          occurredAt: input.occurredAt,
-        }),
+        ...(input.onsetAt !== undefined && { onsetAt: input.onsetAt }),
+        ...(input.occurredAt !== undefined && { occurredAt: input.occurredAt }),
         ...(input.actionTaken !== undefined && {
           actionTaken: input.actionTaken?.trim() || null,
         }),
-        ...(input.followUpAt !== undefined && {
-          followUpAt: input.followUpAt,
+        ...(input.followUpAt !== undefined && { followUpAt: input.followUpAt }),
+        ...(input.resolvedAt !== undefined && { resolvedAt: input.resolvedAt }),
+        ...(resolved && input.resolvedAt === undefined && {
+          resolvedAt: new Date(),
         }),
-        ...(input.resolvedAt !== undefined && {
-          resolvedAt: input.resolvedAt,
-        }),
-        ...(resolved &&
-          input.resolvedAt === undefined && {
-            resolvedAt: new Date(),
-          }),
       },
       include: this.getInclude(),
     });
   }
 
-  async remove(
-    customerId: string,
-    eventId: string,
-  ) {
+  async remove(customerId: string, eventId: string) {
     const customer = await this.ensureCustomer(customerId);
 
     const event = await this.prisma.customerCareEvent.findFirst({
@@ -313,19 +222,15 @@ export class CareEventsService {
         customerId,
         branchId: customer.branchId,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!event) {
-      throw new NotFoundException("Care event not found");
+      throw new NotFoundException('Care event not found');
     }
 
     await this.prisma.customerCareEvent.delete({
-      where: {
-        id: event.id,
-      },
+      where: { id: event.id },
     });
 
     return {

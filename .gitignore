@@ -39,3 +39,7 @@ temp/
 *.backup
 
 *.bak
+.release-backups/
+.report-exports/
+*.dump
+.release-manifests/

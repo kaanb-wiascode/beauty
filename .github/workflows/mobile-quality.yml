@@ -1,0 +1,107 @@
+name: Mobile bundle quality
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+      - "release/**"
+    paths:
+      - "apps/mobile/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "scripts/security/**"
+      - ".github/workflows/mobile-quality.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/mobile/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "scripts/security/**"
+      - ".github/workflows/mobile-quality.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-quality-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  mobile-bundle:
+    name: Validate mobile TypeScript and Android JS bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: '1'
+      EXPO_OFFLINE: '1'
+      EXPO_NO_TELEMETRY: '1'
+      # This job must never receive signing certificates or Expo access tokens.
+      # It only creates an unsigned JavaScript bundle and does not deploy.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check mobile TypeScript
+        run: pnpm --filter mobile exec tsc --noEmit
+
+      - name: Validate Expo app configuration
+        run: pnpm --filter mobile exec expo config --type public --json > /tmp/valoo-mobile-config.json
+
+      - name: Validate expected unsigned mobile identity
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const config = JSON.parse(fs.readFileSync("/tmp/valoo-mobile-config.json", "utf8"));
+            if (config.slug !== "mobile" || config.scheme !== "mobile") {
+              console.error("Mobile Expo app identity changed unexpectedly.");
+              process.exit(1);
+            }
+            console.log("Mobile Expo configuration validated without signing credentials.");
+          '
+
+      - name: Bundle Android JavaScript without credentials
+        run: pnpm --filter mobile exec expo export --platform android --output-dir /tmp/valoo-mobile-android
+
+      - name: Verify Android JS export was produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d /tmp/valoo-mobile-android
+          if ! find /tmp/valoo-mobile-android -type f \( -name '*.js' -o -name '*.hbc' \) -print -quit | grep -q .; then
+            echo "Android JavaScript export was empty."
+            exit 1
+          fi
+          echo "Unsigned Android JavaScript export exists. This is not an APK/AAB signing or device test."
+
+      - name: Bundle iOS JavaScript without credentials
+        run: pnpm --filter mobile exec expo export --platform ios --output-dir /tmp/valoo-mobile-ios
+
+      - name: Verify iOS JS export was produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d /tmp/valoo-mobile-ios
+          if ! find /tmp/valoo-mobile-ios -type f \( -name '*.js' -o -name '*.hbc' \) -print -quit | grep -q .; then
+            echo "iOS JavaScript export was empty."
+            exit 1
+          fi
+          echo "Unsigned iOS JavaScript export exists. This is not an IPA signing or simulator test."

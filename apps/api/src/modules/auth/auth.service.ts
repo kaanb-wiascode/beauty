@@ -1,12 +1,13 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { RedisService } from '../../infrastructure/redis/redis.service';
 
@@ -23,9 +24,22 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['appointments', 'create'],
   ['appointments', 'update'],
   ['appointments', 'cancel'],
+  ['operations', 'read'],
+  ['operations', 'manage'],
   ['payments', 'read'],
   ['payments', 'create'],
   ['payments', 'refund'],
+  ['sales', 'read'],
+  ['sales', 'create'],
+  ['sales', 'confirm'],
+  ['sales', 'cancel'],
+  ['sales', 'collect'],
+  ['sales', 'refund'],
+  ['sessions', 'read'],
+  ['sessions', 'reserve'],
+  ['sessions', 'release'],
+  ['sessions', 'consume'],
+  ['sessions', 'cancel'],
   ['reports', 'read'],
   ['roles', 'read'],
   ['roles', 'update'],
@@ -37,6 +51,37 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['services', 'create'],
   ['services', 'update'],
   ['services', 'delete'],
+  ['inventory', 'read'],
+  ['inventory', 'write'],
+  ['inventory', 'create'],
+  ['inventory', 'update'],
+  ['inventory', 'delete'],
+  ['crm', 'read'],
+  ['crm', 'manage'],
+  ['training', 'read'],
+  ['training', 'manage'],
+  ['quality', 'read'],
+  ['quality', 'manage'],
+  ['finance', 'read'],
+  ['finance', 'manage'],
+  ['accounting', 'read'],
+  ['accounting', 'manage'],
+  ['accounting_journal', 'create'],
+  ['accounting_journal', 'approve'],
+  ['accounting_journal', 'post'],
+  ['finance_period', 'close'],
+  ['finance_period', 'reopen'],
+  ['hr', 'read'],
+  ['hr', 'manage'],
+  ['hr', 'create'],
+  ['hr', 'update'],
+  ['hr', 'delete'],
+  ['hr_payroll', 'read'],
+  ['hr_payroll', 'create'],
+  ['hr_payroll', 'update'],
+  ['hr_sensitive', 'read'],
+  ['financial_integrations', 'read'],
+  ['financial_integrations', 'manage'],
 ] as const;
 
 @Injectable()
@@ -196,6 +241,7 @@ export class AuthService {
     tenantId: string,
     companyId: string,
     branchId: string | null,
+    actorMembershipId: string,
   ) {
     const email = input.email.trim().toLowerCase();
 
@@ -230,6 +276,51 @@ export class AuthService {
       throw new ConflictException(
         'Role does not belong to this company',
       );
+    }
+
+    const actor = await this.prisma.membership.findFirst({
+      where: {
+        id: actorMembershipId,
+        tenantId,
+        companyId,
+        status: 'ACTIVE',
+      },
+      select: {
+        role: {
+          select: {
+            scope: true,
+            rolePermissions: {
+              select: {
+                permissionId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!actor) {
+      throw new ForbiddenException('Active membership is required to assign roles');
+    }
+
+    const scopeRank = { BRANCH: 1, COMPANY: 2, CENTRAL: 3 } as const;
+    if (scopeRank[role.scope] > scopeRank[actor.role.scope]) {
+      throw new ForbiddenException('Cannot assign a role with a higher scope');
+    }
+
+    const targetRolePermissions = await this.prisma.rolePermission.findMany({
+      where: { roleId: role.id },
+      select: { permissionId: true },
+    });
+    const actorPermissionIds = new Set(
+      actor.role.rolePermissions.map((entry) => entry.permissionId),
+    );
+    if (
+      targetRolePermissions.some(
+        (entry) => !actorPermissionIds.has(entry.permissionId),
+      )
+    ) {
+      throw new ForbiddenException('Cannot assign permissions you do not have');
     }
 
     if (role.scope === 'BRANCH' && !branchId) {
@@ -300,22 +391,6 @@ export class AuthService {
     });
   }
 
-  async resetDemoPassword(password: string) {
-    const passwordHash = await argon2.hash(password);
-
-    return this.prisma.user.update({
-      where: {
-        email: 'kaan.demo.2026@beautystudio.local',
-      },
-      data: {
-        passwordHash,
-      },
-      select: {
-        email: true,
-      },
-    });
-  }
-
   async login(input: LoginInput) {
     const email = input.email.trim().toLowerCase();
 
@@ -381,29 +456,24 @@ export class AuthService {
       );
     }
 
+    const firstActiveBranchId =
+      membership.branchAccesses.find(
+        (access) => access.branch.status === 'ACTIVE',
+      )?.branchId ?? null;
+
     const branchId =
-      membership.role.scope === 'BRANCH'
-        ? membership.branchAccesses[0]?.branchId ?? null
-        : null;
+      membership.role.scope === 'CENTRAL'
+        ? null
+        : firstActiveBranchId;
 
     if (
-      membership.role.scope === 'BRANCH' &&
+      membership.role.scope !== 'CENTRAL' &&
       !branchId
     ) {
       throw new UnauthorizedException(
         'No active branch access is assigned',
       );
     }
-
-    const accessToken = await this.createAccessToken(
-      user.id,
-      membership.tenantId,
-      membership.company.id,
-      branchId,
-      membership.id,
-      membership.roleId,
-      membership.role.scope,
-    );
 
     const refreshToken = await this.createRefreshSession(
       user.id,
@@ -413,6 +483,17 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
+    );
+
+    const accessToken = await this.createAccessToken(
+      user.id,
+      membership.tenantId,
+      membership.company.id,
+      branchId,
+      membership.id,
+      membership.roleId,
+      membership.role.scope,
+      refreshToken,
     );
 
     return {
@@ -469,7 +550,13 @@ export class AuthService {
       include: {
         tenant: true,
         company: true,
-        role: true,
+        role: {
+          include: {
+            rolePermissions: {
+              include: { permission: true },
+            },
+          },
+        },
         branchAccesses: {
           include: { branch: true },
           orderBy: { createdAt: 'asc' },
@@ -483,7 +570,7 @@ export class AuthService {
     }
 
     if (branchId === null) {
-      if (membership.role.scope === 'BRANCH') {
+      if (membership.role.scope !== 'CENTRAL') {
         throw new UnauthorizedException('A branch is required for this role');
       }
     } else {
@@ -513,7 +600,7 @@ export class AuthService {
 
     const companyId = membership.companyId ?? membership.company.id;
 
-    const accessToken = await this.createAccessToken(
+    const refreshToken = await this.createRefreshSession(
       membership.user.id,
       membership.tenantId,
       companyId,
@@ -523,7 +610,7 @@ export class AuthService {
       membership.role.scope,
     );
 
-    const refreshToken = await this.createRefreshSession(
+    const accessToken = await this.createAccessToken(
       membership.user.id,
       membership.tenantId,
       companyId,
@@ -531,6 +618,7 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
+      refreshToken,
     );
 
     return {
@@ -553,6 +641,10 @@ export class AuthService {
         role: membership.role.slug,
         roleScope: membership.role.scope,
         status: membership.status,
+        permissions: membership.role.rolePermissions.map(
+          (item) =>
+            `${item.permission.resource}.${item.permission.action}`,
+        ),
         branchIds: membership.branchAccesses.map((access) => access.branchId),
       },
     };
@@ -564,7 +656,7 @@ export class AuthService {
     }
 
     const key = `auth:refresh:${refreshToken}`;
-    const sessionData = await this.redis.get(key);
+    const sessionData = await this.redis.getAndDelete(key);
 
     if (!sessionData) {
       throw new UnauthorizedException('Invalid or expired refresh token');
@@ -629,20 +721,37 @@ export class AuthService {
       );
     }
 
-    const branchId =
-      membership.role.scope === 'BRANCH'
-        ? (
-            session.branchId &&
-            membership.branchAccesses.some(
-              (access) => access.branchId === session.branchId,
-            )
-              ? session.branchId
-              : membership.branchAccesses[0]?.branchId ?? null
-          )
-        : null;
+    let branchId = session.branchId ?? null;
+
+    if (branchId) {
+      const activeBranch = await this.prisma.branch.findFirst({
+        where: {
+          id: branchId,
+          companyId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+      const hasBranchAccess =
+        membership.role.scope === 'CENTRAL' ||
+        membership.branchAccesses.some(
+          (access) => access.branchId === branchId,
+        );
+
+      if (!activeBranch || !hasBranchAccess) {
+        branchId = null;
+      }
+    }
+
+    if (membership.role.scope !== 'CENTRAL' && !branchId) {
+      branchId =
+        membership.branchAccesses.find(
+          (access) => access.branch.status === 'ACTIVE',
+        )?.branchId ?? null;
+    }
 
     if (
-      membership.role.scope === 'BRANCH' &&
+      membership.role.scope !== 'CENTRAL' &&
       !branchId
     ) {
       await this.redis.delete(key);
@@ -650,16 +759,6 @@ export class AuthService {
         'No active branch access is assigned',
       );
     }
-
-    const newAccessToken = await this.createAccessToken(
-      membership.user.id,
-      membership.tenantId,
-      companyId,
-      branchId,
-      membership.id,
-      membership.roleId,
-      membership.role.scope,
-    );
 
     const newRefreshToken = await this.createRefreshSession(
       membership.user.id,
@@ -669,6 +768,17 @@ export class AuthService {
       membership.id,
       membership.roleId,
       membership.role.scope,
+    );
+
+    const newAccessToken = await this.createAccessToken(
+      membership.user.id,
+      membership.tenantId,
+      companyId,
+      branchId,
+      membership.id,
+      membership.roleId,
+      membership.role.scope,
+      newRefreshToken,
     );
 
     await this.redis.delete(key);
@@ -701,8 +811,13 @@ export class AuthService {
     membershipId: string,
     roleId: string,
     roleScope: 'CENTRAL' | 'COMPANY' | 'BRANCH',
+    refreshId: string,
   ): Promise<string> {
+    // Bind this short-lived JWT to the actual revocable server session.
+    // The fingerprint is public; never put the secret refresh UUID in a JWT.
+    const sessionId = createHash('sha256').update(refreshId).digest('hex');
     return this.jwtService.signAsync({
+      sessionId,
       sub: userId,
       tenantId,
       companyId,

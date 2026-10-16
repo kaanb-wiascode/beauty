@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -10,8 +12,13 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
-import { RequirePermission } from '../../common/auth/permissions.decorator';
+import {
+  RequirePermission,
+  RequirePermissions,
+} from '../../common/auth/permissions.decorator';
+import { BusinessPolicyService } from '../business-policies/business-policy.service';
 
 import { PaymentsService } from './payments.service';
 import { createPaymentSchema } from './dto/create-payment.dto';
@@ -21,10 +28,12 @@ import { refundPaymentSchema } from './dto/refund-payment.dto';
 import { paymentSummarySchema } from './dto/payment-summary.dto';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
+@RestrictTenantMutations()
 @Controller('payments')
 export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
+    private readonly businessPolicies: BusinessPolicyService,
   ) {}
 
   @UseGuards(PermissionsGuard)
@@ -46,7 +55,10 @@ export class PaymentsController {
   }
 
   @UseGuards(PermissionsGuard)
-  @RequirePermission('reports', 'read')
+  @RequirePermissions(
+    { resource: 'reports', action: 'read' },
+    { resource: 'payments', action: 'read' },
+  )
   @Get('dashboard-report')
   async dashboardReport(@Query() query: unknown) {
     const input = dashboardReportSchema.parse(query);
@@ -55,7 +67,10 @@ export class PaymentsController {
   }
 
   @UseGuards(PermissionsGuard)
-  @RequirePermission('reports', 'read')
+  @RequirePermissions(
+    { resource: 'reports', action: 'read' },
+    { resource: 'payments', action: 'read' },
+  )
   @Get('summary')
   async summary(@Query() query: unknown) {
     const input = paymentSummarySchema.parse(query);
@@ -67,10 +82,20 @@ export class PaymentsController {
   @RequirePermission('payments', 'refund')
   @Post(':id/refund')
   async refund(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
   ) {
     const input = refundPaymentSchema.parse(body);
+    const payment = await this.paymentsService.findOne(id);
+    const decision = await this.businessPolicies.evaluate({
+      policyKey: 'payments.refund',
+      facts: { amount: Number(payment.amount) },
+    });
+    if (!decision.allowed) {
+      throw new BadRequestException(
+        `Refund blocked by business policy: ${decision.reason}`,
+      );
+    }
 
     return this.paymentsService.refund(id, input);
   }
@@ -78,7 +103,9 @@ export class PaymentsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('payments', 'read')
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.paymentsService.findOne(id);
   }
 }

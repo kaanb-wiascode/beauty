@@ -1,0 +1,88 @@
+enum FinancialObligationStatus {
+  DRAFT
+  SCHEDULED
+  DUE
+  APPROVAL_PENDING
+  APPROVED
+  READY_FOR_PAYMENT
+  PARTIALLY_PAID
+  PAID
+  RECONCILED
+  POSTED
+  OVERDUE
+  REJECTED
+  CANCELLED
+}
+
+enum FinancialObligationPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum FinancialRecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model FinancialObligationRule {
+  id             String                      @id @default(uuid())
+  tenantId       String                      @map("tenant_id")
+  companyId      String                      @map("company_id")
+  branchId       String?                     @map("branch_id")
+  name           String
+  obligationType String                      @map("obligation_type")
+  counterparty   String?
+  amount         Decimal                     @db.Decimal(14, 2)
+  currency       String                      @default("TRY") @db.VarChar(3)
+  frequency      FinancialRecurrenceFrequency
+  intervalCount  Int                         @default(1) @map("interval_count")
+  dayOfMonth     Int?                        @map("day_of_month")
+  startDate      DateTime                    @db.Date @map("start_date")
+  endDate        DateTime?                   @db.Date @map("end_date")
+  priority       FinancialObligationPriority @default(NORMAL)
+  costCenterId   String?                     @map("cost_center_id")
+  categoryId     String?                     @map("category_id")
+  description    String?
+  isActive       Boolean                     @default(true) @map("is_active")
+  sourceType     String?                     @map("source_type")
+  sourceId       String?                     @map("source_id")
+  createdBy      String                      @map("created_by")
+  createdAt      DateTime                    @default(now()) @map("created_at")
+  updatedAt      DateTime                    @default(now()) @map("updated_at")
+
+  @@index([tenantId, companyId, branchId, isActive], map: "financial_obligation_rules_scope_idx")
+  @@map("financial_obligation_rules")
+}
+
+model FinancialObligation {
+  id             String                      @id @default(uuid())
+  tenantId       String                      @map("tenant_id")
+  companyId      String                      @map("company_id")
+  branchId       String?                     @map("branch_id")
+  ruleId         String?                     @map("rule_id")
+  periodKey      String?                     @map("period_key")
+  obligationType String                      @map("obligation_type")
+  title          String
+  counterparty   String?
+  amount         Decimal                     @db.Decimal(14, 2)
+  currency       String                      @default("TRY") @db.VarChar(3)
+  dueDate        DateTime                    @db.Date @map("due_date")
+  status         FinancialObligationStatus   @default(DRAFT)
+  priority       FinancialObligationPriority @default(NORMAL)
+  costCenterId   String?                     @map("cost_center_id")
+  categoryId     String?                     @map("category_id")
+  description    String?
+  sourceType     String?                     @map("source_type")
+  sourceId       String?                     @map("source_id")
+  createdBy      String                      @map("created_by")
+  createdAt      DateTime                    @default(now()) @map("created_at")
+  updatedAt      DateTime                    @default(now()) @map("updated_at")
+
+  @@index([tenantId, companyId, branchId, dueDate, status], map: "financial_obligations_scope_due_idx")
+  @@index([ruleId], map: "financial_obligations_rule_idx")
+  @@map("financial_obligations")
+}

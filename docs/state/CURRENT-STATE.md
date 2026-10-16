@@ -1,519 +1,476 @@
-# Beauty ERP — Current State
+# VALOO — Current State
 
-> Bu dosya projenin mevcut teknik ve ürün durumunun ana referansıdır.
-> Yeni bir çalışma oturumunda öncelikle bu dosya okunmalıdır.
+> Ana teknik/ürün durum referansı. Yeni geliştirme oturumunda önce bu dosya, ardından ilgili domain checkpoint/runbook belgeleri okunmalıdır.
 
----
+Last updated: 2026-09-14
 
-## 1. Project
+## 1. Project identity
 
-**Name:** Beauty ERP
+- **Product:** VALOO
+- **Repository:** `kaanb-wiascode/beauty`
+- **Active branch:** `feature/core-commerce-foundation`
+- **Default branch:** `main`
+- **Type:** Multi-tenant SaaS CRM + ERP
+- **Initial market:** Türkiye
 
-**Repository:** beauty-erp
+All active development remains on `feature/core-commerce-foundation`. `main` remains untouched until an explicit merge/release decision.
 
-**Initial Market:** Türkiye
+## 2. Current development state
 
-**Target:** Güzellik merkezleri, estetik merkezleri, medikal estetik merkezleri ve estetik klinikleri
+The principal backend foundations are mature. Current work should extend the governed APIs and existing operational UI rather than recreate parallel domain models.
 
-**Product Type:** SaaS CRM + ERP
+Current priorities:
 
-**Platforms:**
+1. Preserve tenant/company/branch isolation and authorization scope.
+2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
+3. Keep the complete fresh-database migration chain and monorepo quality pipeline green.
+4. Continue CRM operational maturity, provider integrations, governed communication automation and Customer 360.
+5. Continue frontend/operational UX across Finance, Procurement, Inventory, HR, Quality, Training and Reporting.
 
-- Responsive Web Application
-- iOS
-- Android
-
----
-
-# 2. Development Principle
-
-Ana geliştirme prensibi:
-
-> Önce sağlam çekirdek + gerçek müşterinin kullanabileceği MVP → sonra modüler büyüme.
-
-İlk hedef tüm ERP modüllerini aynı anda geliştirmek değildir.
-
-Öncelik:
-
-1. Sağlam teknik altyapı
-2. Güvenli multi-tenant mimari
-3. Identity & Authorization
-4. Organizasyon yapısı
-5. Gerçek CRM
-6. Randevu ve hizmet operasyonları
-7. Satış ve ödeme
-8. Temel stok
-9. Temel finans / muhasebe
-10. Müşteri portalı
-11. Gerçek müşterinin kullanabileceği MVP
-
----
-
-# 3. Current Phase
-
-**Phase:** Foundation
-
-**Current Milestone:** Foundation Infrastructure
-
-**Current Checkpoint:** CHECKPOINT-003
-
-**Checkpoint Name:** Redis Infrastructure
-
-**Status:** COMPLETED
-
----
-
-# 4. Completed Checkpoints
-
-## CHECKPOINT-001 — Monorepo & Infrastructure
-
-Status: COMPLETED
-
-Tamamlananlar:
-
-- Git repository
-- pnpm workspace
-- Monorepo structure
-- apps/api
-- apps/web
-- apps/mobile
-- packages/database
-- packages/types
-- packages/ui
-- packages/config
-- infrastructure
-- Docker infrastructure
-- PostgreSQL
-- Redis
-
-Git commit:
+## 3. Latest verified checkpoint
 
 ```text
-8a00d8a6 chore: bootstrap beauty erp monorepo
-CHECKPOINT-002 — API & Database Foundation
+cf6b5a5bd846b23339e71b35fc8f0e9a8e53550b
+feat(crm): export message provider registry
 
-Status: COMPLETED
+Monorepo quality #1644 — SUCCESS
+Run ID: 34842703393
+Job ID: 103971182957
+```
 
-Tamamlananlar:
+Verified pipeline:
 
-NestJS API
-API configuration
-Environment validation
-Zod configuration validation
-PostgreSQL connection
-Prisma
-Prisma Client
-Database workspace package
-PrismaService
-DatabaseModule
-Initial Tenant model
-Initial Tenant migration
-/health endpoint
-Database health check
-Redis health check
+- frozen workspace dependency installation
+- PostgreSQL 16 service health
+- Prisma schema validation
+- complete migration chain on a fresh database with `prisma migrate deploy`
+- Prisma client generation
+- database typecheck/build
+- shared contract typecheck/build
+- API typecheck
+- API unit tests
+- API E2E tests
+- API production build
+- web lint
+- web typecheck
+- web production build
 
-Git commit:
+## 4. Architecture invariants
 
-be428599 feat: establish api and database foundation
-CHECKPOINT-003 — Redis Infrastructure
+The following rules must not be weakened:
 
-Status: COMPLETED
+- Tenant is the primary isolation boundary.
+- Company/legal-entity and branch scope are mandatory where applicable.
+- HR Staff/Employee and authenticated User are separate concepts.
+- Authorization is permission/scope-aware; role name alone is insufficient.
+- Financial mutations are auditable and idempotent.
+- Historical transaction/tax/payroll snapshots remain authoritative.
+- Provider/live-bank balances never replace accounting-ledger truth.
+- Reconciliation remains explicit.
+- Secrets/API credentials are never returned after storage.
+- Internet-banking usernames/passwords are not collected.
+- External providers use integration adapters rather than being embedded into business-domain services.
+- Append-only audit/event records are not rewritten.
+- Scheduled workers require concurrency controls, distributed ownership where applicable and idempotent execution.
+- Provider callbacks require signature verification before domain mutation.
+- Raw provider payloads are not persisted unless a concrete audited requirement justifies the additional PII/secret exposure.
+- Signed object-storage URLs are temporary delivery artifacts, not persisted domain identity.
 
-Tamamlananlar:
+## 5. CRM operational state
 
-RedisService
-RedisModule
-Centralized Redis connection
-Redis lifecycle management
-HealthService Redis integration
-Redis health check
+The governed CRM chain is operational:
 
-Git commit:
-
-0ca9d430 feat: add redis infrastructure
-5. Verified Infrastructure
-PostgreSQL
-
-Status:
-
-UP
-
-Development environment:
-
-localhost:5432
-
-Database:
-
-beauty_erp
-Redis
-
-Status:
-
-UP
-
-Development environment:
-
-localhost:6379
-API
-
-Development server:
-
-localhost:3000
-
-Health endpoint:
-
-GET /health
-
-Last verified response:
-
-{
-  "status": "ok",
-  "services": {
-    "database": "up",
-    "redis": "up"
-  }
-}
-6. Current Repository State
-
-Last verified Git state:
-
-On branch main
-nothing to commit, working tree clean
-
-Current HEAD:
-
-0ca9d430 feat: add redis infrastructure
-
-Recent history:
-
-0ca9d430 feat: add redis infrastructure
-be428599 feat: establish api and database foundation
-8a00d8a6 chore: bootstrap beauty erp monorepo
-7. Current Architecture
-
-Current high-level backend structure:
-
-Beauty ERP API
-│
-├── ConfigModule
-│
-├── DatabaseModule
-│   └── PrismaService
-│       └── PostgreSQL
-│
-├── RedisModule
-│   └── RedisService
-│       └── Redis
-│
-└── HealthModule
-    └── HealthService
-
-Current dependency direction:
-
-API
- │
- ├── DatabaseModule
- │       ↓
- │   PrismaService
- │       ↓
- │   PostgreSQL
- │
- ├── RedisModule
- │       ↓
- │   RedisService
- │       ↓
- │   Redis
- │
- └── HealthModule
-8. Current Database State
-
-Current Prisma schema contains:
-
-Tenant
-
-Tenant currently contains:
-
-id
-name
-slug
-createdAt
-updatedAt
-
-Database migration has been created and applied successfully.
-
-The domain model is intentionally not yet complete.
-
-9. Next Foundation Tasks
-
-The next technical foundation tasks are:
-
-Structured application logging
-Request ID / Correlation ID
-Global exception handling
-Global validation pipeline
-Security baseline
-API documentation / OpenAPI
-Authentication foundation
-Authorization foundation
-
-These tasks should be completed before beginning the main business-domain implementation.
-
-10. Next Major Domain Phase
-
-After foundation:
-
-Identity & Authorization
-        ↓
-Tenant / Organization
-        ↓
-Legal Entity
-        ↓
-Region
-        ↓
-Branch
-        ↓
-Department
-        ↓
-Employee
-        ↓
-User
-        ↓
-Role
-        ↓
-Permission
-        ↓
-Scope / Assignment
-
-The exact domain model must be documented and reviewed before final Prisma models are implemented.
-
-11. Product Decisions Already Made
-
-The product must support:
-
-One tenant having multiple legal entities
-Entity-based organizational structure
-Region structure
-Branch structure
-Branch classification by size, revenue and location
-Region manager qualification / adequacy checks
-Central departments
-Branch-level operational units
-Employees working at multiple branches
-Daily and hourly assignments
-Primary branch
-Secondary branches
-Temporary assignments
-Delegation / proxy
-Management assignments
-Leave-related authorization changes
-Employee termination workflows
-Trial-period related authorization
-General Manager and HR controlled delegation / authorization
-Customer user accounts
-Customer self-service portal
-Online payments
-Payment links
-Virtual POS integration infrastructure
-Customer feedback collection
-Quality department feedback workflows
-Google review workflow
-Data migration from previous systems
-Multi-language support
-Multi-currency support
-Full accounting
-Real payroll
-Future integrations
-Responsive web
-iOS
-Android
-12. Customer Core Workflow
-
-Core operational scenario:
-
-Customer arrives at branch
-        ↓
-Service is performed
-        ↓
-Package session is deducted
-        ↓
-Payment is received
-        ↓
-Accounting record is created
-        ↓
-Inventory is reduced
-        ↓
-Customer notification is sent
-        ↓
-Customer feedback is requested
-        ↓
-Feedback is evaluated
-        ↓
-Quality workflow may be triggered
-        ↓
-Google review workflow may be triggered
-        ↓
-Reporting is updated
-
-This workflow is one of the core business flows of Beauty ERP.
-
-13. Data Migration Requirement
-
-Beauty ERP must support migration from existing CRM / ERP systems.
-
-Planned migration flow:
-
-Existing System
+```text
+Lead / Customer
       ↓
-Import
+Opportunity
       ↓
-Validation
+Commercial + Stage Management
       ↓
-Mapping
+Follow-up Lifecycle
       ↓
-Transformation
+Cockpit / Action Center / Reminders / Communications
       ↓
-Preview
+WON Opportunity
       ↓
-Approval
-      ↓
-Import
-      ↓
-Audit
+Sale Draft
+```
 
-Potential sources:
+Implemented CRM capabilities include:
 
-CSV
-Excel
-API
-Database
-Other CRM / ERP systems
-14. Customer Portal Requirement
+- branch-scoped Lead lifecycle and Lead detail/pool
+- standalone Customer -> Opportunity creation
+- Lead -> Opportunity qualification
+- governed Opportunity stages with optimistic version checks
+- Opportunity commercial editing without forcing a stage transition
+- Opportunity detail with Lead/Customer identity, commercial state, follow-ups and append-only timeline
+- Follow-up create/complete/reschedule/cancel lifecycle
+- CRM operations cockpit and exact scoped metrics
+- Action Center queues for overdue, today and stale work
+- owner-scoped work queues and inline lifecycle actions
+- Customer 360 CRM summary foundation
+- Customer 360 communication timeline
+- reminder feed / operational alert foundation
+- governed WON Opportunity -> Sale draft conversion
+- idempotent Opportunity/Sale linkage with commercial snapshot
+- server-side searchable customer picker for Opportunity creation
+- explicit `crm.read` / `crm.manage` permissions
 
-Customers should be able to access their own account after receiving a customer user account from the branch.
+CRM mutations and reads preserve tenant/company/branch boundaries; database triggers provide a second line of scope enforcement.
 
-Planned customer capabilities:
+## 6. CRM automation runtime
 
-Profile
-Service history
-Transaction history
-Payment history
-Service personnel history
-Packages
-Remaining sessions
-Remaining balance
-Campaigns
-Opportunities
-Appointments
-Appointment rescheduling
-Appointment advancement
-Online payments
-Payment links
+CRM automation is no longer a manual-only processor. It has a distributed background runtime.
 
-Additional customer capabilities may be added later.
+Runtime properties:
 
-15. Important Architecture Rules
+- automatic scheduler starts shortly after application bootstrap
+- approximately 5-minute processing cadence
+- database-backed distributed scheduler lease
+- lease heartbeat and owner-scoped release
+- explicit tenant/company/branch processing scope; no synthetic request context
+- PostgreSQL transaction advisory locks for source events and automation keys
+- database unique partial index for automation execution keys
+- append-only `AUTOMATION_EXECUTED` audit events
+- safe manual-trigger/runtime races without duplicate follow-ups
 
-The following rules are currently established:
+Current automation rules:
 
-Employee and User are separate concepts.
-A tenant may contain multiple legal entities.
-An employee may work at multiple branches.
-Primary and secondary branch relationships must be supported.
-Temporary assignments must be supported.
-Authorization must not depend only on role.
-Tenant isolation is mandatory.
-External integrations must use an integration architecture rather than being embedded directly into business logic.
-Financial operations must be auditable.
-Important architectural decisions must be recorded in docs/17-DECISIONS.md.
-Current project state must be maintained in this file.
-Important milestones must have Git checkpoints.
-Domain models must be designed before implementing their final database structures.
-16. Documentation Protocol
+1. **LEAD_FIRST_TOUCH** — new Lead -> first contact follow-up.
+2. **OPPORTUNITY_STAGE_FOLLOW_UP** — open Opportunity stage change -> owner follow-up.
+3. **STALE_OPPORTUNITY_FOLLOW_UP** — stale open Opportunity -> owner follow-up.
 
-The project memory is maintained through:
+## 7. Configurable CRM automation rules
 
-docs/
-├── 00-PROJECT-CONTEXT.md
-├── 02-SYSTEM-ARCHITECTURE.md
-├── 03-DOMAIN-MODEL.md
-├── 17-DECISIONS.md
-└── state/
-    └── CURRENT-STATE.md
+Branch-level automation rule configuration is implemented.
 
-Additional documentation will be added as the project expands.
+Database model:
 
-At every significant milestone:
+- `crm_automation_rules`
+- tenant/company/branch/rule uniqueness
+- enabled flag
+- JSON configuration
+- optimistic version
+- creator/updater audit users
+- organization scope trigger
 
-Verify implementation
-Run tests
-Create Git checkpoint
-Update CURRENT-STATE.md
-Update relevant architecture documentation
-Record important decisions
-17. New Session Protocol
+`crm_events` supports `automation_rule_id` as an audited subject. Rule-update events are linked by FK to the real rule record and checked against the same tenant/company/branch.
 
-When continuing the project in a new conversation:
+Rule defaults preserve pre-configuration behavior when no branch override exists:
 
-Read docs/state/CURRENT-STATE.md
-Read docs/17-DECISIONS.md
-Read the relevant architecture/domain documentation
-Confirm the current Git checkpoint
-Continue from the documented next step
-Do not repeat completed work unless explicitly requested
+- Lead first touch: 24 hours / CALL
+- Opportunity stage follow-up: 2 days, NEGOTIATION 1 day / CALL
+- Stale opportunity: 14 days inactivity, follow-up after 24 hours / CALL
 
-The project should always continue from the documented state rather than from assumptions.
+Supported configurable values:
 
-18. Current Next Action
+- rule enabled/disabled
+- first-contact delay
+- normal stage delay
+- negotiation stage delay
+- stale inactivity threshold
+- stale follow-up delay
+- follow-up channel: CALL, SMS, EMAIL, WHATSAPP, IN_PERSON, OTHER
 
-NEXT ACTION:
+The API validates bounds per rule. Disabled event-driven rules mark source events as processed without generating a follow-up, so historical events do not accumulate and unexpectedly execute after re-enabling.
 
-Complete the remaining backend foundation:
+Endpoints:
 
-Logger
-   ↓
-Request ID / Correlation ID
-   ↓
-Global Exception Handling
-   ↓
-Validation Pipeline
-   ↓
-Security Baseline
-   ↓
-OpenAPI
+- `GET /crm/automation-rules` — `crm.read`
+- `PATCH /crm/automation-rules/:ruleKey` — `crm.manage`
+- `POST /crm/operations/automations/process-events` — `crm.manage`
+- `POST /crm/operations/automations/stale-sweep` — `crm.manage`
 
-After foundation completion, begin Identity & Authorization design.
+The stale scheduler discovery query reads each branch's configured inactivity threshold rather than assuming 14 days.
 
-19. Current Status Summary
-Monorepo                  ✅
-Docker                    ✅
-PostgreSQL                ✅
-Redis                     ✅
-Prisma                    ✅
-Database Package          ✅
-DatabaseModule            ✅
-PrismaService             ✅
-RedisModule               ✅
-RedisService              ✅
-Environment Validation    ✅
-Health Endpoint           ✅
-Database Health           ✅
-Redis Health              ✅
+## 8. CRM Automation Center and execution observability
 
-Logger                    ⏳
-Request ID                ⏳
-Global Error Handling     ⏳
-Validation Pipeline       ⏳
-Security Baseline         ⏳
-OpenAPI                   ⏳
-Authentication            ⏳
-Authorization             ⏳
-Domain Model              ⏳
-CRM                       ⏳
-Operations                ⏳
-Finance                   ⏳
-HR / Payroll              ⏳
-Inventory                 ⏳
-Customer Portal           ⏳
-Payments                  ⏳
-Integrations              ⏳
-Reporting                 ⏳
+Route: `/crm/automations`
+
+The Automation Center provides a branch-scoped rule editor and runtime observability:
+
+- enable/disable each rule
+- edit delay/evaluation values
+- select follow-up channel
+- display system-default vs branch-override state
+- optimistic version-aware saves
+- manually process pending event automation
+- manually run stale-opportunity sweep using the configured threshold
+- last-7-day execution KPIs
+- latest manual/scheduler execution history
+- created/skipped/failure metrics
+- rule-level last activity
+- rule-change timeline
+
+Execution persistence uses `crm_automation_runs`, scoped by tenant/company/branch. Successful and failed manual/scheduler runs are retained with operation, origin, counts, metrics, timestamps and error details. Rule changes append `AUTOMATION_RULE_UPDATED`; domain executions continue to append `AUTOMATION_EXECUTED`.
+
+## 9. CRM communication layer
+
+A governed CRM communication foundation is implemented for **EMAIL, SMS and WHATSAPP**.
+
+Database model: `crm_messages`.
+
+Message properties include:
+
+- tenant/company/branch scope
+- Customer / Lead / Opportunity subject linkage
+- INBOUND / OUTBOUND direction
+- DRAFT / QUEUED / SENT / DELIVERED / FAILED / CANCELLED lifecycle
+- provider key and provider external message id
+- recipient, subject and body
+- optimistic version
+- optional idempotency key
+- sent/delivered timestamps and failure reason
+
+Important guarantees:
+
+- provider absence never produces a fake `SENT` state
+- provider send claims a versioned message before external delivery
+- failures are retained as `FAILED`
+- provider external IDs are organization-scoped and de-duplicated
+- communication-history FKs use restrictive deletion semantics where audit/history must be preserved
+- provider-origin inbound records do not invent a synthetic user actor
+
+Main authenticated endpoints:
+
+- `GET /crm/messages`
+- `GET /crm/messages/providers`
+- `GET /crm/messages/:id`
+- `POST /crm/messages/manual`
+- `POST /crm/messages/drafts`
+- `POST /crm/messages/:id/send`
+
+Manual communication logging supports real-world communication performed outside the connected provider. Direct provider delivery remains unavailable until a concrete configured provider adapter is registered.
+
+## 10. CRM provider webhook runtime
+
+The CRM message provider contract now supports outbound delivery plus signed inbound/delivery callbacks.
+
+Provider adapter contract can implement:
+
+- `send(...)`
+- `verifyWebhook(...)`
+- `parseWebhook(...)`
+
+Nest application bootstrap preserves raw request bytes for providers whose signature verification requires the exact request body.
+
+Public provider callback endpoint:
+
+- `POST /crm/messages/webhooks/:providerKey`
+
+This endpoint intentionally does not use JWT/Tenant guards because it is an external provider callback surface. Domain mutation is allowed only after the registered provider adapter verifies the webhook signature.
+
+Normalized webhook events support:
+
+- **DELIVERY** — SENT / DELIVERED / FAILED receipts
+- **INBOUND** — normalized inbound CRM messages
+
+Runtime guarantees:
+
+- invalid signatures are rejected before database mutation
+- external event idempotency is scoped by tenant/company/branch/provider/event id
+- external provider message IDs are also organization-scoped unique keys
+- repeated webhook event IDs are ignored idempotently
+- the same inbound provider message arriving under a different webhook event ID does not create a second CRM message
+- delivery state transitions are monotonic; terminal/delivered states do not regress
+- inbound messages are persisted only when the provider adapter supplies an explicit Customer, Lead or Opportunity mapping
+- the runtime does not guess a CRM subject from ambiguous phone/e-mail matches
+- raw provider payloads are not persisted in the callback audit table
+- `CrmMessageProviderRegistryService` is exported so concrete provider modules can register adapters without embedding provider-specific code into CRM services
+
+Webhook audit model: `crm_message_webhook_events`.
+
+Authenticated observability endpoint:
+
+- `GET /crm/message-webhook-events` — `crm.read`
+
+The callback history is tenant/company/active-branch scoped and shows provider, event type, processing outcome, linked CRM message, message status/channel and ignored/error reason.
+
+## 11. CRM communication UI
+
+Route: `/crm/communications`
+
+The Communication Center now provides:
+
+- unified inbound/outbound timeline
+- EMAIL / SMS / WHATSAPP filtering
+- provider error count
+- connected provider count
+- webhook-ready provider count
+- callback warning count
+- signed provider callback history
+- PROCESSED / IGNORED callback visibility
+- linked CRM message status/channel
+- Customer / Lead / Opportunity drill-down
+
+Customer detail also contains a Customer 360 communication timeline and manual communication logging flow.
+
+No real Meta/Twilio/SMTP provider credentials or live adapters are connected by this foundation alone; it is provider-ready infrastructure, not a claim of live external delivery.
+
+## 12. Core commerce / customer operations
+
+Implemented and substantially hardened:
+
+- Customers
+- Appointments
+- Services
+- Packages / Sessions
+- Sales
+- Payment v2
+- Installments
+- Customer Ledger
+- refunds and payment reversals
+- accounting links from operational source documents
+
+## 13. Accounting / Finance / Banking
+
+Implemented at advanced foundation level:
+
+- Chart of Accounts / Journal Entries
+- automatic Sale / Payment / Refund posting
+- Accounts Payable / Supplier Ledger / AP Aging
+- Procurement / PO approval / Goods Receipt / Returns / Supplier Credit Notes
+- VAT/KDV snapshots and reporting
+- Cost Centers
+- Profitability
+- Budgeting / Forecasting
+- cash-flow and treasury foundations
+- CFO cockpit / financial health / alerts
+- provider registry/adapters
+- encrypted credential vault + rotation
+- signed/idempotent webhook runtime and durable queue
+- POS settlement/accounting/reconciliation
+- Open Banking runtime and token lifecycle
+- provider resilience, health monitoring and distributed sync scheduler
+
+Provider balances remain integration data; accounting-ledger truth remains authoritative.
+
+## 14. Inventory / Warehouse
+
+Implemented at advanced foundation level:
+
+- stock movements and consumption accounting
+- procurement receipt/return integration
+- stock adjustments / damage / expiry
+- warehouse valuation/reconciliation
+- transfer lifecycle `PENDING → APPROVED → IN_TRANSIT → RECEIVED`
+- cycle-count lifecycle and accounting
+- in-transit valuation
+
+## 15. HR / Payroll
+
+Implemented at advanced foundation level:
+
+- HR operational records
+- attendance / leave inputs
+- payroll periods/items lifecycle
+- payroll accounting
+- salary/liability settlement and reversal
+- payroll cancellation/reversal
+- cost-center expense split
+- payroll reporting/dashboard
+- HR analytics
+- auditable work-input snapshots
+- configurable payroll policy engine
+
+Payroll preview remains decision support and never silently rewrites payroll truth.
+
+## 16. Quality / Training / Competency
+
+The cross-domain operational loop is implemented:
+
+```text
+Quality Signal / Finding
+        ↓
+Quality Case / CAPA
+        ↓
+Versioned Training Rule
+        ↓
+Training Assignment / Result
+        ↓
+Competency Evidence / Gap / Review
+        ↓
+Training Effectiveness
+        ↓
+Branch Quality Score
+```
+
+Foundations include:
+
+- Quality cases, inspections, findings, CAPA/rework and evidence
+- customer feedback and escalation
+- explainable policy-versioned branch Quality Score
+- scheduled score processing with concurrency controls
+- immutable/versioned Training content and question bank
+- exams, practical assessments and final result snapshots
+- certificate lifecycle
+- learning programs, sessions, enrollment and attendance
+- development plans and effectiveness follow-ups
+- competency definitions/profiles/assessments/gap calculation/reviews
+- Quality ↔ Training ↔ Competency automation with idempotency/audit metadata
+
+No disciplinary/legal HR action is automatically inferred from a single Quality or Training signal.
+
+## 17. Object storage / security
+
+Managed private storage is S3-compatible and controlled:
+
+- server-generated scoped object keys
+- short-lived signed PUT/GET URLs
+- actual MIME/size verification
+- tenant/company/course-version referential guards where applicable
+- dangerous browser-active/executable MIME types rejected
+- no credentials persisted in domain records
+
+## 18. Operational UI
+
+Important existing application surfaces include:
+
+- `/crm` — CRM cockpit
+- `/crm/actions` — CRM Action Center
+- `/crm/automations` — Automation Rules + execution history
+- `/crm/communications` — CRM Communication Center + provider callback observability
+- `/crm/leads` and `/crm/leads/[id]`
+- `/crm/pipeline`
+- `/crm/opportunities/new`
+- `/crm/opportunities/[id]`
+- `/crm/opportunities/[id]/edit`
+- `/crm/follow-ups`
+- `/crm/reminders`
+- `/customers/[id]` — Customer profile / CRM + communication handoff
+- `/training`
+- `/training/staff`
+- `/training/staff/[staffId]`
+- `/training/analytics`
+- `/training/question-bank`
+- `/quality/comparison`
+
+These should be extended incrementally; do not build parallel frontend systems or duplicate backend contracts.
+
+## 19. CI / repository hygiene
+
+Monorepo quality enforces dependency and migration reproducibility:
+
+```text
+pnpm install --frozen-lockfile
+PostgreSQL 16
+prisma migrate deploy
+```
+
+A fresh database must accept the complete migration chain before package/API/web checks continue.
+
+The dedicated commerce lint-debt step remains non-blocking historical debt reporting. A green run means the blocking migration/compile/test/build contract is satisfied; it does not claim historical commerce formatting debt is zero.
+
+## 20. Next CRM priorities
+
+Recommended continuation order:
+
+1. Implement concrete provider adapters (for example Meta WhatsApp, an SMS provider and e-mail transport) with secure credential storage/rotation and provider-specific signed webhook verification.
+2. Add delivery retry/dead-letter/provider-health controls without weakening message idempotency or monotonic delivery state.
+3. Extend automation rules with governed communication actions, including explicit consent/opt-in, quiet-hours, template/version and suppression rules before any automatic outbound message.
+4. Add expected-close, WON/LOST, follow-up-outcome and inactivity sequence triggers.
+5. Continue Pipeline saved views/sorting and governed drag/drop.
+6. Broaden Customer 360 across appointments, sales, packages/sessions, payments/receivables and communication history.
+7. Expand conversion/forecast/lost-reason/sales-cycle analytics and lead duplicate/merge/scoring/attribution maturity.
+
+Any new automation or provider integration must preserve explicit scope, idempotency, auditability, consent governance, signature verification and concurrency guarantees established by the current runtime.

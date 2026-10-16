@@ -3,10 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
+import { AuthSessionRegistryService } from '../../modules/auth/auth-session-registry.service';
+
 export type RoleScopeValue = 'CENTRAL' | 'COMPANY' | 'BRANCH';
 
 export interface JwtPayload {
   sub: string;
+  // Required for inbound JWTs by validate(); optional on legacy internal
+  // reporting contexts that are never accepted as HTTP bearer credentials.
+  sessionId?: string;
   tenantId: string;
   membershipId: string;
   roleId: string;
@@ -17,7 +22,10 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    private readonly sessionRegistry: AuthSessionRegistryService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -25,9 +33,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): JwtPayload {
+  async validate(payload: JwtPayload): Promise<JwtPayload> {
     if (
       !payload.sub ||
+      !payload.sessionId ||
       !payload.tenantId ||
       !payload.membershipId ||
       !payload.roleId ||
@@ -55,6 +64,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.roleScope === 'BRANCH' && !payload.branchId) {
       throw new UnauthorizedException('Branch context is required');
     }
+
+    await this.sessionRegistry.assertActiveAccessSession({
+      sessionId: payload.sessionId,
+      userId: payload.sub,
+      tenantId: payload.tenantId,
+      membershipId: payload.membershipId,
+      companyId: payload.companyId,
+      branchId: payload.branchId,
+      roleScope: payload.roleScope,
+    });
 
     return payload;
   }

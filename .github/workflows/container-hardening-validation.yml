@@ -1,0 +1,63 @@
+name: Container hardening validation
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+    paths:
+      - apps/api/Dockerfile
+      - apps/web/Dockerfile
+      - apps/web/next.config.ts
+      - .github/workflows/container-hardening-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-images:
+    name: Validate hardened production images
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: apps/api/Dockerfile
+            image: valoo-api-hardening
+            build_args: |
+              RELEASE_SHA=${{ github.sha }}
+          - name: web
+            dockerfile: apps/web/Dockerfile
+            image: valoo-web-hardening
+            build_args: |
+              API_URL=http://api:3000
+              RELEASE_SHA=${{ github.sha }}
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v6
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build hardened image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: true
+          tags: ${{ matrix.image }}:${{ github.sha }}
+          build-args: ${{ matrix.build_args }}
+
+      - name: Scan image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL

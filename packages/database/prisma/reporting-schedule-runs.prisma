@@ -1,0 +1,20 @@
+model ReportScheduleRun {
+  id          String    @id
+  scheduleId  String    @map("schedule_id")
+  tenantId    String    @map("tenant_id")
+  companyId   String    @map("company_id")
+  branchId    String?   @map("branch_id")
+  ownerId     String    @map("owner_id")
+  scheduledFor DateTime @map("scheduled_for")
+  status      String    @default("CLAIMED")
+  exportJobId String?   @map("export_job_id")
+  errorCode   String?   @map("error_code")
+  errorSummary String?  @map("error_summary")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+  updatedAt   DateTime  @default(now()) @map("updated_at")
+
+  @@unique([scheduleId, scheduledFor], map: "report_schedule_runs_schedule_window_key")
+  @@index([tenantId, companyId, ownerId, createdAt], map: "report_schedule_runs_owner_history_idx")
+  @@map("report_schedule_runs")
+}

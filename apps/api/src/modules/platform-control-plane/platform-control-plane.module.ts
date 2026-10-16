@@ -1,0 +1,108 @@
+import { Module } from '@nestjs/common';
+
+import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard';
+import { PlatformJwtStrategy } from '../../common/auth/platform-jwt.strategy';
+import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
+import { PlatformAuditModule } from '../platform-audit/platform-audit.module';
+import { PlatformAuditReadService } from './platform-audit-read.service';
+import { PlatformControlPlaneController } from './platform-control-plane.controller';
+import { PlatformCustomerContextController } from './platform-customer-context.controller';
+import { PlatformCustomerContextService } from './platform-customer-context.service';
+import { PlatformCustomerSuccessController } from './platform-customer-success.controller';
+import { PlatformCustomerSuccessService } from './platform-customer-success.service';
+import { PlatformEntitlementsController } from './platform-entitlements.controller';
+import { PlatformEntitlementsService } from './platform-entitlements.service';
+import { PlatformGoLiveService } from './platform-go-live.service';
+import { PlatformIamMutationService } from './platform-iam-mutation.service';
+import { PlatformIamReadService } from './platform-iam-read.service';
+import { PlatformOnboardingController } from './platform-onboarding.controller';
+import { PlatformOnboardingService } from './platform-onboarding.service';
+import { PlatformOwnerInvitationBatchService } from './platform-owner-invitation-batch.service';
+import { PlatformOwnerInvitationDispatcherService } from './platform-owner-invitation-dispatcher.service';
+import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
+import { PlatformOwnerInvitationWebhookProvider } from './platform-owner-invitation-webhook.provider';
+import { PlatformOwnerInvitationWorkerService } from './platform-owner-invitation-worker.service';
+import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
+import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
+import { PlatformProvisioningController } from './platform-provisioning.controller';
+import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
+import { PlatformProvisioningFailureService } from './platform-provisioning-failure.service';
+import { PlatformProvisioningOperationsService } from './platform-provisioning-operations.service';
+import { PlatformProvisioningService } from './platform-provisioning.service';
+import { PlatformReadModelService } from './platform-read-model.service';
+import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
+import { PlatformSubscriptionsService } from './platform-subscriptions.service';
+import { PlatformSupportController } from './platform-support.controller';
+import { PlatformSupportService } from './platform-support.service';
+import { PlatformSupportSessionController } from './platform-support-session.controller';
+import { PlatformSupportSessionService } from './platform-support-session.service';
+import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
+import { PlatformTenantConfigurationBootstrapService } from './platform-tenant-configuration-bootstrap.service';
+import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
+import { PlatformTenantHealthService } from './platform-tenant-health.service';
+
+@Module({
+  imports: [PlatformAuditModule],
+  controllers: [
+    PlatformControlPlaneController,
+    PlatformCustomerContextController,
+    PlatformCustomerSuccessController,
+    PlatformSupportController,
+    PlatformSupportSessionController,
+    PlatformSubscriptionsController,
+    PlatformEntitlementsController,
+    PlatformProvisioningController,
+    PlatformOnboardingController,
+  ],
+  providers: [
+    PlatformReadModelService,
+    PlatformTenantGovernanceReadService,
+    PlatformCustomerContextService,
+    PlatformCustomerSuccessService,
+    PlatformTenantHealthService,
+    PlatformSupportService,
+    PlatformSupportSessionService,
+    PlatformSubscriptionsService,
+    PlatformEntitlementsService,
+    PlatformProvisioningService,
+    PlatformProvisioningCoordinatorService,
+    PlatformProvisioningFailureService,
+    PlatformProvisioningOperationsService,
+    PlatformOwnerInvitationService,
+    PlatformOwnerInvitationWebhookProvider,
+    PlatformOwnerInvitationDispatcherService,
+    PlatformOwnerInvitationBatchService,
+    PlatformOwnerInvitationWorkerService,
+    PlatformTenantBootstrapService,
+    PlatformTenantConfigurationBootstrapService,
+    PlatformOnboardingService,
+    PlatformGoLiveService,
+    PlatformIamReadService,
+    PlatformIamMutationService,
+    PlatformAuditReadService,
+    PlatformPrivilegedOperationsService,
+    PlatformPrivilegedExecutionService,
+    PlatformJwtStrategy,
+    PlatformJwtAuthGuard,
+    PlatformPermissionsGuard,
+  ],
+  exports: [
+    PlatformReadModelService,
+    PlatformTenantGovernanceReadService,
+    PlatformCustomerContextService,
+    PlatformCustomerSuccessService,
+    PlatformTenantHealthService,
+    PlatformSupportService,
+    PlatformSupportSessionService,
+    PlatformSubscriptionsService,
+    PlatformEntitlementsService,
+    PlatformProvisioningService,
+    PlatformProvisioningCoordinatorService,
+    PlatformProvisioningOperationsService,
+    PlatformOwnerInvitationService,
+    PlatformOwnerInvitationDispatcherService,
+    PlatformOwnerInvitationBatchService,
+    PlatformOnboardingService,
+  ],
+})
+export class PlatformControlPlaneModule {}

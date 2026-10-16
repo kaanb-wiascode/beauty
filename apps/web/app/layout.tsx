@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import "./beauty-theme.css";
@@ -10,8 +10,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Beauty ERP",
-  description: "Beauty salon management system",
+  title: {
+    default: "VALOO",
+    template: "%s | VALOO",
+  },
+  description: "İşletmeler için operasyon, müşteri ilişkileri, finans, insan kaynakları ve yönetim platformu.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -20,8 +29,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr" className={inter.variable}>
-      <body className="ambient-root">{children}</body>
+    <html lang="tr" className={inter.variable} data-scroll-behavior="smooth">
+      <body className="ambient-root valoo-v2">{children}</body>
     </html>
   );
 }

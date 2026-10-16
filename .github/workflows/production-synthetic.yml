@@ -1,0 +1,54 @@
+name: Production synthetic monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-synthetic
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: Production health, latency and release identity
+    if: ${{ vars.PRODUCTION_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify public production
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          EXPECTED_RELEASE_SHA: ${{ vars.PRODUCTION_EXPECTED_RELEASE_SHA }}
+          PRODUCTION_MAX_LATENCY_SECONDS: ${{ vars.PRODUCTION_MAX_LATENCY_SECONDS || '3' }}
+        run: bash scripts/release/verify-public-production.sh
+
+      - name: Notify production monitor failure
+        if: failure()
+        env:
+          PRODUCTION_ALERT_WEBHOOK_URL: ${{ secrets.PRODUCTION_ALERT_WEBHOOK_URL }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        shell: bash
+        run: |
+          if [[ -z "${PRODUCTION_ALERT_WEBHOOK_URL:-}" ]]; then
+            echo "No production alert webhook configured; skipping notification."
+            exit 0
+          fi
+
+          payload="$(jq -nc \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg production "$PRODUCTION_URL" \
+            '{event:"production_synthetic_failed",repository:$repo,productionUrl:$production,runUrl:$run}')"
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --header 'content-type: application/json' \
+            --data "$payload" \
+            "$PRODUCTION_ALERT_WEBHOOK_URL"

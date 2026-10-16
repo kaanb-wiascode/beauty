@@ -38,6 +38,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     if (
       !jwtUser.tenantId ||
+      !jwtUser.membershipId ||
       !jwtUser.companyId ||
       !jwtUser.roleScope
     ) {
@@ -48,6 +49,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     this.tenantContext.setContext({
       tenantId: jwtUser.tenantId,
+      membershipId: jwtUser.membershipId,
       companyId: jwtUser.companyId,
       branchId: jwtUser.branchId ?? null,
       roleScope: jwtUser.roleScope,
