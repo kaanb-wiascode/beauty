@@ -217,7 +217,11 @@ export default function OperationsRebookingPage() {
   }
 
   async function createRebooking() {
-    if (!canCreate || !selected || !startAt) return;
+    if (!canCreate || !selected || !startAt || busy) return;
+    if (selected.rebooked) {
+      setError("Bu randevu daha önce yeniden planlandı. Mevcut randevuyu kontrol edin.");
+      return;
+    }
 
     const start = new Date(startAt);
     if (Number.isNaN(start.getTime()) || start <= new Date()) {
