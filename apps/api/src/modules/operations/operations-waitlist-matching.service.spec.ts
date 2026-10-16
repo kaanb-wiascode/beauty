@@ -104,6 +104,42 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(appointmentCreate).not.toHaveBeenCalled();
   });
 
+  it('rolls back a booking when the waitlist update links a different appointment', async () => {
+    const staffId = '00000000-0000-4000-8000-000000000010';
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...target, status: 'MATCH_FOUND', version: 1 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'waitlist-1',
+        status: 'BOOKED',
+        version: 2,
+        bookedAppointmentId: 'wrong-appointment',
+      }]);
+    staffFindFirst.mockResolvedValueOnce({ id: staffId });
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    appointmentCreate.mockResolvedValueOnce({
+      id: 'appointment-1',
+      startAt: new Date('2099-09-20T07:00:00.000Z'),
+      endAt: new Date('2099-09-20T08:00:00.000Z'),
+      status: 'SCHEDULED',
+    });
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+    await expect(
+      service.acceptMatch('waitlist-1', {
+        expectedVersion: 1,
+        staffId,
+        startAt: new Date('2099-09-20T07:00:00.000Z'),
+        endAt: new Date('2099-09-20T08:00:00.000Z'),
+        roomId: null,
+        assetId: null,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(appointmentCreate).toHaveBeenCalledTimes(1);
+    expect(executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it('rejects accepting a stale matched version before creating an appointment', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
