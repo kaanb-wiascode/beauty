@@ -326,6 +326,47 @@ describe('OperationsWaitlistMatchingService', () => {
     );
   });
 
+  it('excludes cancelled resource allocations when validating a selected asset', async () => {
+    const staffId = '00000000-0000-4000-8000-000000000010';
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...target, status: 'MATCH_FOUND', version: 1 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]) // asset advisory lock
+      .mockResolvedValueOnce([{ id: 'asset-1' }])
+      .mockResolvedValueOnce([{
+        id: 'waitlist-1',
+        status: 'BOOKED',
+        version: 2,
+        bookedAppointmentId: 'appointment-1',
+      }]);
+    staffFindFirst.mockResolvedValueOnce({ id: staffId });
+    appointmentFindFirst.mockResolvedValueOnce(null);
+    appointmentCreate.mockResolvedValueOnce({
+      id: 'appointment-1',
+      startAt: new Date('2099-09-20T07:00:00.000Z'),
+      endAt: new Date('2099-09-20T08:00:00.000Z'),
+      status: 'SCHEDULED',
+    });
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+    await service.acceptMatch('waitlist-1', {
+      expectedVersion: 1,
+      staffId,
+      startAt: new Date('2099-09-20T07:00:00.000Z'),
+      endAt: new Date('2099-09-20T08:00:00.000Z'),
+      roomId: null,
+      assetId: 'asset-1',
+    });
+    const assetCheck = queryRawUnsafe.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('SELECT a.id FROM inventory_assets a'),
+    );
+    expect(assetCheck).toBeDefined();
+    expect(assetCheck![0]).toContain(
+      "cancelled_ap.status::text IN ('CANCELLED', 'NO_SHOW')",
+    );
+  });
+
   it('rejects accepting a stale matched version before creating an appointment', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
