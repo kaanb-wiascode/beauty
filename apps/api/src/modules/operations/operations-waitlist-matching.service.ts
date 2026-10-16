@@ -226,9 +226,8 @@ export class OperationsWaitlistMatchingService {
           'Bekleme listesi kaydı eşleştirme sırasında değişti. Lütfen yeniden arayın.',
         );
       }
-      if (updated[0]) {
-        entryVersion = updated[0].version;
-        await this.prisma.$executeRawUnsafe(
+      entryVersion = updated[0].version;
+      await this.prisma.$executeRawUnsafe(
           `INSERT INTO operations_waitlist_events (
              waitlist_entry_id, tenant_id, branch_id, actor_membership_id,
              event_type, from_status, to_status, note
@@ -238,8 +237,7 @@ export class OperationsWaitlistMatchingService {
           branchId,
           membershipId,
           `First compatible slot: ${matches[0].startAt.toISOString()}`,
-        );
-      }
+      );
     }
 
     return { entryId, entryVersion, matches };
