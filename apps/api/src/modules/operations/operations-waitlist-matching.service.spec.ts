@@ -218,6 +218,31 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(executeRawUnsafe).not.toHaveBeenCalled();
   });
 
+  it('does not return match results when optimistic WAITING update loses a race', async () => {
+    const match = {
+      staffId: 'staff-1',
+      staffName: 'Elif Uzman',
+      startAt: new Date('2099-09-20T07:00:00.000Z'),
+      endAt: new Date('2099-09-20T08:00:00.000Z'),
+      blockedFrom: new Date('2099-09-20T07:00:00.000Z'),
+      blockedTo: new Date('2099-09-20T08:00:00.000Z'),
+      roomId: null,
+      roomName: null,
+      assetId: null,
+      assetName: null,
+    };
+    queryRawUnsafe
+      .mockResolvedValueOnce([target])
+      .mockResolvedValueOnce([match])
+      .mockResolvedValueOnce([]);
+
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+    await expect(
+      service.findMatches('waitlist-1', { limit: 10 }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it('rejects accepting a stale matched version before creating an appointment', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
