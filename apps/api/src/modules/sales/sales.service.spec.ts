@@ -167,6 +167,21 @@ describe('SalesService payment idempotency', () => {
     );
   });
 
+  it('rejects another charge when the locked sale is already fully paid', async () => {
+    const { service, tx } = await setup();
+    tx.salePayment.findFirst.mockResolvedValueOnce(null);
+    tx.$queryRawUnsafe
+      .mockResolvedValueOnce([
+        { id: 'sale-1', total: 100, status: 'CONFIRMED' },
+      ])
+      .mockResolvedValueOnce([{ paid: 100 }]);
+
+    await expect(service.addPayment('sale-1', request)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(tx.salePayment.create).not.toHaveBeenCalled();
+  });
+
   it('rejects payment on an unconfirmed sale before writing a payment', async () => {
     const { service, tx } = await setup();
     tx.salePayment.findFirst.mockResolvedValueOnce(null);
