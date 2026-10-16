@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -116,6 +116,26 @@ describe('SalesService payment idempotency', () => {
     const { service, tx } = await setup();
     await expect(
       service.addPayment('sale-1', { ...request, ...override }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.salePayment.create).not.toHaveBeenCalled();
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects an invalid payment amount (%s) before opening a transaction',
+    async (amount) => {
+      const { service, prisma, tx } = await setup();
+      await expect(
+        service.addPayment('sale-1', { ...request, amount }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(tx.salePayment.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects an idempotent retry that changes the original amount after rounding', async () => {
+    const { service, tx } = await setup();
+    await expect(
+      service.addPayment('sale-1', { ...request, amount: 25.02 }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.salePayment.create).not.toHaveBeenCalled();
   });
