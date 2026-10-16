@@ -182,6 +182,34 @@ describe('OperationsWaitlistMatchingService', () => {
     expect(executeRawUnsafe).toHaveBeenCalledTimes(1);
   });
 
+  it('fails the match transaction when audit event persistence fails', async () => {
+    const match = {
+      staffId: 'staff-1',
+      staffName: 'Elif Uzman',
+      startAt: new Date('2099-09-20T07:00:00.000Z'),
+      endAt: new Date('2099-09-20T08:00:00.000Z'),
+      blockedFrom: new Date('2099-09-20T07:00:00.000Z'),
+      blockedTo: new Date('2099-09-20T08:00:00.000Z'),
+      roomId: null,
+      roomName: null,
+      assetId: null,
+      assetName: null,
+    };
+    queryRawUnsafe
+      .mockResolvedValueOnce([target])
+      .mockResolvedValueOnce([match])
+      .mockResolvedValueOnce([{ version: 2 }]);
+    executeRawUnsafe.mockRejectedValueOnce(new Error('audit insert failed'));
+
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+    await expect(service.findMatches('waitlist-1', { limit: 10 }))
+      .rejects.toThrow('audit insert failed');
+
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(executeRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(queryRawUnsafe).toHaveBeenCalledTimes(3);
+  });
+
   it('rejects a matched slot already occupied by another appointment', async () => {
     const staffId = '00000000-0000-4000-8000-000000000010';
     queryRawUnsafe
