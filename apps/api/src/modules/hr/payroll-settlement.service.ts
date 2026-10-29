@@ -81,7 +81,7 @@ export class PayrollSettlementService {
     if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Maaş ödeme tutarı sıfırdan büyük olmalıdır.');
     return this.prisma.$transaction(async tx=>{
       const rows=await tx.$queryRawUnsafe<any[]>(
-        `SELECT pp.id,pp.status,pi.branch_id AS "branchId",pi.net_amount AS "netAmount"
+        `SELECT pp.id,pp.status,pp.approved_by_user_id AS "approvedByUserId",pi.branch_id AS "branchId",pi.net_amount AS "netAmount"
          FROM payroll_periods pp JOIN payroll_items pi ON pi.period_id=pp.id
          WHERE pp.id=$1::text AND pp.tenant_id=$2::text AND pp.company_id=$3::text
            AND pp.status='POSTED' AND pi.staff_id=$4::text
@@ -89,6 +89,7 @@ export class PayrollSettlementService {
          FOR UPDATE OF pp,pi`,periodId,tenantId,companyId,staffId,branchIds);
       if(!rows.length) throw new NotFoundException('Kesinleşmiş bordro kaydı bulunamadı.');
       const item=rows[0];
+      if(item.approvedByUserId && item.approvedByUserId===userId) throw new BadRequestException('Bordroyu onaylayan kişi aynı bordronun maaş ödemesini gerçekleştiremez.');
       const queueRows=await tx.$queryRawUnsafe<any[]>(
         `SELECT id,amount_due AS "amountDue",amount_paid AS "amountPaid",remaining_amount AS "remainingAmount",status
          FROM hr_payroll_payment_queue
