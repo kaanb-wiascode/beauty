@@ -110,8 +110,8 @@ export class PayrollSettlementService {
       const now=new Date(); const paymentId=randomUUID();
       const entry=await tx.journalEntry.create({data:{tenantId,companyId,branchId:item.branchId,number:this.journalNumber(now),status:'POSTED',entryDate:now,description:`Personel ücret ödemesi ${staffId}`,referenceType:'SALARY_PAYMENT',referenceId:paymentId,postedAt:now,lines:{create:[{accountId:personnel.id,debit:amount,credit:0,memo:'Net ücret borcu kapama'},{accountId:payment.id,debit:0,credit:amount,memo:method}]}}});
       await tx.$executeRawUnsafe(
-        `INSERT INTO salary_payments(id,tenant_id,company_id,branch_id,period_id,staff_id,amount,method,status,paid_at,note,journal_entry_id,payment_account_code)
-         VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,'PAID',NOW(),$9,$10::text,$11)`,paymentId,tenantId,companyId,item.branchId,periodId,staffId,amount,method,note??null,entry.id,paymentCode);
+        `INSERT INTO salary_payments(id,tenant_id,company_id,branch_id,period_id,staff_id,amount,method,status,paid_at,note,journal_entry_id,payment_account_code,created_by_user_id)
+         VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,'PAID',NOW(),$9,$10::text,$11,$12::text)`,paymentId,tenantId,companyId,item.branchId,periodId,staffId,amount,method,note??null,entry.id,paymentCode,userId);
 
       const remainingAfter=this.round(remaining-amount);
       const queueStatus=remainingAfter<=0.01?'PAID':'PARTIALLY_PAID';
