@@ -337,7 +337,8 @@ export class PayrollAccountingService {
         );
       }
 
-      const finalApproverUserId=String(approval.finalApproverUserId??userId);
+      if (!approval.finalApproverUserId) throw new BadRequestException('Bordro onay işleminin gerçek onaylayan kullanıcı kaydı bulunamadı.');
+      const finalApproverUserId=String(approval.finalApproverUserId);
       const updated=await tx.$executeRawUnsafe(
         `UPDATE payroll_periods
          SET status='APPROVED',approved_by_user_id=$2::text,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW()
