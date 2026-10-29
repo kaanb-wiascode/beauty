@@ -71,7 +71,8 @@ export class PayrollSettlementService {
     const queue=rows[0];
     if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
     const requested=Number(amountInput);
-    const amount=Number.isFinite(requested)&&requested>0?requested:Number(queue.remainingAmount);
+    if (!Number.isFinite(requested) || requested <= 0) throw new BadRequestException('Gecersiz odeme tutari.');
+    const amount=requested;
     return this.paySalary(queue.periodId,queue.staffId,amount,method,userId,note);
   }
 
