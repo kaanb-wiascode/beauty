@@ -795,16 +795,17 @@ export class HrService {
   }
 
   async updateLeave(id: string, body: any) {
+    if (body.status !== undefined || body.approvedBy !== undefined) {
+      throw new BadRequestException('İzin durumu ve onaylayan bilgisi yalnızca onay iş akışı üzerinden değiştirilebilir.');
+    }
     const scope = await this.scope();
     const result = await this.prisma.$executeRawUnsafe(
-      `UPDATE leave_requests SET leave_type=COALESCE($1,leave_type),start_date=COALESCE($2::date,start_date),end_date=COALESCE($3::date,end_date),days=COALESCE($4,days),status=COALESCE($5,status),reason=COALESCE($6,reason),approved_by=COALESCE($7,approved_by),updated_at=CURRENT_TIMESTAMP WHERE id=$8 AND tenant_id=$9 AND ($10::text[] IS NULL OR branch_id=ANY($10::text[]))`,
+      `UPDATE leave_requests SET leave_type=COALESCE($1,leave_type),start_date=COALESCE($2::date,start_date),end_date=COALESCE($3::date,end_date),days=COALESCE($4,days),reason=COALESCE($5,reason),updated_at=CURRENT_TIMESTAMP WHERE id=$6 AND tenant_id=$7 AND ($8::text[] IS NULL OR branch_id=ANY($8::text[]))`,
       body.leaveType ?? null,
       body.startDate ?? null,
       body.endDate ?? null,
       body.days == null ? null : Number(body.days),
-      body.status ?? null,
       body.reason ?? null,
-      body.approvedBy ?? null,
       id,
       scope.tenantId,
       scope.branchIds,
