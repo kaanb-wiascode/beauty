@@ -63,7 +63,6 @@ describe('InventoryTransferReceiptService', () => {
     );
     const sql = String(tx.$queryRawUnsafe.mock.calls[0][0]);
     expect(sql).not.toContain('sw.branch_id=ANY($4::text[])');
-    expect(tx.$executeRawUnsafe).toBeUndefined();
-
+    expect('$executeRawUnsafe' in tx).toBe(false);
   });
 });
