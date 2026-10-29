@@ -100,7 +100,7 @@ export class PayrollSettlementService {
       );
       if(!queueRows.length) throw new BadRequestException('Muhasebe ödeme kuyruğunda bu personel için açık bordro ödemesi bulunamadı.');
       const queue=queueRows[0];
-      if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
+      if(!['PENDING','PARTIALLY_PAID'].includes(queue.status)) throw new BadRequestException('Bordro ödeme kuyruğu işleme açık değil.');
       const remaining=this.round(Number(queue.remainingAmount));
       if(!Number.isFinite(remaining)||remaining<=0) throw new BadRequestException('Geçerli ödenebilir bakiye bulunamadı.');
       if(amount>remaining+0.01) throw new BadRequestException(`Maaş ödeme tutarı kalan ödenebilir tutarı aşıyor: ${remaining}.`);
