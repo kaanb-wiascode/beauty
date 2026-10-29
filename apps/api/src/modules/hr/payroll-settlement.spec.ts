@@ -42,7 +42,7 @@ describe('PayrollSettlementService',()=>{
     scope.getBranchScopedWhere.mockResolvedValue({ tenantId: 'tenant-1', branchId: { in: ['branch-1'] } });
     const tx: any = {
       $queryRawUnsafe: jest.fn()
-        .mockResolvedValueOnce([{ id: 'period-1', status: 'POSTED', branchId: 'branch-1' }])
+        .mockResolvedValueOnce([{ id: 'period-1', status: 'POSTED', branchId: 'branch-1', approvedByUserId: 'approver-2' }])
         .mockResolvedValueOnce([{ id: 'queue-1', status, remainingAmount: balance }]),
       journalEntry: { create: jest.fn() },
     };
