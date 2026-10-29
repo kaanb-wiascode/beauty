@@ -41,7 +41,15 @@ export class PermissionsGuard implements CanActivate {
       ...(requiredAll ?? []),
     ];
 
+    // HR and inventory are sensitive business surfaces. A guard added to a
+    // controller must never become a silent allow when permission metadata is
+    // accidentally removed or renamed during a refactor.
+    const controllerName = context.getClass()?.name;
+    const protectedControllers = new Set(['HrController', 'InventoryController']);
     if (requirements.length === 0) {
+      if (protectedControllers.has(controllerName)) {
+        throw new ForbiddenException('Permission policy is missing');
+      }
       return true;
     }
 

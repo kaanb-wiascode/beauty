@@ -36,6 +36,19 @@ describe('PayrollAccountingService', () => {
     expect((prisma as any).$transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects posting an approved period without a recorded approver', async () => {
+    const query = jest.fn().mockResolvedValueOnce([{
+      id: 'period-a', status: 'APPROVED', branchId: 'branch-a', approvedByUserId: null,
+    }]);
+    const tx = { $queryRawUnsafe: query, $executeRawUnsafe: jest.fn(), journalEntry: { create: jest.fn() } };
+    const prisma = { $transaction: jest.fn(async (fn: any) => fn(tx)) } as never;
+    const service = new PayrollAccountingService(prisma, tenant, scope, approvalRuntime);
+    await expect(service.post('period-a')).rejects.toBeInstanceOf(BadRequestException);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
+    expect(tx.journalEntry.create).not.toHaveBeenCalled();
+  });
+
   it('does not post branchless periods for restricted company scope', async () => {
     const query = jest.fn().mockResolvedValueOnce([]);
     const tx = { $queryRawUnsafe: query };

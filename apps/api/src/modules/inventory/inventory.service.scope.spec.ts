@@ -92,10 +92,12 @@ describe('InventoryService organization scope', () => {
     expect(String(tx.$queryRawUnsafe.mock.calls[1][0])).toContain(
       'branch_id=ANY($3::text[])',
     );
+    expect(String(tx.$queryRawUnsafe.mock.calls[1][0])).toContain('tenant_id=$4::text');
     expect(tx.$queryRawUnsafe.mock.calls[1].slice(1)).toEqual([
       'warehouse-outside',
       'company-a',
       ['branch-a', 'branch-b'],
+      'tenant-a',
     ]);
     expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
   });

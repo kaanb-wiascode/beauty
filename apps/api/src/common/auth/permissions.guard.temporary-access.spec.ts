@@ -79,4 +79,23 @@ describe('PermissionsGuard temporary access', () => {
       ForbiddenException,
     );
   });
+  it.each(['HrController', 'InventoryController'])(
+    'fails closed for %s when permission metadata is missing',
+    async (controllerName) => {
+      (reflector.getAllAndOverride as jest.Mock).mockReset().mockReturnValue(undefined);
+      const protectedContext = {
+        getHandler: context.getHandler.bind(context),
+        getClass: () => ({ name: controllerName }),
+        switchToHttp: context.switchToHttp.bind(context),
+      } as unknown as ExecutionContext;
+      const guard = new PermissionsGuard(reflector, prisma);
+
+      await expect(guard.canActivate(protectedContext)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(membershipFindFirst).not.toHaveBeenCalled();
+      expect(queryRaw).not.toHaveBeenCalled();
+    },
+  );
+
 });

@@ -26,9 +26,8 @@ export class InventoryTransferReceiptService {
                 dw.branch_id AS "destinationBranchId"
          FROM inventory_transfers t
          JOIN inventory_warehouses dw ON dw.id=t.destination_warehouse_id
-         JOIN inventory_warehouses sw ON sw.id=t.source_warehouse_id
          WHERE t.id=$1::text AND t.tenant_id=$2::text AND t.company_id=$3::text
-           AND ($4::text[] IS NULL OR sw.branch_id=ANY($4::text[]) OR dw.branch_id=ANY($4::text[]))
+           AND ($4::text[] IS NULL OR dw.branch_id=ANY($4::text[]))
          FOR UPDATE`,
         id,
         tenantId,

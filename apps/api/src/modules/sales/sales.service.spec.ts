@@ -89,24 +89,27 @@ describe('SalesService payment idempotency', () => {
     { paid: 30, balance: 70, status: 'PARTIALLY_PAID' },
     { paid: 100, balance: 0, status: 'PAID' },
     { paid: 120, balance: 0, status: 'PAID' },
-  ])('calculates a consistent payment summary for paid=$paid', async (scenario) => {
-    const { service, prisma } = await setup();
-    prisma.$queryRawUnsafe.mockResolvedValueOnce([{ paid: scenario.paid }]);
+  ])(
+    'calculates a consistent payment summary for paid=$paid',
+    async (scenario) => {
+      const { service, prisma } = await setup();
+      prisma.$queryRawUnsafe.mockResolvedValueOnce([{ paid: scenario.paid }]);
 
-    const summary = await service.getPaymentSummary('sale-1');
+      const summary = await service.getPaymentSummary('sale-1');
 
-    expect(summary).toMatchObject({
-      saleId: 'sale-1',
-      total: 100,
-      paid: scenario.paid,
-      balance: scenario.balance,
-      paymentStatus: scenario.status,
-    });
-    expect(prisma.sale.findFirst).toHaveBeenCalledWith({
-      where: { id: 'sale-1', tenantId: 'tenant-1', branchId: 'branch-1' },
-      select: { id: true, total: true, status: true },
-    });
-  });
+      expect(summary).toMatchObject({
+        saleId: 'sale-1',
+        total: 100,
+        paid: scenario.paid,
+        balance: scenario.balance,
+        paymentStatus: scenario.status,
+      });
+      expect(prisma.sale.findFirst).toHaveBeenCalledWith({
+        where: { id: 'sale-1', tenantId: 'tenant-1', branchId: 'branch-1' },
+        select: { id: true, total: true, status: true },
+      });
+    },
+  );
 
   it('returns the existing payment without a second insert for an identical retry', async () => {
     const { service, tx } = await setup();

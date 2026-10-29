@@ -105,6 +105,30 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       },
     });
 
+    // The salary payer must be a different authenticated user from the final approver.
+    const payerEmail = `release-payer-${suffix}@example.test`;
+    const payer = await request(app.getHttpServer())
+      .post('/auth/users')
+      .set('Authorization', authorization)
+      .send({
+        email: payerEmail,
+        password,
+        firstName: 'Release',
+        lastName: 'Payer',
+        roleId: ownerRole.id,
+      })
+      .expect(201);
+    const payerLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: payerEmail, password })
+      .expect(201);
+    const payerContext = await request(app.getHttpServer())
+      .post('/auth/context/switch')
+      .set('Authorization', `Bearer ${payerLogin.body.accessToken}`)
+      .send({ membershipId: payer.body.membership.id, branchId })
+      .expect(201);
+    const payerAuthorization = `Bearer ${payerContext.body.accessToken}`;
+
     const staff = await request(app.getHttpServer())
       .post('/staff')
       .set('Authorization', authorization)
@@ -286,9 +310,21 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       ),
     ).toBe(true);
 
-    const salaryPayment = await request(app.getHttpServer())
+    // The final approver must not settle the same payroll, even with payment permission.
+    await request(app.getHttpServer())
       .post(`/hr/payroll/periods/${period.body.id}/payments`)
       .set('Authorization', authorization)
+      .send({
+        staffId: staff.body.id,
+        amount: preparedNetAmount,
+        method: 'BANK',
+        note: 'Reject same-user payroll settlement',
+      })
+      .expect(400);
+
+    const salaryPayment = await request(app.getHttpServer())
+      .post(`/hr/payroll/periods/${period.body.id}/payments`)
+      .set('Authorization', payerAuthorization)
       .send({
         staffId: staff.body.id,
         amount: preparedNetAmount,

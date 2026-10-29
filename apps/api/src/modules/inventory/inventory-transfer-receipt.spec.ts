@@ -55,11 +55,14 @@ describe('InventoryTransferReceiptService', () => {
     );
 
     expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining('ANY($4::text[])'),
+      expect.stringContaining('dw.branch_id=ANY($4::text[])'),
       'foreign-transfer',
       'tenant-a',
       'company-a',
       ['branch-a', 'branch-b'],
     );
+    const sql = String(tx.$queryRawUnsafe.mock.calls[0][0]);
+    expect(sql).not.toContain('sw.branch_id=ANY($4::text[])');
+    expect('$executeRawUnsafe' in tx).toBe(false);
   });
 });

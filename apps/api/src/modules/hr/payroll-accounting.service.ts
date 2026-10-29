@@ -337,7 +337,8 @@ export class PayrollAccountingService {
         );
       }
 
-      const finalApproverUserId=String(approval.finalApproverUserId??userId);
+      if (!approval.finalApproverUserId) throw new BadRequestException('Bordro onay işleminin gerçek onaylayan kullanıcı kaydı bulunamadı.');
+      const finalApproverUserId=String(approval.finalApproverUserId);
       const updated=await tx.$executeRawUnsafe(
         `UPDATE payroll_periods
          SET status='APPROVED',approved_by_user_id=$2::text,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW()
@@ -384,7 +385,7 @@ export class PayrollAccountingService {
     return this.prisma.$transaction(
       async (tx) => {
         const periods = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id,year,month,status,branch_id AS "branchId",journal_entry_id AS "journalEntryId"
+          `SELECT id,year,month,status,approved_by_user_id AS "approvedByUserId",branch_id AS "branchId",journal_entry_id AS "journalEntryId"
            FROM payroll_periods
            WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
              AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
@@ -401,6 +402,9 @@ export class PayrollAccountingService {
         }
         if (period.status !== 'APPROVED') {
           throw new BadRequestException('Yalnız onaylanmış bordro muhasebeleştirilebilir.');
+        }
+        if (!period.approvedByUserId) {
+          throw new BadRequestException('Onaylayan bilgisi bulunmayan bordro muhasebeleştirilemez.');
         }
         const items = await tx.$queryRawUnsafe<any[]>(
           `SELECT * FROM payroll_items

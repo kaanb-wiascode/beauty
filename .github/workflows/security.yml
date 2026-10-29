@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+      - feature/core-commerce-foundation
   workflow_dispatch:
 
 permissions:

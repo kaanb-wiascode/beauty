@@ -11,7 +11,7 @@ describe('PayrollSettlementService',()=>{
     scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
     const tx:any={
       $queryRawUnsafe: jest.fn()
-        .mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1',netAmount:'1000'}])
+        .mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1',netAmount:'1000',approvedByUserId:'approver-2'}])
         .mockResolvedValueOnce([{id:'queue-1',amountDue:'1000',amountPaid:'800',remainingAmount:'200',status:'PARTIALLY_PAID'}]),
       chartOfAccount:{findFirst:jest.fn()},
       journalEntry:{create:jest.fn()},
@@ -24,11 +24,107 @@ describe('PayrollSettlementService',()=>{
     expect(tx.$queryRawUnsafe.mock.calls[0][5]).toEqual(['branch-1']);
   });
 
+  it('rejects zero queue payment amount without posting',async()=>{
+    scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
+    const query=jest.fn().mockResolvedValueOnce([{id:'queue-1',periodId:'period-1',staffId:'staff-1',remainingAmount:'1000',status:'PENDING'}]);
+    const prisma:any={$queryRawUnsafe:query,$transaction:jest.fn()};
+    const service=new PayrollSettlementService(prisma,tenant,scope);
+    await expect(service.payQueueItem('queue-1',0,'BANK','user-1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['CANCELLED', '100'],
+    ['PENDING', '0'],
+    ['PARTIALLY_PAID', '-10'],
+    ['PENDING', 'not-a-number'],
+  ])('rejects invalid payroll queue state or balance %s/%s', async (status, balance) => {
+    scope.getBranchScopedWhere.mockResolvedValue({ tenantId: 'tenant-1', branchId: { in: ['branch-1'] } });
+    const tx: any = {
+      $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([{ id: 'period-1', status: 'POSTED', branchId: 'branch-1', approvedByUserId: 'approver-2' }])
+        .mockResolvedValueOnce([{ id: 'queue-1', status, remainingAmount: balance }]),
+      journalEntry: { create: jest.fn() },
+    };
+    const prisma: any = { $transaction: (fn: any) => fn(tx) };
+    const service = new PayrollSettlementService(prisma, tenant, scope);
+    await expect(service.paySalary('period-1', 'staff-1', 10, 'BANK', 'user-1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.journalEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects cancelled queue items before salary posting', async () => {
+    scope.getBranchScopedWhere.mockResolvedValue({ tenantId: 'tenant-1', branchId: { in: ['branch-1'] } });
+    const prisma: any = {
+      $queryRawUnsafe: jest.fn().mockResolvedValueOnce([{
+        id: 'queue-1', periodId: 'period-1', staffId: 'staff-1',
+        remainingAmount: '500', status: 'CANCELLED',
+      }]),
+      $transaction: jest.fn(),
+    };
+    const service = new PayrollSettlementService(prisma, tenant, scope);
+    await expect(service.payQueueItem('queue-1', 100, 'BANK', 'user-1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('stores the authenticated payment actor on salary payments', async () => {
+    scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx: any = {
+      $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1',approvedByUserId:'approver-2'}])
+        .mockResolvedValueOnce([{id:'queue-1',status:'PENDING',remainingAmount:'100'}]),
+      $executeRawUnsafe: execute,
+      chartOfAccount: {findFirst: jest.fn().mockResolvedValue({id:'account-1',active:true})},
+      journalEntry: {create: jest.fn().mockResolvedValue({id:'journal-1'})},
+    };
+    const prisma: any = {$transaction:(fn:any)=>fn(tx)};
+    const service = new PayrollSettlementService(prisma,tenant,scope);
+    await service.paySalary('period-1','staff-1',40,'BANK','actor-1');
+    const call=execute.mock.calls.find((x:any[])=>String(x[0]).includes('INSERT INTO salary_payments'));
+    expect(call).toBeDefined();
+    expect(String(call[0])).toContain('created_by_user_id');
+    expect(call.at(-1)).toBe('actor-1');
+  });
+
+  it('rejects salary payments without a recorded payroll approver', async () => {
+    scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
+    const tx:any={
+      $queryRawUnsafe:jest.fn().mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1',approvedByUserId:null}]),
+      $executeRawUnsafe:jest.fn(),
+      journalEntry:{create:jest.fn()},
+    };
+    const service=new PayrollSettlementService({$transaction:(fn:any)=>fn(tx)} as any,tenant,scope);
+    await expect(service.paySalary('period-1','staff-1',50,'BANK','user-1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
+    expect(tx.journalEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('prevents a payroll approver from paying the same payroll', async () => {
+    scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
+    const tx:any={
+      $queryRawUnsafe:jest.fn().mockResolvedValueOnce([{
+        id:'period-1',status:'POSTED',branchId:'branch-1',approvedByUserId:'user-1',
+      }]),
+      journalEntry:{create:jest.fn()},
+      $executeRawUnsafe:jest.fn(),
+    };
+    const service=new PayrollSettlementService({$transaction:(fn:any)=>fn(tx)} as any,tenant,scope);
+    await expect(service.paySalary('period-1','staff-1',50,'BANK','user-1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(tx.journalEntry.create).not.toHaveBeenCalled();
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it('rejects liability payment above remaining tax payable',async()=>{
     scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
     const tx:any={
       $queryRawUnsafe: jest.fn()
-        .mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1'}])
+        .mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1',approvedByUserId:'approver-2'}])
         .mockResolvedValueOnce([{tax:'500',social:'1000',other:'0'}])
         .mockResolvedValueOnce([{paid:'450'}]),
       chartOfAccount:{findFirst:jest.fn()},

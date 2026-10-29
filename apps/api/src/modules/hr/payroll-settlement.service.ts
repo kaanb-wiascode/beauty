@@ -69,9 +69,10 @@ export class PayrollSettlementService {
     );
     if(!rows.length) throw new NotFoundException('Bordro ödeme kuyruğu kaydı bulunamadı.');
     const queue=rows[0];
-    if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
+    if(!['PENDING', 'PARTIALLY_PAID'].includes(queue.status)) throw new BadRequestException('Bordro ödeme kuyruğu işleme açık değil.');
     const requested=Number(amountInput);
-    const amount=Number.isFinite(requested)&&requested>0?requested:Number(queue.remainingAmount);
+    if (!Number.isFinite(requested) || requested <= 0) throw new BadRequestException('Gecersiz odeme tutari.');
+    const amount=requested;
     return this.paySalary(queue.periodId,queue.staffId,amount,method,userId,note);
   }
 
@@ -80,7 +81,7 @@ export class PayrollSettlementService {
     if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Maaş ödeme tutarı sıfırdan büyük olmalıdır.');
     return this.prisma.$transaction(async tx=>{
       const rows=await tx.$queryRawUnsafe<any[]>(
-        `SELECT pp.id,pp.status,pi.branch_id AS "branchId",pi.net_amount AS "netAmount"
+        `SELECT pp.id,pp.status,pp.approved_by_user_id AS "approvedByUserId",pi.branch_id AS "branchId",pi.net_amount AS "netAmount"
          FROM payroll_periods pp JOIN payroll_items pi ON pi.period_id=pp.id
          WHERE pp.id=$1::text AND pp.tenant_id=$2::text AND pp.company_id=$3::text
            AND pp.status='POSTED' AND pi.staff_id=$4::text
@@ -88,6 +89,8 @@ export class PayrollSettlementService {
          FOR UPDATE OF pp,pi`,periodId,tenantId,companyId,staffId,branchIds);
       if(!rows.length) throw new NotFoundException('Kesinleşmiş bordro kaydı bulunamadı.');
       const item=rows[0];
+      if(!item.approvedByUserId) throw new BadRequestException('Bordro onaylayan kullanıcı kaydı bulunamadı; ödeme güvenlik nedeniyle durduruldu.');
+      if(item.approvedByUserId===userId) throw new BadRequestException('Bordroyu onaylayan kişi aynı bordronun maaş ödemesini gerçekleştiremez.');
       const queueRows=await tx.$queryRawUnsafe<any[]>(
         `SELECT id,amount_due AS "amountDue",amount_paid AS "amountPaid",remaining_amount AS "remainingAmount",status
          FROM hr_payroll_payment_queue
@@ -99,8 +102,9 @@ export class PayrollSettlementService {
       );
       if(!queueRows.length) throw new BadRequestException('Muhasebe ödeme kuyruğunda bu personel için açık bordro ödemesi bulunamadı.');
       const queue=queueRows[0];
-      if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
+      if(!['PENDING','PARTIALLY_PAID'].includes(queue.status)) throw new BadRequestException('Bordro ödeme kuyruğu işleme açık değil.');
       const remaining=this.round(Number(queue.remainingAmount));
+      if(!Number.isFinite(remaining)||remaining<=0) throw new BadRequestException('Geçerli ödenebilir bakiye bulunamadı.');
       if(amount>remaining+0.01) throw new BadRequestException(`Maaş ödeme tutarı kalan ödenebilir tutarı aşıyor: ${remaining}.`);
 
       const personnel=await this.ensureAccount(tx,tenantId,companyId,'335','Personele Borçlar','LIABILITY');
@@ -108,8 +112,8 @@ export class PayrollSettlementService {
       const now=new Date(); const paymentId=randomUUID();
       const entry=await tx.journalEntry.create({data:{tenantId,companyId,branchId:item.branchId,number:this.journalNumber(now),status:'POSTED',entryDate:now,description:`Personel ücret ödemesi ${staffId}`,referenceType:'SALARY_PAYMENT',referenceId:paymentId,postedAt:now,lines:{create:[{accountId:personnel.id,debit:amount,credit:0,memo:'Net ücret borcu kapama'},{accountId:payment.id,debit:0,credit:amount,memo:method}]}}});
       await tx.$executeRawUnsafe(
-        `INSERT INTO salary_payments(id,tenant_id,company_id,branch_id,period_id,staff_id,amount,method,status,paid_at,note,journal_entry_id,payment_account_code)
-         VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,'PAID',NOW(),$9,$10::text,$11)`,paymentId,tenantId,companyId,item.branchId,periodId,staffId,amount,method,note??null,entry.id,paymentCode);
+        `INSERT INTO salary_payments(id,tenant_id,company_id,branch_id,period_id,staff_id,amount,method,status,paid_at,note,journal_entry_id,payment_account_code,created_by_user_id)
+         VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,'PAID',NOW(),$9,$10::text,$11,$12::text)`,paymentId,tenantId,companyId,item.branchId,periodId,staffId,amount,method,note??null,entry.id,paymentCode,userId);
 
       const remainingAfter=this.round(remaining-amount);
       const queueStatus=remainingAfter<=0.01?'PAID':'PARTIALLY_PAID';

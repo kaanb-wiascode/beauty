@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { HrService } from './hr.service';
 
 describe('HrService organization scope', () => {
@@ -90,12 +90,47 @@ describe('HrService organization scope', () => {
       roleTemplateService,
     );
 
-    await service.updateLeave('leave-a', { status: 'APPROVED' });
+    await service.updateLeave('leave-a', { reason: 'Correction' });
 
     expect(String(execute.mock.calls[0][0])).toContain(
-      'branch_id=ANY($10::text[])',
+      'branch_id=ANY($8::text[])',
     );
     expect(execute.mock.calls[0].at(-1)).toEqual(['branch-a', 'branch-b']);
+  });
+
+  it('rejects direct leave approval and never writes to the database', async () => {
+    const execute = jest.fn();
+    const service = new HrService(
+      { $executeRawUnsafe: execute } as any,
+      tenantContext,
+      organizationScope,
+      roleTemplateService,
+    );
+
+    await expect(
+      service.updateLeave('leave-a', { status: 'APPROVED' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.updateLeave('leave-a', { approvedBy: 'user-a' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('excludes bank, identity and salary columns from ordinary employee list queries', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const query = jest.fn().mockResolvedValue([]);
+    const service = new HrService(
+      { staff: { findMany }, $queryRawUnsafe: query } as any,
+      tenantContext,
+      organizationScope,
+      roleTemplateService,
+    );
+
+    await service.employees();
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).not.toContain('emr.iban');
+    expect(sql).not.toContain('emr.national_identity_number');
+    expect(sql).not.toContain('emr.gross_salary');
   });
 
   it('rejects SGK writes when the staff member is not in the writable branch', async () => {

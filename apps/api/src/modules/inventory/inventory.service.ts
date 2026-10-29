@@ -56,12 +56,13 @@ export class InventoryService {
     const { branchIds } = await this.inventoryScope.getWarehouseScope();
     const rows = await db.$queryRawUnsafe<any[]>(
       `SELECT id,branch_id AS "branchId" FROM inventory_warehouses
-       WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE'
+       WHERE id=$1::text AND company_id=$2::text AND tenant_id=$4::text AND status='ACTIVE'
          AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]))
        LIMIT 1`,
       warehouseId,
       companyId,
       branchIds,
+      this.tenantId(),
     );
     if (!rows.length) {
       throw new BadRequestException(
