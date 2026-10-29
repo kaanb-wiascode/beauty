@@ -24,6 +24,15 @@ describe('PayrollSettlementService',()=>{
     expect(tx.$queryRawUnsafe.mock.calls[0][5]).toEqual(['branch-1']);
   });
 
+  it('rejects zero queue payment amount without posting',async()=>{
+    scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
+    const query=jest.fn().mockResolvedValueOnce([{id:'queue-1',periodId:'period-1',staffId:'staff-1',remainingAmount:'1000',status:'PENDING'}]);
+    const prisma:any={$queryRawUnsafe:query,$transaction:jest.fn()};
+    const service=new PayrollSettlementService(prisma,tenant,scope);
+    await expect(service.payQueueItem('queue-1',0,'BANK','user-1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('rejects liability payment above remaining tax payable',async()=>{
     scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
     const tx:any={
