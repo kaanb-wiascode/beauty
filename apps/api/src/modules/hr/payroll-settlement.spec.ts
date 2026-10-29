@@ -88,6 +88,23 @@ describe('PayrollSettlementService',()=>{
     expect(call.at(-1)).toBe('actor-1');
   });
 
+  it('prevents a payroll approver from paying the same payroll', async () => {
+    scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
+    const tx:any={
+      $queryRawUnsafe:jest.fn().mockResolvedValueOnce([{
+        id:'period-1',status:'POSTED',branchId:'branch-1',approvedByUserId:'user-1',
+      }]),
+      journalEntry:{create:jest.fn()},
+      $executeRawUnsafe:jest.fn(),
+    };
+    const service=new PayrollSettlementService({$transaction:(fn:any)=>fn(tx)} as any,tenant,scope);
+    await expect(service.paySalary('period-1','staff-1',50,'BANK','user-1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(tx.journalEntry.create).not.toHaveBeenCalled();
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it('rejects liability payment above remaining tax payable',async()=>{
     scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
     const tx:any={
