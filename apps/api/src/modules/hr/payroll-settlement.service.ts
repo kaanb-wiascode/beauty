@@ -69,7 +69,7 @@ export class PayrollSettlementService {
     );
     if(!rows.length) throw new NotFoundException('Bordro ödeme kuyruğu kaydı bulunamadı.');
     const queue=rows[0];
-    if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
+    if(!['PENDING', 'PARTIALLY_PAID'].includes(queue.status)) throw new BadRequestException('Bordro ödeme kuyruğu işleme açık değil.');
     const requested=Number(amountInput);
     if (!Number.isFinite(requested) || requested <= 0) throw new BadRequestException('Gecersiz odeme tutari.');
     const amount=requested;
@@ -102,6 +102,7 @@ export class PayrollSettlementService {
       const queue=queueRows[0];
       if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
       const remaining=this.round(Number(queue.remainingAmount));
+      if(!Number.isFinite(remaining)||remaining<=0) throw new BadRequestException('Geçerli ödenebilir bakiye bulunamadı.');
       if(amount>remaining+0.01) throw new BadRequestException(`Maaş ödeme tutarı kalan ödenebilir tutarı aşıyor: ${remaining}.`);
 
       const personnel=await this.ensureAccount(tx,tenantId,companyId,'335','Personele Borçlar','LIABILITY');
