@@ -23,6 +23,41 @@ describe('InventoryGovernanceService', () => {
     expect(tx.$queryRawUnsafe).toHaveBeenCalledTimes(1);
   });
 
+  it('limits approval lookups to the source branch, never the destination', async () => {
+    const query = jest.fn().mockResolvedValue([]);
+    const execute = jest.fn();
+    const scopedTenant = tenant() as any;
+    scopedTenant.getBranchId.mockReturnValue('branch-a');
+    const service = new InventoryGovernanceService(
+      { $queryRawUnsafe: query, $executeRawUnsafe: execute } as any,
+      scopedTenant,
+    );
+
+    await expect(service.approveTransfer('transfer-a', 'user-a')).rejects.toThrow('Transfer kaydı bulunamadı.');
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('sw.branch_id=$4::text');
+    expect(sql).not.toContain('dw.branch_id=$4::text');
+    expect(query.mock.calls[0].slice(1)).toEqual(['transfer-a', 'tenant-a', 'company-a', 'branch-a']);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('limits dispatch lookups to source branch before any stock mutation', async () => {
+    const query = jest.fn().mockResolvedValue([]);
+    const execute = jest.fn();
+    const scopedTenant = tenant() as any;
+    scopedTenant.getBranchId.mockReturnValue('branch-a');
+    const tx = { $queryRawUnsafe: query, $executeRawUnsafe: execute };
+    const service = new InventoryGovernanceService(
+      { $transaction: jest.fn((fn: any) => fn(tx)) } as any,
+      scopedTenant,
+    );
+    await expect(service.dispatchTransfer('transfer-a', 'user-a')).rejects.toThrow('Transfer kaydı bulunamadı.');
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('sw.branch_id=$4::text');
+    expect(sql).not.toContain('dw.branch_id=$4::text');
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('rejects cycle count posting when stock changed after snapshot', async () => {
     const tx = {
       $queryRawUnsafe: jest.fn()
