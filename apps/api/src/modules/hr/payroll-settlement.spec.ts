@@ -33,6 +33,26 @@ describe('PayrollSettlementService',()=>{
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['CANCELLED', '100'],
+    ['PENDING', '0'],
+    ['PARTIALLY_PAID', '-10'],
+    ['PENDING', 'not-a-number'],
+  ])('rejects invalid payroll queue state or balance %s/%s', async (status, balance) => {
+    scope.getBranchScopedWhere.mockResolvedValue({ tenantId: 'tenant-1', branchId: { in: ['branch-1'] } });
+    const tx: any = {
+      $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([{ id: 'period-1', status: 'POSTED', branchId: 'branch-1' }])
+        .mockResolvedValueOnce([{ id: 'queue-1', status, remainingAmount: balance }]),
+      journalEntry: { create: jest.fn() },
+    };
+    const prisma: any = { $transaction: (fn: any) => fn(tx) };
+    const service = new PayrollSettlementService(prisma, tenant, scope);
+    await expect(service.paySalary('period-1', 'staff-1', 10, 'BANK', 'user-1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.journalEntry.create).not.toHaveBeenCalled();
+  });
+
   it('rejects liability payment above remaining tax payable',async()=>{
     scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
     const tx:any={
