@@ -310,6 +310,18 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       ),
     ).toBe(true);
 
+    // The final approver must not settle the same payroll, even with payment permission.
+    await request(app.getHttpServer())
+      .post(`/hr/payroll/periods/${period.body.id}/payments`)
+      .set('Authorization', authorization)
+      .send({
+        staffId: staff.body.id,
+        amount: preparedNetAmount,
+        method: 'BANK',
+        note: 'Reject same-user payroll settlement',
+      })
+      .expect(400);
+
     const salaryPayment = await request(app.getHttpServer())
       .post(`/hr/payroll/periods/${period.body.id}/payments`)
       .set('Authorization', payerAuthorization)
