@@ -68,6 +68,26 @@ describe('PayrollSettlementService',()=>{
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it('stores the authenticated payment actor on salary payments', async () => {
+    scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx: any = {
+      $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1'}])
+        .mockResolvedValueOnce([{id:'queue-1',status:'PENDING',remainingAmount:'100'}]),
+      $executeRawUnsafe: execute,
+      chartOfAccount: {findFirst: jest.fn().mockResolvedValue({id:'account-1',active:true})},
+      journalEntry: {create: jest.fn().mockResolvedValue({id:'journal-1'})},
+    };
+    const prisma: any = {$transaction:(fn:any)=>fn(tx)};
+    const service = new PayrollSettlementService(prisma,tenant,scope);
+    await service.paySalary('period-1','staff-1',40,'BANK','actor-1');
+    const call=execute.mock.calls.find((x:any[])=>String(x[0]).includes('INSERT INTO salary_payments'));
+    expect(call).toBeDefined();
+    expect(String(call[0])).toContain('created_by_user_id');
+    expect(call.at(-1)).toBe('actor-1');
+  });
+
   it('rejects liability payment above remaining tax payable',async()=>{
     scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
     const tx:any={
