@@ -53,6 +53,21 @@ describe('PayrollSettlementService',()=>{
     expect(tx.journalEntry.create).not.toHaveBeenCalled();
   });
 
+  it('rejects cancelled queue items before salary posting', async () => {
+    scope.getBranchScopedWhere.mockResolvedValue({ tenantId: 'tenant-1', branchId: { in: ['branch-1'] } });
+    const prisma: any = {
+      $queryRawUnsafe: jest.fn().mockResolvedValueOnce([{
+        id: 'queue-1', periodId: 'period-1', staffId: 'staff-1',
+        remainingAmount: '500', status: 'CANCELLED',
+      }]),
+      $transaction: jest.fn(),
+    };
+    const service = new PayrollSettlementService(prisma, tenant, scope);
+    await expect(service.payQueueItem('queue-1', 100, 'BANK', 'user-1'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('rejects liability payment above remaining tax payable',async()=>{
     scope.getBranchScopedWhere.mockResolvedValue({tenantId:'tenant-1',branchId:{in:['branch-1']}});
     const tx:any={
