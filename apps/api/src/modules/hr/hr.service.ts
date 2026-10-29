@@ -142,9 +142,11 @@ export class HrService {
     return amount;
   }
 
-  private async employeeMasterRows(tenantId: string, branchIds: string[] | null) {
+  private async employeeMasterRows(tenantId: string, branchIds: string[] | null, includeSensitive = false) {
     return this.prisma.$queryRawUnsafe<EmployeeMasterRecord[]>(
-      `SELECT emr.staff_id AS "staffId",emr.employee_number AS "employeeNumber",emr.national_identity_number AS "identityNumber",emr.date_of_birth::text AS "dateOfBirth",emr.personal_email AS "personalEmail",emr.address,emr.employment_type AS "employmentType",emr.hire_date::text AS "hireDate",emr.termination_date::text AS "terminationDate",emr.bank_name AS "bankName",emr.iban,emr.gross_salary AS "grossSalary",emr.salary_type AS "salaryType" FROM employee_master_records emr WHERE emr.tenant_id=$1 AND ($2::text[] IS NULL OR emr.branch_id=ANY($2::text[]))`,
+      includeSensitive
+        ? `SELECT emr.staff_id AS "staffId",emr.employee_number AS "employeeNumber",emr.national_identity_number AS "identityNumber",emr.date_of_birth::text AS "dateOfBirth",emr.personal_email AS "personalEmail",emr.address,emr.employment_type AS "employmentType",emr.hire_date::text AS "hireDate",emr.termination_date::text AS "terminationDate",emr.bank_name AS "bankName",emr.iban,emr.gross_salary AS "grossSalary",emr.salary_type AS "salaryType" FROM employee_master_records emr WHERE emr.tenant_id=$1 AND ($2::text[] IS NULL OR emr.branch_id=ANY($2::text[]))`
+        : `SELECT emr.staff_id AS "staffId",emr.employee_number AS "employeeNumber",emr.employment_type AS "employmentType",emr.hire_date::text AS "hireDate",emr.termination_date::text AS "terminationDate" FROM employee_master_records emr WHERE emr.tenant_id=$1 AND ($2::text[] IS NULL OR emr.branch_id=ANY($2::text[]))`,
       tenantId,
       branchIds,
     );
@@ -306,7 +308,7 @@ export class HrService {
       },
     });
     const [masters, assignments] = await Promise.all([
-      this.employeeMasterRows(scope.tenantId, scope.branchIds),
+      this.employeeMasterRows(scope.tenantId, scope.branchIds, includeSensitive),
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT DISTINCT ON (a.staff_id) a.staff_id AS "staffId",a.department_id AS "departmentId",d.name AS department,a.team_id AS "teamId",t.name AS team,a.position_id AS "positionId",p.name AS position,a.manager_staff_id AS "managerStaffId"
          FROM hr_employee_assignments a
@@ -786,7 +788,7 @@ export class HrService {
       body.startDate,
       body.endDate,
       Number(body.days ?? 1),
-      body.status ?? 'PENDING',
+      'PENDING',
       body.reason ?? null,
     );
     return { success: true };
