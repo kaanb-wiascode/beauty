@@ -89,7 +89,8 @@ export class PayrollSettlementService {
          FOR UPDATE OF pp,pi`,periodId,tenantId,companyId,staffId,branchIds);
       if(!rows.length) throw new NotFoundException('Kesinleşmiş bordro kaydı bulunamadı.');
       const item=rows[0];
-      if(item.approvedByUserId && item.approvedByUserId===userId) throw new BadRequestException('Bordroyu onaylayan kişi aynı bordronun maaş ödemesini gerçekleştiremez.');
+      if(!item.approvedByUserId) throw new BadRequestException('Bordro onaylayan kullanıcı kaydı bulunamadı; ödeme güvenlik nedeniyle durduruldu.');
+      if(item.approvedByUserId===userId) throw new BadRequestException('Bordroyu onaylayan kişi aynı bordronun maaş ödemesini gerçekleştiremez.');
       const queueRows=await tx.$queryRawUnsafe<any[]>(
         `SELECT id,amount_due AS "amountDue",amount_paid AS "amountPaid",remaining_amount AS "remainingAmount",status
          FROM hr_payroll_payment_queue
