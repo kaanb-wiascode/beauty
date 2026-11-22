@@ -39,6 +39,14 @@ model Tenant {
   customerCareEvents     CustomerCareEvent[]
   companies              Company[]
 
+  // Control Plane & Zero-Trust Security
+  modules                TenantModule[]
+  devices                TenantDevice[]
+  allowedIps             TenantAllowedIp[]
+  securityPolicy         TenantSecurityPolicy?
+  platformAuditLogs      PlatformAuditLog[]
+  impersonationSessions  ImpersonationSession[]
+
   @@map("tenants")
 }
 
@@ -539,4 +547,205 @@ enum PaymentMethod {
 enum PaymentStatus {
   COMPLETED
   REFUNDED
+}
+
+// ==========================================
+// CONTROL PLANE & SUPERADMIN PLATFORM MODELS
+// ==========================================
+
+model PlatformAdmin {
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  passwordHash          String
+  firstName             String
+  lastName              String
+  role                  PlatformAdminRole      @default(SUPPORT_AGENT)
+  isActive              Boolean                @default(true)
+  twoFactorEnabled      Boolean                @default(false)
+  twoFactorSecret       String?
+  lastLoginAt           DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  approvedDevices       TenantDevice[]
+  auditLogs             PlatformAuditLog[]
+  impersonationSessions ImpersonationSession[]
+
+  @@map("platform_admins")
+}
+
+model PlatformModule {
+  id               String                 @id @default(uuid())
+  code             String                 @unique // e.g. CORE, INVENTORY, HR, ACCOUNTING, MARKETING, CLINICAL, PORTAL
+  name             String                 // e.g. 'Gelişmiş Stok Yönetimi'
+  description      String?
+  category         PlatformModuleCategory @default(OPERATIONS)
+  basePriceMonthly Decimal                @default(0)
+  basePriceYearly  Decimal                @default(0)
+  isCore           Boolean                @default(false)
+  isActive         Boolean                @default(true)
+  sortOrder        Int                    @default(0)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  tenantModules    TenantModule[]
+
+  @@map("platform_modules")
+}
+
+model TenantModule {
+  id         String             @id @default(uuid())
+  tenantId   String
+  moduleId   String
+  status     TenantModuleStatus @default(ACTIVE)
+  expiresAt  DateTime?
+  price      Decimal?
+  config     Json?              // e.g. quotas, custom parameters
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  module     PlatformModule     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, moduleId])
+  @@map("tenant_modules")
+}
+
+model TenantDevice {
+  id                String               @id @default(uuid())
+  tenantId          String
+  deviceIdentifier  String               // Unique hardware/browser fingerprint hash
+  deviceName        String               // e.g. 'Kasa iPad Pro', 'Resepsiyon PC'
+  deviceType        DeviceType           @default(TABLET)
+  osInfo            String?              // e.g. 'iOS 18.1', 'Windows 11'
+  browserInfo       String?              // e.g. 'Safari 18.0', 'Chrome 131'
+  lastIpAddress     String
+  status            DeviceApprovalStatus @default(PENDING)
+  approvedAt        DateTime?
+  approvedByAdminId String?              // Only PlatformAdmin (You or delegated admins)
+  rejectionReason   String?
+  lastActiveAt      DateTime             @default(now())
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvedByAdmin   PlatformAdmin?       @relation(fields: [approvedByAdminId], references: [id])
+
+  @@unique([tenantId, deviceIdentifier])
+  @@map("tenant_devices")
+}
+
+model TenantAllowedIp {
+  id        String   @id @default(uuid())
+  tenantId  String
+  branchId  String?  // Optional branch association
+  ipAddress String   // Single IP (88.255.12.34) or CIDR (88.255.12.0/24)
+  label     String   // e.g. 'Kadıköy Şube Sabit Wi-Fi'
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_allowed_ips")
+}
+
+model TenantSecurityPolicy {
+  id                      String                @id @default(uuid())
+  tenantId                String                @unique
+  ipRestrictionMode       IpRestrictionMode     @default(RELAXED)
+  deviceRestrictionMode   DeviceRestrictionMode @default(STRICT_BLOCK)
+  allowDoctorRemoteAccess Boolean               @default(true)
+  maxAllowedDevices       Int                   @default(10)
+  autoBlockOnExportSpike  Boolean               @default(true) // DLP anomaly guard
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  tenant                  Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_security_policies")
+}
+
+model PlatformAuditLog {
+  id              String         @id @default(uuid())
+  platformAdminId String?
+  tenantId        String?
+  action          String         // e.g. DEVICE_APPROVED, DEVICE_BLOCKED, MODULE_TOGGLED
+  targetEntity    String         // e.g. TenantDevice, TenantModule, Tenant
+  targetId        String?
+  ipAddress       String
+  userAgent       String?
+  details         Json?
+  createdAt       DateTime       @default(now())
+
+  platformAdmin   PlatformAdmin? @relation(fields: [platformAdminId], references: [id])
+  tenant          Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("platform_audit_logs")
+}
+
+model ImpersonationSession {
+  id                 String        @id @default(uuid())
+  platformAdminId    String
+  tenantId           String
+  ticketNumber       String        // e.g. '#VAL-1042'
+  reason             String        // Support reason
+  isCustomerApproved Boolean       @default(false)
+  startedAt          DateTime      @default(now())
+  endedAt            DateTime?
+  ipAddress          String
+
+  platformAdmin      PlatformAdmin @relation(fields: [platformAdminId], references: [id])
+  tenant             Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("impersonation_sessions")
+}
+
+enum PlatformAdminRole {
+  SUPER_ADMIN
+  SECURITY_ADMIN
+  SUPPORT_AGENT
+  BILLING_ADMIN
+}
+
+enum PlatformModuleCategory {
+  CORE
+  OPERATIONS
+  FINANCE
+  MARKETING
+  CLINICAL
+  INTELLIGENCE
+}
+
+enum TenantModuleStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  CANCELLED
+}
+
+enum DeviceType {
+  TABLET
+  MOBILE
+  DESKTOP
+  OTHER
+}
+
+enum DeviceApprovalStatus {
+  PENDING
+  APPROVED
+  BLOCKED
+  REVOKED
+}
+
+enum IpRestrictionMode {
+  DISABLED
+  RELAXED
+  STRICT
+}
+
+enum DeviceRestrictionMode {
+  DISABLED
+  ALERT_ONLY
+  STRICT_BLOCK
 }
